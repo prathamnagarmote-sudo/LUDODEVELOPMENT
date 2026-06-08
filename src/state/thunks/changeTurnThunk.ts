@@ -33,7 +33,7 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
         if (!isCaptured && !hasTokenReachedHome && diceNumber !== 6) {
           return setTimeout(() => dispatch(changeTurnThunk(moveAndCapture)), 1000);
         } else {
-          return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 1000);
+          return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 500);
         }
       }
 
@@ -44,7 +44,7 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
 
       if (bestToken.isLocked && !bestToken.hasTokenReachedHome && diceNumber === 6) {
         dispatch(unlockAndAlignTokens({ colour, id: bestToken.id }));
-        return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 1000);
+        return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 500);
       }
       const moveData = await moveAndCapture(bestToken, diceNumber);
       if (!moveData) return dispatch(changeTurnThunk(moveAndCapture));
@@ -53,7 +53,7 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
       if (!isCaptured && !hasTokenReachedHome && diceNumber !== 6) {
         return setTimeout(() => dispatch(changeTurnThunk(moveAndCapture)), 1000);
       } else {
-        return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 1000);
+        return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 500);
       }
     };
     dispatch(rollDiceThunk(colour, handleDiceRoll));

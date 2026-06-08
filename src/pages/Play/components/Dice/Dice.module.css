@@ -150,7 +150,7 @@
 
 /* Micro bounce/tumble inside tray */
 .dice.rolling .scene {
-  animation: sceneBounce 0.8s infinite ease-in-out, shadowBounce 0.8s infinite ease-in-out;
+  animation: sceneBounce 0.4s infinite ease-in-out, shadowBounce 0.4s infinite ease-in-out;
 }
 
 /* Cube container */
@@ -163,7 +163,7 @@
 }
 
 .rollingCube {
-  animation: spinCube 0.8s infinite linear;
+  animation: spinCube 0.4s infinite linear;
 }
 
 /* Cube faces */
@@ -257,7 +257,7 @@
     transform: rotateX(-12deg) rotateY(15deg) translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: rotateX(-12deg) rotateY(15deg) translate3d(0, -3px, 15px) scale(1.08);
+    transform: rotateX(-12deg) rotateY(15deg) translate3d(0, -15px, 0) scale(1.08);
   }
 }
 
@@ -266,7 +266,7 @@
     filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6));
   }
   50% {
-    filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.35));
+    filter: drop-shadow(0 15px 10px rgba(0, 0, 0, 0.25));
   }
 }
 
