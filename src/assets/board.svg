@@ -1,142 +1,160 @@
-<svg viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg">
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <filter id="ludoShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0.02" dy="0.03" stdDeviation="0.025" flood-color="#000000" flood-opacity="0.2"/>
-    </filter>
+    <linearGradient id="grad_red" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b30000" />
+      <stop offset="100%" stop-color="#800000" />
+    </linearGradient>
+    <linearGradient id="grad_green" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#008000" />
+      <stop offset="100%" stop-color="#004d00" />
+    </linearGradient>
+    <linearGradient id="grad_yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6b800" />
+      <stop offset="100%" stop-color="#997a00" />
+    </linearGradient>
+    <linearGradient id="grad_blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0000b3" />
+      <stop offset="100%" stop-color="#000080" />
+    </linearGradient>
+    <linearGradient id="grad_white" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e6e6e6" />
+    </linearGradient>
+    <linearGradient id="grad_gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4af37" />
+      <stop offset="100%" stop-color="#aa8c2c" />
+    </linearGradient>
+    <linearGradient id="grad_socket" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333333" />
+      <stop offset="100%" stop-color="#1a1a1a" />
+    </linearGradient>
   </defs>
-  <rect x="0" y="0" width="15" height="15" fill="#FAF9F6" />
-  <rect x="0" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="0" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="0" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="2" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="2" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="2" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="3" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="3" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="3" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="4" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="4" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="4" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="5" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="5" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="5" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="0" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="1" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="2" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="3" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="4" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="5" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="9" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="10" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="11" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="12" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="13" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="14" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="0" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="1" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="2" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="3" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="4" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="5" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="9" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="10" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="11" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="12" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="13" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="14" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="0" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="1" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="2" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="3" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="4" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="5" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="9" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="10" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="11" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="12" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="13" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="14" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="9" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="9" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="9" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="11" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="11" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="11" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="12" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="12" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="12" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="13" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="13" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="13" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="14" y="6" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="14" y="7" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="14" y="8" width="1" height="1" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1" y="7" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="2" y="7" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="3" y="7" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="4" y="7" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="5" y="7" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="1" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="2" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="3" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="4" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="5" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="9" y="7" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10" y="7" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="11" y="7" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="12" y="7" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="13" y="7" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="9" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="10" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="11" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="12" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="7" y="13" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1" y="6" width="1" height="1" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="8" y="1" width="1" height="1" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="13" y="8" width="1" height="1" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="6" y="13" width="1" height="1" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <path d="M 0,-0.32 L 0.09,-0.1 L 0.32,-0.1 L 0.14,0.07 L 0.22,0.32 L 0,0.16 L -0.22,0.32 L -0.14,0.07 L -0.32,-0.1 L -0.09,-0.1 Z" fill="none" stroke="#555555" stroke-width="0.04" stroke-linejoin="round" transform="translate(2.5, 8.5) scale(1.15)" />
-  <path d="M 0,-0.32 L 0.09,-0.1 L 0.32,-0.1 L 0.14,0.07 L 0.22,0.32 L 0,0.16 L -0.22,0.32 L -0.14,0.07 L -0.32,-0.1 L -0.09,-0.1 Z" fill="none" stroke="#555555" stroke-width="0.04" stroke-linejoin="round" transform="translate(6.5, 2.5) scale(1.15)" />
-  <path d="M 0,-0.32 L 0.09,-0.1 L 0.32,-0.1 L 0.14,0.07 L 0.22,0.32 L 0,0.16 L -0.22,0.32 L -0.14,0.07 L -0.32,-0.1 L -0.09,-0.1 Z" fill="none" stroke="#555555" stroke-width="0.04" stroke-linejoin="round" transform="translate(12.5, 6.5) scale(1.15)" />
-  <path d="M 0,-0.32 L 0.09,-0.1 L 0.32,-0.1 L 0.14,0.07 L 0.22,0.32 L 0,0.16 L -0.22,0.32 L -0.14,0.07 L -0.32,-0.1 L -0.09,-0.1 Z" fill="none" stroke="#555555" stroke-width="0.04" stroke-linejoin="round" transform="translate(8.5, 12.5) scale(1.15)" />
-  <!-- Start arrows -->
-  <path d="M -0.25,-0.1 L 0.05,-0.1 L 0.05,-0.22 L 0.3,0 L 0.05,0.22 L 0.05,0.1 L -0.25,0.1 Z" fill="#D9362B" transform="translate(0.5, 7.5) scale(0.9)" />
-  <path d="M -0.1,-0.25 L -0.1,0.05 L -0.22,0.05 L 0,0.3 L 0.22,0.05 L 0.1,0.05 L 0.1,-0.25 Z" fill="#1E9E49" transform="translate(7.5, 0.5) scale(0.9)" />
-  <path d="M 0.25,-0.1 L -0.05,-0.1 L -0.05,-0.22 L -0.3,0 L -0.05,0.22 L -0.05,0.1 L 0.25,0.1 Z" fill="#F4C41B" transform="translate(14.5, 7.5) scale(0.9)" />
-  <path d="M -0.1,0.25 L -0.1,-0.05 L -0.22,-0.05 L 0,-0.3 L 0.22,-0.05 L 0.1,-0.05 L 0.1,0.25 Z" fill="#1D8CCF" transform="translate(7.5, 14.5) scale(0.9)" />
-  <polygon points="6,6 9,6 7.5,7.5" fill="#1E9E49" stroke="#B9AA96" stroke-width="0.04" />
-  <polygon points="9,6 9,9 7.5,7.5" fill="#F4C41B" stroke="#B9AA96" stroke-width="0.04" />
-  <polygon points="6,9 9,9 7.5,7.5" fill="#1D8CCF" stroke="#B9AA96" stroke-width="0.04" />
-  <polygon points="6,6 6,9 7.5,7.5" fill="#D9362B" stroke="#B9AA96" stroke-width="0.04" />
-  <rect x="0" y="0" width="6" height="6" fill="#D9362B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1.0" y="1.0" width="4.0" height="4.0" rx="0.25" ry="0.25" fill="#FFFFFF" stroke="#D2D2D2" stroke-width="0.04" filter="url(#ludoShadow)" />
-  <circle cx="2.0" cy="2.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="4.0" cy="2.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="2.0" cy="4.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="4.0" cy="4.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <rect x="9" y="0" width="6" height="6" fill="#1E9E49" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10.0" y="1.0" width="4.0" height="4.0" rx="0.25" ry="0.25" fill="#FFFFFF" stroke="#D2D2D2" stroke-width="0.04" filter="url(#ludoShadow)" />
-  <circle cx="11.0" cy="2.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="13.0" cy="2.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="11.0" cy="4.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="13.0" cy="4.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <rect x="0" y="9" width="6" height="6" fill="#1D8CCF" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="1.0" y="10.0" width="4.0" height="4.0" rx="0.25" ry="0.25" fill="#FFFFFF" stroke="#D2D2D2" stroke-width="0.04" filter="url(#ludoShadow)" />
-  <circle cx="2.0" cy="11.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="4.0" cy="11.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="2.0" cy="13.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="4.0" cy="13.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <rect x="9" y="9" width="6" height="6" fill="#F4C41B" stroke="#CCCCCC" stroke-width="0.04" />
-  <rect x="10.0" y="10.0" width="4.0" height="4.0" rx="0.25" ry="0.25" fill="#FFFFFF" stroke="#D2D2D2" stroke-width="0.04" filter="url(#ludoShadow)" />
-  <circle cx="11.0" cy="11.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="13.0" cy="11.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="11.0" cy="13.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <circle cx="13.0" cy="13.0" r="0.45" fill="#FAF9F6" stroke="#CCCCCC" stroke-width="0.025" />
-  <rect x="0" y="0" width="15" height="15" fill="none" stroke="#CCCCCC" stroke-width="0.08" />
+  <rect width="600" height="600" fill="url(#grad_white)" />
+  <rect x="240.0" y="0.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="0.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="0.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="40.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="40.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="40.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="80.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="80.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="80.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="120.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="120.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="120.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="160.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="160.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="160.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="200.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="200.0" width="40.0" height="40.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="200.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="0.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="40.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="80.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="120.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="160.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="200.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="360.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="400.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="440.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="480.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="520.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="560.0" y="240.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="0.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="40.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="80.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="120.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="160.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="200.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <rect x="360.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="400.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="440.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="480.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="520.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="560.0" y="280.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="0.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="40.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="80.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="120.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="160.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="200.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="360.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="400.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="440.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="480.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="520.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <rect x="560.0" y="320.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="360.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="360.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="360.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="400.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="400.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="400.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="440.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="440.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="440.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="480.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="480.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="480.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="520.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="520.0" width="40.0" height="40.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="520.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="240.0" y="560.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="280.0" y="560.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <rect x="320.0" y="560.0" width="40.0" height="40.0" fill="url(#grad_white)" stroke="#404040" stroke-width="1" />
+  <polygon points="100.0,246.0 103.52671151375483,255.1458980337503 113.31479122813215,255.67376207875074 105.70633909777092,261.8541019662497 108.22899353209462,271.3262379212493 100.0,266.0 91.77100646790538,271.3262379212493 94.29366090222908,261.8541019662497 86.68520877186785,255.67376207875074 96.47328848624517,255.1458980337503" fill="url(#grad_gold)" />
+  <polygon points="60.0,326.0 63.52671151375484,335.1458980337503 73.31479122813215,335.6737620787507 65.70633909777092,341.8541019662497 68.22899353209462,351.3262379212493 60.0,346.0 51.77100646790538,351.3262379212493 54.29366090222908,341.8541019662497 46.68520877186785,335.6737620787507 56.47328848624516,335.1458980337503" fill="url(#grad_gold)" />
+  <polygon points="260.0,86.0 263.52671151375483,95.14589803375031 273.31479122813215,95.67376207875074 265.7063390977709,101.85410196624969 268.22899353209465,111.32623792124926 260.0,106.0 251.77100646790538,111.32623792124926 254.29366090222908,101.85410196624969 246.68520877186785,95.67376207875074 256.47328848624517,95.14589803375031" fill="url(#grad_gold)" />
+  <polygon points="340.0,46.0 343.52671151375483,55.14589803375031 353.31479122813215,55.673762078750734 345.7063390977709,61.85410196624969 348.22899353209465,71.32623792124926 340.0,66.0 331.77100646790535,71.32623792124926 334.2936609022291,61.85410196624969 326.68520877186785,55.67376207875074 336.47328848624517,55.14589803375031" fill="url(#grad_gold)" />
+  <polygon points="500.0,326.0 503.52671151375483,335.1458980337503 513.3147912281321,335.6737620787507 505.7063390977709,341.8541019662497 508.22899353209465,351.3262379212493 500.0,346.0 491.77100646790535,351.3262379212493 494.2936609022291,341.8541019662497 486.68520877186785,335.6737620787507 496.47328848624517,335.1458980337503" fill="url(#grad_gold)" />
+  <polygon points="540.0,246.0 543.5267115137549,255.1458980337503 553.3147912281321,255.67376207875074 545.7063390977709,261.8541019662497 548.2289935320946,271.3262379212493 540.0,266.0 531.7710064679054,271.3262379212493 534.2936609022291,261.8541019662497 526.6852087718678,255.67376207875074 536.4732884862451,255.1458980337503" fill="url(#grad_gold)" />
+  <polygon points="340.0,486.0 343.52671151375483,495.1458980337503 353.31479122813215,495.6737620787507 345.7063390977709,501.8541019662497 348.22899353209465,511.3262379212493 340.0,506.0 331.77100646790535,511.3262379212493 334.2936609022291,501.8541019662497 326.68520877186785,495.6737620787507 336.47328848624517,495.1458980337503" fill="url(#grad_gold)" />
+  <polygon points="260.0,526.0 263.52671151375483,535.1458980337503 273.31479122813215,535.6737620787508 265.7063390977709,541.8541019662497 268.22899353209465,551.3262379212492 260.0,546.0 251.77100646790538,551.3262379212492 254.29366090222908,541.8541019662497 246.68520877186785,535.6737620787508 256.47328848624517,535.1458980337503" fill="url(#grad_gold)" />
+  <rect x="0.0" y="0.0" width="240.0" height="240.0" fill="url(#grad_red)" stroke="#404040" stroke-width="2" />
+  <rect x="40.0" y="40.0" width="160.0" height="160.0" fill="url(#grad_white)" stroke="#d4af37" stroke-width="3" rx="20.0" ry="20.0" />
+  <circle cx="80.0" cy="80.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="80.0" cy="80.0" r="12.0" fill="url(#grad_red)" />
+  <circle cx="80.0" cy="160.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="80.0" cy="160.0" r="12.0" fill="url(#grad_red)" />
+  <circle cx="160.0" cy="80.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="160.0" cy="80.0" r="12.0" fill="url(#grad_red)" />
+  <circle cx="160.0" cy="160.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="160.0" cy="160.0" r="12.0" fill="url(#grad_red)" />
+  <rect x="360.0" y="0.0" width="240.0" height="240.0" fill="url(#grad_green)" stroke="#404040" stroke-width="2" />
+  <rect x="400.0" y="40.0" width="160.0" height="160.0" fill="url(#grad_white)" stroke="#d4af37" stroke-width="3" rx="20.0" ry="20.0" />
+  <circle cx="440.0" cy="80.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="440.0" cy="80.0" r="12.0" fill="url(#grad_green)" />
+  <circle cx="440.0" cy="160.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="440.0" cy="160.0" r="12.0" fill="url(#grad_green)" />
+  <circle cx="520.0" cy="80.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="520.0" cy="80.0" r="12.0" fill="url(#grad_green)" />
+  <circle cx="520.0" cy="160.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="520.0" cy="160.0" r="12.0" fill="url(#grad_green)" />
+  <rect x="360.0" y="360.0" width="240.0" height="240.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="2" />
+  <rect x="400.0" y="400.0" width="160.0" height="160.0" fill="url(#grad_white)" stroke="#d4af37" stroke-width="3" rx="20.0" ry="20.0" />
+  <circle cx="440.0" cy="440.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="440.0" cy="440.0" r="12.0" fill="url(#grad_yellow)" />
+  <circle cx="440.0" cy="520.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="440.0" cy="520.0" r="12.0" fill="url(#grad_yellow)" />
+  <circle cx="520.0" cy="440.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="520.0" cy="440.0" r="12.0" fill="url(#grad_yellow)" />
+  <circle cx="520.0" cy="520.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="520.0" cy="520.0" r="12.0" fill="url(#grad_yellow)" />
+  <rect x="0.0" y="360.0" width="240.0" height="240.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="2" />
+  <rect x="40.0" y="400.0" width="160.0" height="160.0" fill="url(#grad_white)" stroke="#d4af37" stroke-width="3" rx="20.0" ry="20.0" />
+  <circle cx="80.0" cy="440.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="80.0" cy="440.0" r="12.0" fill="url(#grad_blue)" />
+  <circle cx="80.0" cy="520.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="80.0" cy="520.0" r="12.0" fill="url(#grad_blue)" />
+  <circle cx="160.0" cy="440.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="160.0" cy="440.0" r="12.0" fill="url(#grad_blue)" />
+  <circle cx="160.0" cy="520.0" r="20.0" fill="url(#grad_socket)" stroke="#d4af37" stroke-width="2" />
+  <circle cx="160.0" cy="520.0" r="12.0" fill="url(#grad_blue)" />
+  <polygon points="240.0,240.0 240.0,360.0 300.0,300.0" fill="url(#grad_red)" stroke="#404040" stroke-width="1" />
+  <polygon points="240.0,240.0 360.0,240.0 300.0,300.0" fill="url(#grad_green)" stroke="#404040" stroke-width="1" />
+  <polygon points="360.0,240.0 360.0,360.0 300.0,300.0" fill="url(#grad_yellow)" stroke="#404040" stroke-width="1" />
+  <polygon points="240.0,360.0 360.0,360.0 300.0,300.0" fill="url(#grad_blue)" stroke="#404040" stroke-width="1" />
+  <circle cx="300.0" cy="300.0" r="48.0" fill="url(#grad_gold)" stroke="#404040" stroke-width="2" />
+  <circle cx="300.0" cy="300.0" r="40.0" fill="url(#grad_white)" />
+  <polygon points="300.0,268.0 308.22899353209465,288.6737620787507 330.4338085214449,290.1114561800017 313.31479122813215,304.3262379212493 318.80912807335915,325.8885438199983 300.0,314.0 281.19087192664085,325.8885438199983 286.68520877186785,304.3262379212493 269.5661914785551,290.1114561800017 291.77100646790535,288.6737620787507" fill="url(#grad_gold)" />
 </svg>

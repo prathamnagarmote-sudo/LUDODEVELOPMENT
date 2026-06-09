@@ -108,7 +108,13 @@ function Token({ colour, id, tokenClickData }: Props) {
         } as React.CSSProperties
       }
     >
-      <span className={clsx(styles.bouncer, { [styles.active]: isActive && !isCurrentlyFocused })}>
+      <span
+        key={`${coordinates.x}-${coordinates.y}`}
+        className={clsx(styles.bouncer, {
+          [styles.active]: isActive && !isCurrentlyFocused,
+          [styles.hopper]: !isActive,
+        })}
+      >
         <TokenImage
           className={styles.svg}
           aria-hidden="true"

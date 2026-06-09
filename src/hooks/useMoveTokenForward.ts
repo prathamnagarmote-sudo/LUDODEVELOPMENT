@@ -39,6 +39,9 @@ export const useMoveTokenForward = () => {
         let count = 0;
 
         const handleTransitionEnd = () => {
+          // Play wood step clack sound exactly on landing
+          playEngineSound();
+
           const hasTokenReachedHome = areCoordsEqual(tokenPath[i], tokenPath[tokenPath.length - 1]);
           if (count >= diceNumber || hasTokenReachedHome) {
             const player = players.find((p) => p.colour === colour);
@@ -59,13 +62,11 @@ export const useMoveTokenForward = () => {
           }
           i++;
           count++;
-          playEngineSound();
           dispatch(updateTokenPositionAndAlignmentThunk({ colour, id, newCoords: tokenPath[i] }));
         };
         // Trigger the first transition
         i++;
         count++;
-        playEngineSound();
         dispatch(updateTokenPositionAndAlignmentThunk({ colour, id, newCoords: tokenPath[i] }));
         tokenEl.addEventListener('transitionend', handleTransitionEnd);
       });
