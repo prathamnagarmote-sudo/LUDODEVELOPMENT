@@ -116,6 +116,15 @@ function PlayerSetup() {
             setIsSearching(false);
             setMatchFound(false);
             setCountdown(null);
+            navigate('/play', {
+              state: {
+                isOnline: false,
+                initData: [
+                  { name: currentUser?.userName || 'Player 1', isBot: false },
+                  { name: 'NovaRush', isBot: true }
+                ]
+              }
+            });
           } else if (counter === 0) {
             setCountdown("Let's Play!");
           } else {

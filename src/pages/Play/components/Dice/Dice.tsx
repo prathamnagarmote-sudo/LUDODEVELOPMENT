@@ -155,8 +155,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           {getPlayerScore(players.find((p) => p.colour === colour)!)}
         </div>
       </div>
-        </div>
-      </div>
       <div className={styles.diceWrapper}>
         <button
           className={clsx(styles.dice, {
