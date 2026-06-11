@@ -362,6 +362,10 @@ function Game({
           
           dispatch(setPlayerSequenceDirect(mappedSequence));
           dispatch(setGameStartTime(Date.now()));
+          
+          // Set match duration based on player count: 5 mins for 2P, 10 mins for 4P
+          const matchDurationMs = playersList.length === 2 ? 300000 : 600000;
+          dispatch(setMatchDuration(matchDurationMs));
 
           for (let i = 0; i < playersList.length; i++) {
             const p = playersList[i];
