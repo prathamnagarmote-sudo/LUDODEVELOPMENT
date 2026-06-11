@@ -13,10 +13,13 @@ import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
+import { getPlayerScore } from '../../../../game/score/logic';
 import TokenImage from '../../../../assets/token.svg?react';
 import styles from './Dice.module.css';
 import clsx from 'clsx';
 import { playDiceRollSound } from '../../../../utils/audio';
+import { useTurnTimer } from '../../../../hooks/useTurnTimer';
+import DiceTimerBorder from './DiceTimerBorder';
 
 const woodStainColours: Record<TPlayerColour, string> = {
   red: '#ba2b20',
@@ -60,6 +63,11 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     isPlaceholderShowing ||
     isBot;
 
+  const player = players.find((p) => p.colour === colour);
+  const missedTurns = player?.missedTurns ?? 0;
+
+  const { progressPercentage, phase, isCritical, shouldShowTimer } = useTurnTimer(colour, !isDiceDisabled);
+
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
@@ -88,6 +96,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     <div
       className={clsx(styles.diceContainer, styles[positionColour || colour], {
         [styles.activeContainer]: !isDiceDisabled,
+        [styles.criticalShake]: isCritical,
       })}
     >
       {isCurrentPlayer && (
@@ -97,42 +106,55 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           </svg>
         </div>
       )}
+      <DiceTimerBorder progressPercentage={progressPercentage} phase={phase} shouldShowTimer={shouldShowTimer} />
+      <div className={clsx(styles.missDots, styles[colour])}>
+        <span className={clsx(styles.dot, missedTurns >= 1 ? styles.missed : styles.active)} />
+        <span className={clsx(styles.dot, missedTurns >= 2 ? styles.missed : styles.active)} />
+        <span className={clsx(styles.dot, missedTurns >= 3 ? styles.missed : styles.active)} />
+      </div>
       <div className={styles.playerInfo}>
-        {hasAvatar ? (
-          <img
-            src={avatarUrl}
-            className={styles.playerAvatar}
-            alt={playerName}
-            style={
-              {
-                '--avatar-border-color': playerColours[colour],
-              } as React.CSSProperties
-            }
-          />
-        ) : (
-          <TokenImage
-            className={styles.miniToken}
-            aria-hidden="true"
-            style={
-              {
-                '--fill-colour': woodStainColours[colour],
-              } as React.CSSProperties
-            }
-          />
-        )}
-        <div className={styles.nameAndLevel}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className={styles.playerName}>{playerName.replace(' (Bot)', '')}</span>
-            {onlineContext?.isOnline && colour === onlineContext.myPlayerColour && (
-              <span style={{ fontSize: '9px', background: '#4caf50', color: 'white', padding: '2px 4px', borderRadius: '4px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1 }}>YOU</span>
-            )}
-            {isBot && (
-              <span style={{ fontSize: '9px', background: '#e53935', color: 'white', padding: '2px 4px', borderRadius: '4px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1 }}>BOT</span>
+        <div className={styles.playerNameRow}>
+          {hasAvatar ? (
+            <img
+              src={avatarUrl}
+              className={styles.playerAvatar}
+              alt={playerName}
+              style={
+                {
+                  '--avatar-border-color': playerColours[colour],
+                } as React.CSSProperties
+              }
+            />
+          ) : (
+            <TokenImage
+              className={styles.miniToken}
+              aria-hidden="true"
+              style={
+                {
+                  '--fill-colour': woodStainColours[colour],
+                } as React.CSSProperties
+              }
+            />
+          )}
+          <div className={styles.nameAndLevel}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className={styles.playerName}>{playerName.replace(' (Bot)', '')}</span>
+              {onlineContext?.isOnline && colour === onlineContext.myPlayerColour && (
+                <span style={{ fontSize: '9px', background: '#4caf50', color: 'white', padding: '2px 4px', borderRadius: '4px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1 }}>YOU</span>
+              )}
+              {isBot && (
+                <span style={{ fontSize: '9px', background: '#e53935', color: 'white', padding: '2px 4px', borderRadius: '4px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1 }}>BOT</span>
+              )}
+            </div>
+            {onlineContext?.isOnline && level !== undefined && (
+              <span className={styles.playerLevel}>Lv. {level}</span>
             )}
           </div>
-          {onlineContext?.isOnline && level !== undefined && (
-            <span className={styles.playerLevel}>Lv. {level}</span>
-          )}
+        </div>
+        <div className={styles.playerScore}>
+          {getPlayerScore(players.find((p) => p.colour === colour)!)}
+        </div>
+      </div>
         </div>
       </div>
       <div className={styles.diceWrapper}>

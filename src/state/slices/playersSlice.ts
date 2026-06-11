@@ -19,6 +19,7 @@ type TPlayerState = {
   playerSequence: TPlayerColour[];
   isAnyTokenMoving: boolean;
   isGameEnded: boolean;
+  isGameOver: boolean;
   playerFinishOrder: TPlayerNameAndColour[];
 };
 
@@ -28,6 +29,7 @@ export const initialState: TPlayerState = {
   playerSequence: [],
   isAnyTokenMoving: false,
   isGameEnded: false,
+  isGameOver: false,
   playerFinishOrder: [],
 };
 
@@ -71,6 +73,7 @@ const reducers = {
       level: action.payload.level,
       id: action.payload.id,
       userId: action.payload.userId,
+      missedTurns: 0,
     });
   },
 
@@ -156,6 +159,15 @@ const reducers = {
     player.numberOfConsecutiveSix = 0;
   },
 
+  incrementMissedTurns: (state: TPlayerState, action: PayloadAction<TPlayerColour>) => {
+    const player = getPlayer(state, action.payload);
+    player.missedTurns = (player.missedTurns || 0) + 1;
+    if (player.missedTurns >= 3) {
+      state.isGameEnded = true;
+      state.isGameOver = true;
+    }
+  },
+
   setIsAnyTokenMoving: (state: TPlayerState, action: PayloadAction<boolean>) => {
     state.isAnyTokenMoving = action.payload;
   },
@@ -234,6 +246,11 @@ const reducers = {
 
     state.isGameEnded = true;
   },
+  endGameDueToTimeout: (state: TPlayerState) => {
+    state.isGameEnded = true;
+    // Note: We don't populate playerFinishOrder here because the UI will instead use 
+    // getLeaderboardStandings() dynamically from the final state.
+  },
   clearPlayersState: () => initialState,
 };
 
@@ -254,6 +271,7 @@ export const {
   lockToken,
   incrementNumberOfConsecutiveSix,
   resetNumberOfConsecutiveSix,
+  incrementMissedTurns,
   setIsAnyTokenMoving,
   markTokenAsReachedHome,
   setTokenAlignmentData,
@@ -261,6 +279,7 @@ export const {
   convertPlayerToBot,
   setCurrentPlayerColour,
   declareForfeit,
+  endGameDueToTimeout,
   clearPlayersState,
 } = playersSlice.actions;
 

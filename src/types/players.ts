@@ -18,6 +18,7 @@ export type TPlayer = {
   level?: number;
   id?: string;
   userId?: string;
+  missedTurns: number;
 };
 
 export type TCoordinate = {

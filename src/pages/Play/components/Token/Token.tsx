@@ -47,7 +47,7 @@ function Token({ colour, id, tokenClickData }: Props) {
 
   const { scaleFactor } = tokenAlignmentData;
   const getPosition = useCoordsToPosition();
-  const { x, y } = getPosition(coordinates, tokenAlignmentData);
+  const { x, y } = getPosition(coordinates, tokenAlignmentData, isLocked);
   const diceNumber = useSelector((state: RootState) =>
     state.dice.dice.find((d) => d.colour === colour)
   )?.diceNumber;
@@ -124,6 +124,7 @@ function Token({ colour, id, tokenClickData }: Props) {
         {
           '--token-height': `${tokenHeight}px`,
           '--token-width': `${tokenWidth}px`,
+          '--fill-colour': woodStainColours[colour],
           transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor}) rotateX(-12deg) rotateY(5deg)`,
         } as React.CSSProperties
       }
@@ -138,11 +139,6 @@ function Token({ colour, id, tokenClickData }: Props) {
         <TokenImage
           className={styles.svg}
           aria-hidden="true"
-          style={
-            {
-              '--fill-colour': woodStainColours[colour],
-            } as React.CSSProperties
-          }
         />
       </span>
     </button>
