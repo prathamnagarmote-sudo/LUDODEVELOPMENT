@@ -15,7 +15,7 @@ export const initialState: TBoardState = {
 };
 
 export const NUMBER_OF_BLOCKS_IN_ONE_ROW = 15;
-export const TOKEN_WIDTH_HEIGHT_RATIO = 0.625;
+export const TOKEN_WIDTH_HEIGHT_RATIO = 0.814;
 
 const reducers = {
   resizeBoard: (state: TBoardState, action: PayloadAction<number>) => {
