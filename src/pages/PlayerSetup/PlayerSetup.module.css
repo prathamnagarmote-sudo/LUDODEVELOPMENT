@@ -7,7 +7,7 @@
   justify-content: center;
   align-items: center;
   position: relative;
-  background-color: #0b0222;
+  background: #0b0222 url('../../Atlas_Lobby/images/bg.png') no-repeat top center / cover;
   /* Very dark purple/blue from the image */
   overflow: hidden;
   font-family: 'Jua', sans-serif;
@@ -36,7 +36,7 @@
   width: 100%;
   max-width: 500px;
   min-height: 100vh;
-  padding: 40px 20px 20px;
+  padding: 120px 20px 20px;
   /* Reduced bottom padding */
   display: flex;
   flex-direction: column;
@@ -68,10 +68,15 @@
   width: 90%;
   max-width: 350px;
   margin-top: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 0px;
   /* Reduced to compensate for larger logo space */
   display: flex;
   justify-content: center;
+  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.searchingBlue {
+  transform: translateX(25px);
 }
 
 .profileBgImage {
@@ -116,7 +121,7 @@
   /* Span the available space */
   margin-right: 15px;
   /* Add gap before the avatar */
-  max-width: 140px;
+  max-width: 180px;
   /* Restrict to 10 character space */
   white-space: nowrap;
   overflow: hidden;
@@ -144,6 +149,18 @@
   z-index: 0;
 }
 
+.avatarGlowYellow {
+  position: absolute;
+  top: -15%;
+  left: -15%;
+  width: 130%;
+  height: 130%;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 0;
+  animation: glowPulse 2s infinite ease-in-out;
+}
+
 .avatarCircle {
   position: relative;
   width: 100%;
@@ -167,12 +184,13 @@
 
 .avatarImage {
   position: absolute;
+  top: 12.5%;
+  left: 12.5%;
   width: 75%;
   height: 75%;
   border-radius: 50%;
   object-fit: cover;
-  z-index: 1;
-  /* Below ring, above glow */
+  z-index: 4; /* Render above the ring so it's always visible */
   background-color: transparent;
 }
 
@@ -331,7 +349,7 @@
   /* For the shining effect */
   border-radius: 16px;
   /* Rough estimate of image border radius to keep shine inside */
-  margin-bottom: 0px;
+  margin-bottom: 40px;
   /* Reduced to stick to bottom */
   margin-top: auto;
   /* Push to the very bottom */
@@ -437,4 +455,363 @@
   /* Fixed width matching max-width to not stretch, just reveal */
   object-fit: cover;
   object-position: left;
+}
+
+.matchmakingArea {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+
+.profileContainerYellow {
+  position: relative;
+  width: 90%;
+  max-width: 350px;
+  margin-top: 0px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: center;
+  animation: slideInYellow 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.profileContentYellow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-direction: row; /* Avatar on left, text on right */
+  padding-left: 65px; /* Shift avatar right to align with background circle */
+  padding-right: 50px; /* text/name position shifted from edge */
+  padding-top: 18px; /* Bring the items down to the middle */
+  padding-bottom: 0px;
+  z-index: 2;
+}
+
+.playerNameYellow {
+  font-size: 24px;
+  font-weight: normal;
+  letter-spacing: 1px;
+  color: #000000;
+  text-shadow: none;
+  text-align: center;
+  flex: 1;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vsContainer {
+  position: relative;
+  width: 80px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: -45px;
+  margin-bottom: -45px;
+  z-index: 3;
+}
+
+.vsImage {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+  animation: vsHeroEntry 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, vsPulse 2s infinite ease-in-out 0.8s;
+}
+
+.vsAfterEffect {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 400%; /* Make it large enough */
+  height: auto;
+  object-fit: contain;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  z-index: 4;
+  animation: vsAfterEffectTimeline 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes vsAfterEffectTimeline {
+  0% {
+    transform: translate(-50%, -50%) scale(8);
+    opacity: 0;
+    filter: drop-shadow(0 0 35px rgba(0, 191, 255, 1)) brightness(2.5);
+  }
+  10% {
+    transform: translate(-50%, -50%) scale(7);
+    opacity: 1;
+    filter: drop-shadow(0 0 35px rgba(0, 191, 255, 1)) brightness(2.2);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 1;
+    filter: drop-shadow(-15px 15px 25px rgba(235, 59, 162, 0.9)) drop-shadow(15px -15px 25px rgba(30, 136, 229, 0.9)) brightness(1.8);
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(162, 59, 235, 0.8)) brightness(1.2);
+  }
+  80% {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 1;
+    filter: drop-shadow(0 0 45px rgba(255, 255, 255, 1)) drop-shadow(0 0 25px rgba(162, 59, 235, 1)) brightness(2.8);
+  }
+  95% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(162, 59, 235, 0.6)) brightness(1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 0;
+    filter: drop-shadow(0 0 10px rgba(162, 59, 235, 0.6)) brightness(1);
+  }
+}
+
+.countdownOverlay {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 100px;
+  font-weight: 900;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(180deg, #ffffff 30%, #a0a0a0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 20px rgba(0, 0, 0, 0.7));
+  animation: countdownNumberPop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes countdownNumberPop {
+  0% {
+    transform: translateX(-50%) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-50%) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+.letsPlayOverlay {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 64px;
+  font-weight: 900;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(180deg, #ffffff 30%, #a0a0a0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 25px rgba(255, 215, 0, 0.8));
+  animation: letsPlayWordPop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.5) forwards;
+  z-index: 10;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@keyframes letsPlayWordPop {
+  0% {
+    transform: translateX(-50%) scale(0.3) rotate(-5deg);
+    opacity: 0;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 5px rgba(255, 215, 0, 0.3));
+  }
+  50% {
+    transform: translateX(-50%) scale(1.2) rotate(3deg);
+    opacity: 1;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 35px rgba(255, 215, 0, 1));
+  }
+  100% {
+    transform: translateX(-50%) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+  }
+}
+
+.cancelSearchBtn {
+  background: linear-gradient(180deg, #e53935 0%, #b71c1c 100%);
+  border: 2px solid #ef5350;
+  border-radius: 16px;
+  padding: 12px 35px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+  transition: all 0.2s ease;
+  margin-top: auto;
+  margin-bottom: 40px;
+  z-index: 5;
+}
+
+.cancelSearchBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(229, 57, 53, 0.6);
+  filter: brightness(1.1);
+}
+
+.cancelSearchBtn:active {
+  transform: translateY(1px);
+}
+
+.signOutBtn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: rgba(229, 57, 53, 0.9);
+  border: 1.5px solid #ef5350;
+  color: white;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+}
+
+.signOutBtn:hover {
+  background: #e53935;
+  transform: scale(1.1);
+}
+
+.avatarPlaceholder {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  z-index: 4;
+}
+
+@keyframes vsPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 15px rgba(30, 136, 229, 0.6)); }
+}
+
+@keyframes countdownPulse {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.15); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+  }
+}
+
+@keyframes slideInYellow {
+  0% {
+    opacity: 0;
+    transform: translateY(50px) translateX(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0px) translateX(-25px);
+  }
+}
+
+@keyframes vsHeroEntry {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-180deg);
+    filter: brightness(2) drop-shadow(0 0 20px #a23beb);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.6) rotate(15deg);
+    filter: brightness(1.5) drop-shadow(0 0 30px #1e88e5);
+  }
+  80% {
+    transform: scale(0.9) rotate(-5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+  }
+}
+
+.scrollingAvatarsWrapper {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  overflow: hidden;
+  border-radius: 50%;
+  z-index: 4;
+}
+
+.scrollingAvatarsContainer {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  animation: avatarScrollUp 5s linear infinite;
+}
+
+.scrollingAvatarItem {
+  width: 100%;
+  height: 75px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+@keyframes avatarScrollUp {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-1500px); /* 20 avatars * 75px each = 1500px */
+  }
 }

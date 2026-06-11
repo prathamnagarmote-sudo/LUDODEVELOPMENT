@@ -7,16 +7,18 @@ import type { TPlayerInitData } from '../../types';
 function Play() {
   const cleanup = useCleanup();
   const location = useLocation();
-  const { initData } = (location.state as { initData: TPlayerInitData[] }) ?? {};
+  const state = (location.state as { initData: TPlayerInitData[] } & Record<string, unknown>) ?? {};
+  const { initData } = state;
   useEffect(() => {
     document.title = 'Play LibreLudo';
     return () => cleanup();
   }, [cleanup]);
-  return initData && initData?.length !== 0 ? (
-    <Game initData={initData} />
+  return (initData && initData?.length !== 0) || state.isOnline ? (
+    <Game {...state} />
   ) : (
     <Navigate to="/setup" />
   );
 }
 
 export default Play;
+

@@ -14,6 +14,10 @@ export type TPlayer = {
   numberOfConsecutiveSix: number;
   playerFinishTime: number;
   tokens: TToken[];
+  avatarUrl?: string;
+  level?: number;
+  id?: string;
+  userId?: string;
 };
 
 export type TCoordinate = {
@@ -25,6 +29,11 @@ export type TCoordinate = {
 export type TPlayerInitData = {
   isBot: boolean;
   name: string;
+  colour?: TPlayerColour;
+  id?: string;
+  avatarUrl?: string;
+  level?: number;
 };
+
 
 export type TPlayerCount = 'two' | 'three' | 'four';

@@ -79,6 +79,36 @@
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
+.playerAvatar {
+  width: calc(var(--board-tile-size) * 0.75);
+  height: calc(var(--board-tile-size) * 0.75);
+  border-radius: 50%;
+  border: 1.5px solid var(--avatar-border-color);
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.nameAndLevel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.dice-container.green .nameAndLevel,
+.dice-container.yellow .nameAndLevel {
+  align-items: flex-end;
+}
+
+.playerLevel {
+  font-size: calc(var(--board-tile-size) * 0.22);
+  color: #ffca28;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+
 .player-name {
   color: #ffffff;
   font-weight: 800;
