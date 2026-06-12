@@ -12,6 +12,8 @@ import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
+import { quitMatchThunk } from '../../../../state/thunks/quitMatchThunk';
+import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken';
 import TokenImage from '../../../../assets/token.svg?react';
 import styles from './Dice.module.css';
 import clsx from 'clsx';
@@ -47,7 +49,11 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
     () => isAnyTokenActiveOfColour(colour, players),
     [colour, players]
   );
-  const isBot = players.find((p) => p.colour === colour)?.isBot;
+  
+  const player = players.find((p) => p.colour === colour);
+  const isBot = player?.isBot;
+  const hasQuit = player?.hasQuit;
+  
   const isCurrentPlayer = currentPlayer === colour;
   const isDiceDisabled =
     !isCurrentPlayer ||
@@ -55,9 +61,9 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
     isAnyTokenMoving ||
     isGameEnded ||
     isPlaceholderShowing ||
-    isBot;
+    isBot ||
+    hasQuit;
 
-  const player = players.find((p) => p.colour === colour);
   const missedTurns = player?.missedTurns ?? 0;
 
   const { progressPercentage, phase, isCritical, shouldShowTimer } = useTurnTimer(colour, !isDiceDisabled);
@@ -76,6 +82,25 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDiceClick, isDiceDisabled]);
+
+  const moveAndCapture = useMoveAndCaptureToken();
+  const handleQuit = useCallback(() => {
+    if (window.confirm(`${playerName}, are you sure you want to surrender?`)) {
+      dispatch(quitMatchThunk(colour, moveAndCapture));
+    }
+  }, [playerName, dispatch, colour, moveAndCapture]);
+
+  if (hasQuit) {
+    return (
+      <div className={clsx(styles.diceContainer, styles[colour], styles.quitState)}>
+        <div className={styles.playerInfo}>
+          <div className={styles.playerNameRow}>
+            <span className={styles.playerName} style={{ color: '#888' }}>{playerName} (Quit)</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -102,6 +127,15 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
             }
           />
           <span className={styles.playerName}>{playerName}</span>
+          {!isBot && (
+            <button 
+              className={styles.quitButton} 
+              onClick={handleQuit} 
+              title="Surrender Match"
+            >
+              🏳️
+            </button>
+          )}
         </div>
         <div className={styles.playerScore}>
           {getPlayerScore(players.find((p) => p.colour === colour)!)}

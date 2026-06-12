@@ -15,6 +15,8 @@ export type TPlayer = {
   playerFinishTime: number;
   tokens: TToken[];
   missedTurns: number;
+  hasQuit: boolean;
+  avatarUrl?: string;
 };
 
 export type TCoordinate = {
@@ -26,6 +28,7 @@ export type TCoordinate = {
 export type TPlayerInitData = {
   isBot: boolean;
   name: string;
+  avatarUrl?: string;
 };
 
 export type TPlayerCount = 'two' | 'three' | 'four';

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { registerNewPlayer, setPlayerSequence } from '../../../../state/slices/playersSlice';
+import { registerNewPlayer, setPlayerSequence, forceEndGameAsQuit } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
 import { useDispatch, useSelector } from 'react-redux';
@@ -88,7 +88,15 @@ function Game({ initData }: Props) {
     dispatch(handlePostDiceRollThunk(colour, diceNumber, moveAndCapture));
   };
 
-  const handleExitBtnClick = () => navigate('/');
+  const handleExitBtnClick = () => {
+    if (window.confirm('Are you sure you want to surrender and end the match?')) {
+      if (currentPlayerColour) {
+        dispatch(forceEndGameAsQuit(currentPlayerColour));
+      } else {
+        navigate('/');
+      }
+    }
+  };
 
   return (
     <div
