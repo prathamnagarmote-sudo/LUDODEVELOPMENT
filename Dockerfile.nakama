@@ -1,0 +1,3 @@
+FROM heroiclabs/nakama:latest
+EXPOSE 7349 7350 7351
+ENTRYPOINT ["/bin/sh", "-ecx", "/nakama/nakama migrate up --database.address ${NAKAMA_DATABASE_ADDRESS} && exec /nakama/nakama --name nakama1 --database.address ${NAKAMA_DATABASE_ADDRESS}"]
