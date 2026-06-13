@@ -70,17 +70,27 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
 const InitModule: nkruntime.InitModule = function(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
   logger.info("Nakama Ludo Server Logic Initialized");
   
-  initializer.registerMatch('ludo_match', {
-    matchInit,
-    matchJoinAttempt,
-    matchJoin,
-    matchLeave,
-    matchLoop,
-    matchTerminate,
-    matchSignal
-  });
+  try {
+    initializer.registerMatch('ludo_match', {
+      matchInit,
+      matchJoinAttempt,
+      matchJoin,
+      matchLeave,
+      matchLoop,
+      matchTerminate,
+      matchSignal
+    });
+    logger.info("Match registered successfully");
+  } catch (e) {
+    logger.error("Error registering match: %v", e);
+  }
 
-  initializer.registerMatchmakerMatched(matchmakerMatched);
+  try {
+    initializer.registerMatchmakerMatched(matchmakerMatched);
+    logger.info("Matchmaker matched callback registered successfully");
+  } catch (e) {
+    logger.error("Error registering matchmaker matched: %v", e);
+  }
 };
 
 export default InitModule;
