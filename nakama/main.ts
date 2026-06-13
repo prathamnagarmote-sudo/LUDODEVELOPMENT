@@ -93,4 +93,4 @@ const InitModule: nkruntime.InitModule = function(ctx: nkruntime.Context, logger
   }
 };
 
-export default InitModule;
+export { InitModule };
