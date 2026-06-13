@@ -1,3 +1,4 @@
+/// <reference types="nakama-runtime" />
 export const matchInit = function(
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,

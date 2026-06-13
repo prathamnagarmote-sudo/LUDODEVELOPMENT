@@ -1,3 +1,4 @@
+/// <reference types="nakama-runtime" />
 import { matchInit, matchJoinAttempt, matchJoin, matchLeave, matchLoop, matchTerminate, matchSignal } from './match';
 
 const REALISTIC_BOTS = [
@@ -82,5 +83,4 @@ const InitModule: nkruntime.InitModule = function(ctx: nkruntime.Context, logger
   initializer.registerMatchmakerMatched(matchmakerMatched);
 };
 
-// Reference InitModule to avoid it being removed by bundler
-!InitModule && InitModule.bind(null);
+export { InitModule };
