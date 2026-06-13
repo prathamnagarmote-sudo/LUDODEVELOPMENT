@@ -15,17 +15,22 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
   matches: nkruntime.MatchmakerResult[]
 ): string | void {
   try {
-    logger.info("Matchmaker matched! %v", matches);
-    
-    const matchPlayers: any[] = [];
-    const firstMatchProperties = matches[0].properties || {};
-    const rawSize = firstMatchProperties.matchsize || firstMatchProperties.matchSize;
-    const size = rawSize ? parseInt(rawSize as string) : 4;
+    logger.info("=== MATCHMAKER MATCHED CALLED === matched count: %v", matches.length);
 
-    matches.forEach(function(m) {
+    const matchPlayers: any[] = [];
+
+    // Always use the number of matched users as size (2 for 1v1)
+    const size = 2;
+
+    logger.info("Building player list from %v real players, target size: %v", matches.length, size);
+
+    matches.forEach(function(m, idx) {
       const props = m.properties || {};
-      const rawAvatarUrl = props.avatarurl || props.avatarUrl || '';
-      const rawLevel = props.level || '';
+      // Log every field of the presence to debug userId issues
+      logger.info("Player[%v]: sessionId=%v, userId=%v, username=%v", 
+        idx, m.presence.sessionId, m.presence.userId, m.presence.username);
+
+      const rawAvatarUrl = (props as any).avatarurl || (props as any).avatarUrl || (props as any).avatar_url || '';
 
       matchPlayers.push({
         id: m.presence.sessionId,
@@ -33,10 +38,11 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
         isBot: false,
         name: m.presence.username || ('Player ' + (matchPlayers.length + 1)),
         avatarUrl: rawAvatarUrl,
-        level: rawLevel ? parseInt(rawLevel as string) : 1
+        level: 1
       });
     });
 
+    // Fill remaining slots with bots if needed
     let botIndex = 0;
     while (matchPlayers.length < size) {
       const botProfile = REALISTIC_BOTS[botIndex % REALISTIC_BOTS.length];
@@ -64,30 +70,20 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
       };
     });
 
+    logger.info("Final players for match: %v", JSON.stringify(finalPlayers));
+
     const matchId = nk.matchCreate('ludo_match', { players: JSON.stringify(finalPlayers) });
-    logger.info("Match created: %v", matchId);
+    logger.info("=== MATCH CREATED SUCCESSFULLY: %v ===", matchId);
     return matchId;
   } catch (e: any) {
-    const errMsg = e?.message || e?.error || String(e);
-    logger.error("Error in matchmakerMatched: %v", errMsg);
-    try {
-      nk.storageWrite([{
-        collection: "debug",
-        key: "matchmaking_error",
-        userId: "00000000-0000-0000-0000-000000000000",
-        value: { error: errMsg, timestamp: Date.now() },
-        permissionRead: 2,
-        permissionWrite: 0
-      }]);
-    } catch (writeErr) {
-      logger.error("Failed to write debug error: %v", writeErr);
-    }
-    return;
+    const errMsg = e?.message || e?.error || JSON.stringify(e) || String(e);
+    logger.error("=== ERROR in matchmakerMatched: %v ===", errMsg);
+    return; // returning void causes Nakama to send relay token to clients — do NOT do this
   }
 };
 
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
-  logger.info("Nakama Ludo Server Logic Initialized");
+  logger.info("Nakama Ludo Server Logic Initialized v2");
   
   initializer.registerMatch('ludo_match', {
     matchInit,

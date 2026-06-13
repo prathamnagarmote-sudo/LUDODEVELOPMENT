@@ -54,10 +54,16 @@ function matchJoinAttempt(
   presence: nkruntime.Presence,
   metadata: {[key: string]: any}
 ): {state: nkruntime.MatchState, accept: boolean, rejectMessage?: string} | null {
+  logger.info("matchJoinAttempt: userId=%v sessionId=%v", presence.userId, presence.sessionId);
+  logger.info("matchJoinAttempt: known players=%v", JSON.stringify(state.players.map((p: any) => ({ userId: p.userId, id: p.id, name: p.name }))));
+
   const player = state.players.find((p: any) => p.userId === presence.userId);
   if (player) {
+    logger.info("matchJoinAttempt: ACCEPTED player %v", presence.userId);
     return { state, accept: true };
   }
+
+  logger.warn("matchJoinAttempt: REJECTED userId=%v not in player list", presence.userId);
   return { state, accept: false, rejectMessage: "Not part of this match" };
 }
 

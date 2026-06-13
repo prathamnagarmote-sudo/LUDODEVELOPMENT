@@ -150,6 +150,14 @@ function PlayerSetup() {
         const activeSocket = await ensureSocketConnected();
 
         activeSocket.onmatchmakermatched = (matched: MatchmakerMatched) => {
+          // DEBUGGING: log the full matched object
+          console.log("=== MATCHMAKER MATCHED ===");
+          console.log("matched.match_id:", matched.match_id);
+          console.log("matched.token:", matched.token);
+          console.log("matched.ticket:", matched.ticket);
+          console.log("matched.self:", matched.self);
+          console.log("matched.users:", matched.users);
+
           // Find the opponent presence in 2 player match
           const opponent = matched.users.find(
             (u) => u.presence.session_id !== matched.self.presence.session_id
