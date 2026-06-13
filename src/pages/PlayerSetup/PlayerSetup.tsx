@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
-import { authenticate, getNakamaSocket, getSession, disconnectSocket } from '../../services/nakama';
+import { authenticate, getNakamaSocket, getSession, disconnectSocket, ensureSocketConnected } from '../../services/nakama';
 import type { MatchmakerMatched } from '@heroiclabs/nakama-js';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -136,9 +136,8 @@ function PlayerSetup() {
       return () => clearTimeout(timer);
     }
 
-    let socket;
     try {
-      socket = getNakamaSocket();
+      getNakamaSocket();
     } catch (e) {
       toast.error("Nakama connection lost. Redirecting to login.");
       setIsSearching(false);
@@ -148,7 +147,9 @@ function PlayerSetup() {
 
     const startMatchmaking = async () => {
       try {
-        socket.onmatchmakermatched = (matched: MatchmakerMatched) => {
+        const activeSocket = await ensureSocketConnected();
+
+        activeSocket.onmatchmakermatched = (matched: MatchmakerMatched) => {
           // Find the opponent presence in 2 player match
           const opponent = matched.users.find(
             (u) => u.presence.session_id !== matched.self.presence.session_id
@@ -186,7 +187,7 @@ function PlayerSetup() {
           }, 1000);
         };
 
-        const res = await socket.addMatchmaker(
+        const res = await activeSocket.addMatchmaker(
           '*',
           2,
           2,

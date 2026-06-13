@@ -34,6 +34,19 @@ export const authenticate = async (userId: string, username?: string): Promise<S
   return session;
 };
 
+export const ensureSocketConnected = async (): Promise<Socket> => {
+  if (!session) {
+    throw new Error("Nakama session not initialized. Please authenticate first.");
+  }
+  if (!socket) {
+    socket = client.createSocket(useSSL, false);
+    await socket.connect(session, true);
+  } else if (!(socket as any).socket || (socket as any).socket.readyState !== WebSocket.OPEN) {
+    await socket.connect(session, true);
+  }
+  return socket;
+};
+
 export const getNakamaSocket = (): Socket => {
   if (!socket) {
     throw new Error("Nakama socket not initialized. Please authenticate first.");
