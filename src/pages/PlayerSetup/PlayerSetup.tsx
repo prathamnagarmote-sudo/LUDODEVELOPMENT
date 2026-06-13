@@ -165,6 +165,11 @@ function PlayerSetup() {
           setMatchFound(true);
           setCountdown(3);
 
+          // CRITICAL: Clear ticket BEFORE navigating so the useEffect cleanup
+          // does NOT call removeMatchmaker (which would break the server match)
+          ticketRef.current = '';
+          setMatchmakerTicket('');
+
           let counter = 3;
           const countInterval = setInterval(() => {
             counter--;
@@ -173,8 +178,7 @@ function PlayerSetup() {
               navigate('/play', {
                 state: {
                   isOnline: true,
-                  matchId: matched.match_id,
-                  matchedToken: matched.token,
+                  matchId: matched.match_id,  // Use match_id for authoritative match
                   myPlayerId: matched.self.presence.session_id,
                   myUserId: getSession()?.user_id || currentUser?.userId,
                   canonicalColour: 'blue'

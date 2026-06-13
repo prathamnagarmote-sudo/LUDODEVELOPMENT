@@ -30,7 +30,7 @@ import { useGameTimer } from '../../../../hooks/useGameTimer';
 import ScoreBoard from '../ScoreBoard/ScoreBoard';
 import styles from './Game.module.css';
 import menuIcon from '../../../../assets/menu.svg';
-import { getNakamaSocket } from '../../../../services/nakama';
+import { getNakamaSocket, ensureSocketConnected } from '../../../../services/nakama';
 import { toast } from 'react-toastify';
 import { selectBestTokenForBot } from '../../../../game/bot/selectBestTokenForBot';
 import { isTokenMovable } from '../../../../game/tokens/logic';
@@ -436,14 +436,18 @@ function Game({
       if (matchJoinedRef.current) return;
       matchJoinedRef.current = true;
       try {
+        // Ensure socket is alive before joining (it may have briefly dropped during React navigation)
+        const liveSocket = await ensureSocketConnected();
         console.log("Attempting to join match. matchId:", matchId, "matchedToken:", matchedToken);
         let match;
-        if (matchedToken) {
-          console.log("Joining via matchmaking token:", matchedToken);
-          match = await socket.joinMatch(undefined, matchedToken);
-        } else if (matchId) {
+        if (matchId) {
+          // Authoritative match — always join via match_id
           console.log("Joining via matchId:", matchId);
-          match = await socket.joinMatch(matchId);
+          match = await liveSocket.joinMatch(matchId);
+        } else if (matchedToken) {
+          // Relay match fallback — join via token
+          console.log("Joining via matchmaking token:", matchedToken);
+          match = await liveSocket.joinMatch(undefined, matchedToken);
         } else {
           throw new Error("No match ID or matchmaking token provided.");
         }
