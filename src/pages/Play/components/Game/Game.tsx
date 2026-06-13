@@ -204,12 +204,12 @@ function Game({
       try {
         console.log("Attempting to join match. matchId:", matchId, "matchedToken:", matchedToken);
         let match;
-        if (matchId) {
-          console.log("Joining via matchId:", matchId);
-          match = await socket.joinMatch(matchId);
-        } else if (matchedToken) {
+        if (matchedToken) {
           console.log("Joining via matchmaking token:", matchedToken);
           match = await socket.joinMatch(undefined, matchedToken);
+        } else if (matchId) {
+          console.log("Joining via matchId:", matchId);
+          match = await socket.joinMatch(matchId);
         } else {
           throw new Error("No match ID or matchmaking token provided.");
         }

@@ -44,6 +44,9 @@ function GameFinishedScreen({ players }: Props) {
           exit={{ scale: 0.9, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
+          <Link className={styles.closeBtn} to="/" title="Back to Lobby">
+            ✕
+          </Link>
           <span className={`${styles.gameFinishedText} ${isGameOver ? styles.gameOverText : ''}`}>
             {isGameOver ? 'GAME OVER!' : 'GAME FINISHED!'}
           </span>
