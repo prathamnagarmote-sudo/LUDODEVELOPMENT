@@ -85,12 +85,12 @@ function Game({
   const gameInactiveStartTime = useRef(0);
   const navigate = useNavigate();
   const moveAndCapture = useMoveAndCaptureToken();
-  usePageLeaveBlocker(!isGameEnded && import.meta.env.PROD);
   useGameTimer();
 
   const [roomId, setRoomId] = useState<string>('');
   const [myPlayerColour, setMyPlayerColour] = useState<TPlayerColour>(canonicalColour || 'blue');
   const [isMatchJoined, setIsMatchJoined] = useState(!isOnline);
+  usePageLeaveBlocker(isMatchJoined && !isGameEnded && import.meta.env.PROD);
   const [localSessionId, setLocalSessionId] = useState<string>('');
   const matchJoinedRef = useRef(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
