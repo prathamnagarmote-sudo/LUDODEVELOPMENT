@@ -170,10 +170,8 @@ function PlayerSetup() {
               }
               const payload = JSON.parse(atob(base64));
               console.log("JWT payload:", payload);
-              // Nakama puts match_id as 'mid' in the token payload
-              const mid = payload.mid as string;
-              if (mid) return mid.endsWith('.') ? mid.slice(0, -1) + '.nakama' : mid;
-              return undefined;
+              // Nakama puts match_id as 'mid' in the token payload. Return exactly as-is.
+              return payload.mid as string;
             } catch (e) {
               console.error("Failed to decode token for matchId:", e);
               return undefined;
