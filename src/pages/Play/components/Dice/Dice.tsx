@@ -77,10 +77,19 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     if (isDiceDisabled) return;
     playDiceRollSound();
     if (onlineContext?.isOnline) {
-      // Always send OpCode 3 (dice roll request) — the HOST handles all dice logic centrally.
-      // This eliminates the double-processing bug where host was running rollDiceThunk
-      // AND receiving its own OpCode 8 broadcast back from the relay server.
-      getNakamaSocket().sendMatchState(onlineContext.roomId, 3, '{}');
+      if (onlineContext.amHost) {
+        // Host: generate the roll and broadcast OpCode 8 directly.
+        // All clients (including host itself via relay loopback) apply the result.
+        // Do NOT call rollDiceThunk — wait for OpCode 8 loopback to apply state.
+        const roll = Math.floor(Math.random() * 6) + 1;
+        getNakamaSocket().sendMatchState(onlineContext.roomId, 8, JSON.stringify({
+          colour,
+          roll,
+        }));
+      } else {
+        // Non-host: ask the host to roll for the current player
+        getNakamaSocket().sendMatchState(onlineContext.roomId, 3, '{}');
+      }
     } else {
       dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber)));
     }

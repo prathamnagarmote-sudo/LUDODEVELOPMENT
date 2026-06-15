@@ -378,7 +378,14 @@ function Game({
       console.log('[HOST] Executing token move:', colour, data.id, 'isUnlock:', data.isUnlock);
 
       if (data.isUnlock) {
-        // Broadcast the unlock result to all clients
+        // HOST: apply the unlock locally (allClientsApplyTokenMove skips the host)
+        dispatch(setIsAnyTokenMoving(true));
+        setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
+        dispatch(unlockAndAlignTokens({ colour, id: data.id }));
+        dispatch(deactivateAllTokens(colour));
+        setTimeout(() => dispatch(setIsAnyTokenMoving(false)), FORWARD_TOKEN_TRANSITION_TIME);
+
+        // Broadcast unlock result to ALL non-host clients
         socket.sendMatchState(currentRoomId, 9, JSON.stringify({
           colour,
           id: data.id,
