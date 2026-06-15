@@ -8,6 +8,7 @@ import styles from './GameFinishedScreen.module.css';
 import ResultSplashScreen from './ResultSplashScreen';
 import LeaderboardScreen from './LeaderboardScreen';
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 type Props = {
   players: TPlayer[];
@@ -16,6 +17,7 @@ type Props = {
 function GameFinishedScreen({ players }: Props) {
   const { isGameOver } = useSelector((state: RootState) => state.players);
   const standings = getLeaderboardStandings(players);
+  const inactivePlayer = players.find(p => p.missedTurns >= 3);
   const [showSplash, setShowSplash] = useState(true);
 
   // In local pass-and-play, if Player 1 (Red) wins, show "You Win!", else show "You Lose!"
@@ -49,10 +51,20 @@ function GameFinishedScreen({ players }: Props) {
           exit={{ scale: 0.9, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
+          <Link className={styles.closeBtn} to="/" title="Back to Lobby">
+            ✕
+          </Link>
           {showSplash ? (
             <ResultSplashScreen text={splashText} />
           ) : (
-            <LeaderboardScreen standings={standings} isTie={isTie} />
+            <>
+              <LeaderboardScreen standings={standings} isTie={isTie} />
+              {isGameOver && inactivePlayer && (
+                <div className={styles.gameOverSubtext}>
+                  <p className={styles.inactiveReason}>{inactivePlayer.name} missed 3 chances to roll!</p>
+                </div>
+              )}
+            </>
           )}
         </motion.div>
       </motion.div>

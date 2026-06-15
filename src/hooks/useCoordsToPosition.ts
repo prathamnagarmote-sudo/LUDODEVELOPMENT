@@ -6,18 +6,19 @@ import { useCallback } from 'react';
 
 export const useCoordsToPosition = (): ((
   coords: TCoordinate,
-  tokenAlignmentData: TTokenAlignmentData,
-  isLocked?: boolean
+  tokenAlignmentData: TTokenAlignmentData
 ) => { x: string; y: string }) => {
   const store = useStore<RootState>();
   return useCallback(
-    (coords: TCoordinate, tokenAlignmentData: TTokenAlignmentData, isLocked: boolean = false) => {
+    (coords: TCoordinate, tokenAlignmentData: TTokenAlignmentData) => {
       const { boardTileSize, tokenHeight, tokenWidth } = store.getState().board;
       const { xOffset, yOffset } = tokenAlignmentData;
-      const tileCenterX = coords.x * boardTileSize + boardTileSize / 2;
-      const tileCenterY = coords.y * boardTileSize + boardTileSize / 2;
+
+      const tileCenterX = (coords.x + 0.5) * boardTileSize;
+      const tileCenterY = (coords.y + 0.5) * boardTileSize;
+
       const x = `${tileCenterX - tokenWidth / 2 + xOffset * boardTileSize}px`;
-      const yOffsetFactor = isLocked ? 0.80 : 0.65;
+      const yOffsetFactor = 0.88;
       const y = `${tileCenterY - tokenHeight * yOffsetFactor + yOffset * boardTileSize}px`;
       return { x, y };
     },

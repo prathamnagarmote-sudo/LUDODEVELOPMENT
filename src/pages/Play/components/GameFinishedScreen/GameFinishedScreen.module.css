@@ -114,3 +114,22 @@
   letter-spacing: 2px;
   text-align: center;
 }
+
+.closeBtn {
+  position: absolute;
+  top: calc(var(--board-tile-size) * 0.3);
+  right: calc(var(--board-tile-size) * 0.4);
+  font-size: calc(var(--board-tile-size) * 0.7);
+  color: #888;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+  line-height: 1;
+  font-weight: bold;
+}
+
+.closeBtn:hover,
+.closeBtn:focus-visible {
+  color: #333;
+  transform: scale(1.1);
+}

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: nakama-server
+    env: docker
+    dockerfilePath: Dockerfile.nakama
+    envVars:
+      - key: NAKAMA_DATABASE_ADDRESS
+        fromDatabase:
+          name: nakama-db
+          property: connectionString
+
+databases:
+  - name: nakama-db
+    databaseName: nakama
+    user: nakama

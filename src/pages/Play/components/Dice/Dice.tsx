@@ -4,39 +4,39 @@ import dice3 from '../../../../assets/dice/3.svg';
 import dice4 from '../../../../assets/dice/4.svg';
 import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
 import { useDispatch, useSelector } from 'react-redux';
+import { OnlineGameContext } from '../Game/Game';
+import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
-import { useNavigate } from 'react-router-dom';
-import { quitMatchThunk } from '../../../../state/thunks/quitMatchThunk';
-import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken';
 import TokenImage from '../../../../assets/token.svg?react';
 import styles from './Dice.module.css';
 import clsx from 'clsx';
 import { playDiceRollSound } from '../../../../utils/audio';
 import { useTurnTimer } from '../../../../hooks/useTurnTimer';
-import DiceTimerBorder from './DiceTimerBorder';
 
 const woodStainColours: Record<TPlayerColour, string> = {
-  red: '#ba2b20',
-  green: '#26632f',
-  blue: '#1b4b8f',
-  yellow: '#c28b17',
+  red: 'url(#token-grad-red)',
+  green: 'url(#token-grad-green)',
+  blue: 'url(#token-grad-blue)',
+  yellow: 'url(#token-grad-yellow)',
 };
 
 type Props = {
   colour: TPlayerColour;
   playerName: string;
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
+  positionColour?: TPlayerColour;
 };
 
-function Dice({ colour, onDiceClick, playerName }: Props) {
+function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const dispatch = useDispatch<AppDispatch>();
+  const onlineContext = useContext(OnlineGameContext);
   const {
     isAnyTokenMoving,
     isGameEnded,
@@ -46,34 +46,41 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
   const { diceNumber, isPlaceholderShowing } =
     useSelector((state: RootState) => state.dice.dice.find((d) => d.colour === colour)) ?? {};
 
+  // Find if any player's dice is currently rolling
+  const rollingPlayer = useSelector((state: RootState) =>
+    state.dice.dice.find((d) => d.isVisualRolling)?.colour
+  );
+
   const anyTokenActive = useMemo(
     () => isAnyTokenActiveOfColour(colour, players),
     [colour, players]
   );
-  
-  const player = players.find((p) => p.colour === colour);
-  const isBot = player?.isBot;
-  const hasQuit = player?.hasQuit;
-  
+  const isBot = players.find((p) => p.colour === colour)?.isBot;
   const isCurrentPlayer = currentPlayer === colour;
+  const isVisualCurrentPlayer = (rollingPlayer || currentPlayer) === colour;
+  const isMyTurn = onlineContext?.isOnline ? colour === onlineContext.myPlayerColour : true;
   const isDiceDisabled =
     !isCurrentPlayer ||
+    !isMyTurn ||
     anyTokenActive ||
     isAnyTokenMoving ||
     isGameEnded ||
     isPlaceholderShowing ||
-    isBot ||
-    hasQuit;
+    isBot;
 
-  const missedTurns = player?.missedTurns ?? 0;
-
-  const { progressPercentage, phase, isCritical, shouldShowTimer } = useTurnTimer(colour, !isDiceDisabled);
+  const timerPathRef = useRef<SVGPathElement>(null);
+  const isDiceRollAllowed = !anyTokenActive && !isAnyTokenMoving && !isPlaceholderShowing;
+  const { phase, isCritical, shouldShowTimer } = useTurnTimer(colour, isDiceRollAllowed, timerPathRef);
 
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
-    dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber)));
-  }, [colour, dispatch, isDiceDisabled, onDiceClick]);
+    if (onlineContext?.isOnline) {
+      getNakamaSocket().sendMatchState(onlineContext.roomId, 3, "{}");
+    } else {
+      dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber)));
+    }
+  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -84,47 +91,29 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDiceClick, isDiceDisabled]);
 
-  const moveAndCapture = useMoveAndCaptureToken();
-  const navigate = useNavigate();
-  const handleQuit = useCallback(() => {
-    if (window.confirm(`${playerName}, are you sure you want to surrender?`)) {
-      if (players.length === 2) {
-        dispatch(quitMatchThunk(colour, moveAndCapture));
-      } else {
-        navigate('/');
-      }
-    }
-  }, [playerName, navigate, players.length, dispatch, colour, moveAndCapture]);
+  const playerObj = players.find((p) => p.colour === colour);
+  const missedTurns = playerObj?.missedTurns ?? 0;
+  const avatarUrl = playerObj?.avatarUrl;
+  const hasAvatar = !!avatarUrl;
 
-  if (hasQuit) {
-    return (
-      <div className={clsx(styles.diceContainer, styles[colour], styles.quitState)}>
-        <div className={styles.playerInfo}>
-          <div className={styles.playerNameRow}>
-            <span className={styles.playerName} style={{ color: '#888' }}>{playerName} (Quit)</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const actualPosition = positionColour || colour;
+  const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
-  return (
-    <div
-      className={clsx(styles.diceContainer, styles[colour], {
-        [styles.activeContainer]: !isDiceDisabled,
-        [styles.criticalShake]: isCritical,
-      })}
-    >
-      <DiceTimerBorder progressPercentage={progressPercentage} phase={phase} shouldShowTimer={shouldShowTimer} />
-      <div className={clsx(styles.missDots, styles[colour])}>
-        <span className={clsx(styles.dot, missedTurns >= 1 ? styles.missed : styles.active)} />
-        <span className={clsx(styles.dot, missedTurns >= 2 ? styles.missed : styles.active)} />
-        <span className={clsx(styles.dot, missedTurns >= 3 ? styles.missed : styles.active)} />
-      </div>
-      <div className={styles.playerInfo}>
-        <div className={styles.playerNameRow}>
+  const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
+
+  const avatarContent = (
+    <div className={styles.avatarContainerWrapper}>
+      <div className={clsx(styles.avatarFrameWrapper, styles[colour])}>
+        {hasAvatar ? (
+          <img
+            src={avatarUrl}
+            className={styles.playerAvatar}
+            alt={playerName}
+            draggable={false}
+          />
+        ) : (
           <TokenImage
-            className={styles.miniToken}
+            className={clsx(styles.emptyAvatar, styles.miniToken)}
             aria-hidden="true"
             style={
               {
@@ -132,21 +121,61 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
               } as React.CSSProperties
             }
           />
-          <span className={styles.playerName}>{playerName}</span>
-          {!isBot && (
-            <button 
-              className={styles.quitButton} 
-              onClick={handleQuit} 
-              title="Surrender Match"
-            >
-              🏳️
-            </button>
-          )}
-        </div>
-        <div className={styles.playerScore}>
-          {getPlayerScore(players.find((p) => p.colour === colour)!)}
-        </div>
+        )}
       </div>
+      <svg 
+        className={styles.avatarTimerSvg}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        {/* Background white border track */}
+        <path
+          d="M 50 2.25 L 72 2.25 A 25.75 25.75 0 0 1 97.75 28 L 97.75 72 A 25.75 25.75 0 0 1 72 97.75 L 28 97.75 A 25.75 25.75 0 0 1 2.25 72 L 2.25 28 A 25.75 25.75 0 0 1 28 2.25 Z"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={shouldShowTimer ? "7.5" : "4.5"}
+          style={{ transition: 'stroke-width 0.3s ease' }}
+        />
+        {/* Active timer colored border line */}
+        {shouldShowTimer && (
+          <path
+            ref={timerPathRef}
+            d="M 50 2.25 L 72 2.25 A 25.75 25.75 0 0 1 97.75 28 L 97.75 72 A 25.75 25.75 0 0 1 72 97.75 L 28 97.75 A 25.75 25.75 0 0 1 2.25 72 L 2.25 28 A 25.75 25.75 0 0 1 28 2.25 Z"
+            fill="none"
+            stroke={timerColor}
+            strokeWidth="7.5"
+            strokeLinecap="round"
+            strokeDasharray="337.792"
+            strokeDashoffset="0"
+            style={{ transition: 'stroke 0.3s ease' }}
+          />
+        )}
+      </svg>
+    </div>
+  );
+
+  const nameAndScoreContent = (
+    <div className={styles.nameAndScoreWrapper}>
+      <div className={styles.playerNameRow}>
+        <span className={styles.playerName}>{playerName.replace(' (Bot)', '')}</span>
+        {onlineContext?.isOnline && colour === onlineContext.myPlayerColour && (
+          <span className={styles.badgeYou}>YOU</span>
+        )}
+        {isBot && (
+          <span className={styles.badgeBot}>BOT</span>
+        )}
+      </div>
+      <div className={styles.playerScore}>
+        {(() => {
+          const score = getPlayerScore(players.find((p) => p.colour === colour)!);
+          return score >= 100 ? String(score) : String(score).padStart(2, '0');
+        })()}
+      </div>
+    </div>
+  );
+
+  const diceContent = (
+    <div className={clsx(styles.diceFrameContainer, styles[colour], { [styles.activeFrame]: isVisualCurrentPlayer })}>
       <div className={styles.diceWrapper}>
         <button
           className={clsx(styles.dice, {
@@ -196,6 +225,70 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
       </div>
     </div>
   );
+
+  const lifelinesContent = (
+    <div className={styles.lifelinesRow}>
+      <div className={clsx(styles.lifelineDot, missedTurns >= 3 ? styles.lost : styles.active)} />
+      <div className={clsx(styles.lifelineDot, missedTurns >= 2 ? styles.lost : styles.active)} />
+      <div className={clsx(styles.lifelineDot, missedTurns >= 1 ? styles.lost : styles.active)} />
+    </div>
+  );
+
+  return (
+    <div
+      className={clsx(
+        styles.diceContainer,
+        styles[positionColour || colour],
+        styles[`phase${phase}`],
+        isLeftOriented ? styles.leftOriented : styles.rightOriented,
+        {
+          [styles.activeContainer]: !isDiceDisabled,
+          [styles.criticalShake]: isCritical,
+        }
+      )}
+    >
+      <svg className={styles.lShapeBg} viewBox="0 0 200 120" preserveAspectRatio="none">
+        {isLeftOriented ? (
+          <path
+            d="M 12 0 H 188 A 12 12 0 0 1 200 12 V 76 A 12 12 0 0 1 188 88 H 112 A 12 12 0 0 0 100 100 V 108 A 12 12 0 0 1 88 120 H 12 A 12 12 0 0 1 0 108 V 12 A 12 12 0 0 1 12 0 Z"
+            className={styles.lShapePath}
+          />
+        ) : (
+          <path
+            d="M 12 0 H 188 A 12 12 0 0 1 200 12 V 108 A 12 12 0 0 1 188 120 H 112 A 12 12 0 0 1 100 108 V 100 A 12 12 0 0 0 88 88 H 12 A 12 12 0 0 1 0 76 V 12 A 12 12 0 0 1 12 0 Z"
+            className={styles.lShapePath}
+          />
+        )}
+      </svg>
+
+
+      
+      {isLeftOriented ? (
+        <>
+          <div className={styles.profileColumn}>
+            {avatarContent}
+            {nameAndScoreContent}
+          </div>
+          <div className={styles.diceColumn}>
+            {diceContent}
+            {lifelinesContent}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={styles.diceColumn}>
+            {diceContent}
+            {lifelinesContent}
+          </div>
+          <div className={styles.profileColumn}>
+            {avatarContent}
+            {nameAndScoreContent}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default Dice;
+

@@ -54,6 +54,10 @@ const reducers = {
       name: string;
       colour: TPlayerColour;
       isBot: boolean;
+      avatarUrl?: string;
+      level?: number;
+      id?: string;
+      userId?: string;
     }>
   ) => {
     const player = state.players.find((p) => p.colour === action.payload.colour);
@@ -65,6 +69,10 @@ const reducers = {
       tokens: genLockedTokens(action.payload.colour),
       numberOfConsecutiveSix: 0,
       playerFinishTime: -1,
+      avatarUrl: action.payload.avatarUrl,
+      level: action.payload.level,
+      id: action.payload.id,
+      userId: action.payload.userId,
       missedTurns: 0,
       hasQuit: false,
     });
@@ -194,6 +202,51 @@ const reducers = {
     const token = getToken(state, action.payload.colour, action.payload.id);
     token.tokenAlignmentData = action.payload.newAlignmentData;
   },
+  setPlayerSequenceDirect: (
+    state: TPlayerState,
+    action: PayloadAction<TPlayerColour[]>
+  ) => {
+    state.playerSequence = action.payload;
+  },
+  convertPlayerToBot: (
+    state: TPlayerState,
+    action: PayloadAction<{ colour: TPlayerColour }>
+  ) => {
+    const player = state.players.find((p) => p.colour === action.payload.colour);
+    if (player) {
+      player.isBot = true;
+      if (!player.name.includes('(Bot)')) {
+        player.name += ' (Bot)';
+      }
+    }
+  },
+  setCurrentPlayerColour: (
+    state: TPlayerState,
+    action: PayloadAction<TPlayerColour>
+  ) => {
+    state.currentPlayerColour = action.payload;
+  },
+  declareForfeit: (
+    state: TPlayerState,
+    action: PayloadAction<{ losingColour: TPlayerColour }>
+  ) => {
+    if (state.isGameEnded) return;
+    
+    const losingPlayer = state.players.find((p) => p.colour === action.payload.losingColour);
+    if (!losingPlayer) return;
+
+    const remainingPlayers = state.players.filter(
+      (p) => p.colour !== action.payload.losingColour && !state.playerFinishOrder.some((f) => f.colour === p.colour)
+    );
+
+    remainingPlayers.forEach((p) => {
+      state.playerFinishOrder.push({ name: p.name, colour: p.colour });
+    });
+
+    state.playerFinishOrder.push({ name: losingPlayer.name, colour: losingPlayer.colour });
+
+    state.isGameEnded = true;
+  },
   endGameDueToTimeout: (state: TPlayerState) => {
     state.isGameEnded = true;
     // Note: We don't populate playerFinishOrder here because the UI will instead use 
@@ -238,6 +291,10 @@ export const {
   setIsAnyTokenMoving,
   markTokenAsReachedHome,
   setTokenAlignmentData,
+  setPlayerSequenceDirect,
+  convertPlayerToBot,
+  setCurrentPlayerColour,
+  declareForfeit,
   endGameDueToTimeout,
   quitMatch,
   forceEndGameAsQuit,
@@ -245,3 +302,4 @@ export const {
 } = playersSlice.actions;
 
 export default playersSlice.reducer;
+
