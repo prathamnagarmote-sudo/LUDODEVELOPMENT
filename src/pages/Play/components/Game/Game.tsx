@@ -644,6 +644,13 @@ function Game({
     }
   };
 
+  // Determine if the local player is the host (lowest session_id alphabetically)
+  const amHostValue = useMemo(() => {
+    if (!matchedUsers || matchedUsers.length === 0) return false;
+    const allSessionIds = matchedUsers.map(u => u.presence.session_id).sort();
+    return allSessionIds[0] === (localSessionId || myPlayerId || '');
+  }, [matchedUsers, localSessionId, myPlayerId]);
+
   if (isOnline && !isMatchJoined) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0b0222', color: '#ffca28', fontFamily: 'Jua, sans-serif' }}>
