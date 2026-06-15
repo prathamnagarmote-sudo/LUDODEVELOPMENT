@@ -211,6 +211,39 @@ function Game({
 
     const getEffectivePlayerId = () => localSessionId || myPlayerId || '';
 
+    // Monkeypatch sendMatchState to simulate local loopback for the sender.
+    // Nakama relay match sendMatchState does not send the message back to the sender,
+    // but our game architecture assumes all clients (including host/sender) process match state.
+    const originalSendMatchState = socket.sendMatchState.bind(socket);
+    socket.sendMatchState = async (matchId, opCode, data, presences) => {
+      // Send to other players
+      try {
+        await originalSendMatchState(matchId, opCode, data, presences);
+      } catch (err) {
+        console.error(`[SOCKET] sendMatchState error for OpCode ${opCode}:`, err);
+      }
+
+      // Simulate local loopback
+      if (socket.onmatchdata) {
+        const fakeMatchData = {
+          match_id: matchId,
+          op_code: opCode,
+          data: new TextEncoder().encode(data),
+          presence: {
+            session_id: getEffectivePlayerId(),
+            user_id: myUserId || '',
+            username: '',
+          }
+        };
+        setTimeout(() => {
+          if (socket.onmatchdata) {
+            console.log(`[LOCAL-LOOPBACK] Simulating match data event for OpCode ${opCode}`);
+            socket.onmatchdata(fakeMatchData);
+          }
+        }, 0);
+      }
+    };
+
     // ─── Game Initialization ───────────────────────────────────────────────────
     const initializeGame = (playersList: any[]) => {
       if (!playersRegisteredInitiallyRef.current) return;
@@ -642,6 +675,7 @@ function Game({
 
     return () => {
       socket.onmatchdata = () => {};
+      socket.sendMatchState = originalSendMatchState; // Restore original sendMatchState
       if (requestInterval) clearInterval(requestInterval);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
