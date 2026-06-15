@@ -23,6 +23,7 @@ import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
 import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken';
 import type { TPlayerInitData, TToken } from '../../../../types';
 import { useNavigate } from 'react-router-dom';
+import { quitMatchThunk } from '../../../../state/thunks/quitMatchThunk';
 import { playerCountToWord } from '../../../../game/players/logic';
 import { usePageLeaveBlocker } from '../../../../hooks/usePageLeaveBlocker';
 import { addToGameInactiveTime, setGameStartTime, setMatchDuration } from '../../../../state/slices/sessionSlice';
@@ -608,12 +609,20 @@ function Game({
   };
 
   const handleExitBtnClick = () => {
-    if (isOnline && roomId) {
-      try {
-        getNakamaSocket().sendMatchState(roomId, 7, "{}");
-      } catch (e) {}
+    if (isOnline) {
+      if (roomId) {
+        try {
+          getNakamaSocket().sendMatchState(roomId, 7, "{}");
+        } catch (e) {}
+      }
+      navigate('/setup');
+    } else {
+      if (players.length === 2 && currentPlayerColour) {
+        dispatch(quitMatchThunk(currentPlayerColour, moveAndCapture));
+      } else {
+        navigate('/');
+      }
     }
-    navigate('/setup');
   };
 
   if (isOnline && !isMatchJoined) {
