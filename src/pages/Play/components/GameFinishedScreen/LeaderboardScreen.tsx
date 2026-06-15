@@ -15,6 +15,7 @@ import TokenImage from '../../../../assets/token.svg?react';
 
 type Props = {
   standings: TLeaderboardStanding[];
+  isTie?: boolean;
 };
 
 const woodStainColours: Record<string, string> = {
@@ -24,7 +25,7 @@ const woodStainColours: Record<string, string> = {
   yellow: '#c28b17',
 };
 
-function LeaderboardScreen({ standings }: Props) {
+function LeaderboardScreen({ standings, isTie }: Props) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
@@ -47,7 +48,7 @@ function LeaderboardScreen({ standings }: Props) {
     >
       <h1 className={styles.title}>Leaderboard</h1>
 
-      {winner && (
+      {!isTie && winner && (
         <div className={styles.winnerSection}>
           <img src={crownImage} alt="Crown" className={styles.crown} />
           <div className={styles.winnerAvatarContainer}>
@@ -61,6 +62,12 @@ function LeaderboardScreen({ standings }: Props) {
           </div>
           <h2 className={styles.winnerName}>{winner.name}</h2>
           <p className={styles.winnerScore}>{winner.score}</p>
+        </div>
+      )}
+
+      {isTie && (
+        <div className={styles.winnerSection} style={{ padding: '30px 0', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <h2 className={styles.winnerName} style={{ fontSize: '1.8rem', color: '#ffeb3b', margin: 0, textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>Match Tied</h2>
         </div>
       )}
 
@@ -87,7 +94,9 @@ function LeaderboardScreen({ standings }: Props) {
                     />
                   )}
                 </div>
-                <span className={styles.rowName}>{standing.name}</span>
+                <span className={styles.rowName}>
+                  {standing.name}
+                </span>
               </div>
               <span className={styles.scoreCol}>{standing.score}</span>
             </div>

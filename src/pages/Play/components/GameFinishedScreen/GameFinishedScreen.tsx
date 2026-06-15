@@ -18,11 +18,12 @@ function GameFinishedScreen({ players }: Props) {
   const standings = getLeaderboardStandings(players);
   const [showSplash, setShowSplash] = useState(true);
 
-  // Determine the splash text
   // In local pass-and-play, if Player 1 (Red) wins, show "You Win!", else show "You Lose!"
   // If the game ended early (all missed turns), it's a loss.
-  const isPlayer1Winner = standings[0] && standings[0].colour === 'red';
-  const splashText = isGameOver ? 'GAME OVER!' : (isPlayer1Winner ? 'You Win!' : 'You Lose!');
+  // Tie Handling: If original game was 2 players, and neither quit, and scores match.
+  const isTie = players.length === 2 && standings.length === 2 && standings[0].score === standings[1].score;
+  const isHumanWinner = standings[0] && !standings[0].isBot;
+  const splashText = isGameOver ? 'GAME OVER!' : (isTie ? "It's a Tie!" : (isHumanWinner ? 'You Win!' : 'You Lose!'));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -51,7 +52,7 @@ function GameFinishedScreen({ players }: Props) {
           {showSplash ? (
             <ResultSplashScreen text={splashText} />
           ) : (
-            <LeaderboardScreen standings={standings} />
+            <LeaderboardScreen standings={standings} isTie={isTie} />
           )}
         </motion.div>
       </motion.div>

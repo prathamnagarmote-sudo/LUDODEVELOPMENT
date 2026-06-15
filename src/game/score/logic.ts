@@ -67,7 +67,6 @@ export function getLeaderboardStandings(players: TPlayer[]): TLeaderboardStandin
         rank: players.length,
       };
     }
-
     if (index > 0 && standing.score < standings[index - 1].score) {
       currentRank = index + 1;
     }

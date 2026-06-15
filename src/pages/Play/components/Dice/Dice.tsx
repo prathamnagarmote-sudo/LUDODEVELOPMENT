@@ -12,6 +12,7 @@ import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
+import { useNavigate } from 'react-router-dom';
 import { quitMatchThunk } from '../../../../state/thunks/quitMatchThunk';
 import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken';
 import TokenImage from '../../../../assets/token.svg?react';
@@ -84,11 +85,16 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
   }, [handleDiceClick, isDiceDisabled]);
 
   const moveAndCapture = useMoveAndCaptureToken();
+  const navigate = useNavigate();
   const handleQuit = useCallback(() => {
     if (window.confirm(`${playerName}, are you sure you want to surrender?`)) {
-      dispatch(quitMatchThunk(colour, moveAndCapture));
+      if (players.length === 2) {
+        dispatch(quitMatchThunk(colour, moveAndCapture));
+      } else {
+        navigate('/');
+      }
     }
-  }, [playerName, dispatch, colour, moveAndCapture]);
+  }, [playerName, navigate, players.length, dispatch, colour, moveAndCapture]);
 
   if (hasQuit) {
     return (

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { registerNewPlayer, setPlayerSequence, forceEndGameAsQuit } from '../../../../state/slices/playersSlice';
+import { registerNewPlayer, setPlayerSequence } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,6 +11,7 @@ import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
 import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken';
 import type { TPlayerInitData } from '../../../../types';
 import { useNavigate } from 'react-router-dom';
+import { quitMatchThunk } from '../../../../state/thunks/quitMatchThunk';
 import { playerCountToWord } from '../../../../game/players/logic';
 import { usePageLeaveBlocker } from '../../../../hooks/usePageLeaveBlocker';
 import { addToGameInactiveTime, setGameStartTime, setMatchDuration } from '../../../../state/slices/sessionSlice';
@@ -90,8 +91,8 @@ function Game({ initData }: Props) {
 
   const handleExitBtnClick = () => {
     if (window.confirm('Are you sure you want to surrender and end the match?')) {
-      if (currentPlayerColour) {
-        dispatch(forceEndGameAsQuit(currentPlayerColour));
+      if (players.length === 2 && currentPlayerColour) {
+        dispatch(quitMatchThunk(currentPlayerColour, moveAndCapture));
       } else {
         navigate('/');
       }
