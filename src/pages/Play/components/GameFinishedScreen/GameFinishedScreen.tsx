@@ -1,6 +1,6 @@
 import type { TPlayer } from '../../../../types';
 import Confetti from 'react-confetti';
-import { useWindowSize } from 'react-use';
+import { useMeasure } from 'react-use';
 import GameFinishPlayerItem from '../GameFinishPlayerItem/GameFinishPlayerItem';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -14,7 +14,7 @@ type Props = {
 };
 
 function GameFinishedScreen({ players }: Props) {
-  const { width, height } = useWindowSize();
+  const [ref, { width, height }] = useMeasure<HTMLDivElement>();
   const { isGameOver } = useSelector((state: RootState) => state.players);
   const inactivePlayer = players.find((p) => p.missedTurns >= 3);
   const standings = getLeaderboardStandings(players);
@@ -28,7 +28,7 @@ function GameFinishedScreen({ players }: Props) {
 
   return (
     <AnimatePresence>
-      <motion.div className={styles.gameFinishedScreen}>
+      <motion.div className={styles.gameFinishedScreen} ref={ref}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.7 }}
@@ -36,7 +36,13 @@ function GameFinishedScreen({ players }: Props) {
           transition={{ duration: 0.2 }}
           className={styles.gameFinishedBackdrop}
         />
-        {!isGameOver && <Confetti width={width} height={height} style={{ zIndex: 20 }} />}
+        {!isGameOver && width > 0 && (
+          <Confetti
+            width={width}
+            height={height}
+            style={{ zIndex: 9999, position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+          />
+        )}
         <motion.div
           className={styles.gameFinishedDialog}
           initial={{ opacity: 0, scale: 0.9 }}

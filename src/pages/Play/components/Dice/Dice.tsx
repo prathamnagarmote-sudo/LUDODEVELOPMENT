@@ -70,7 +70,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat || e.key.toLowerCase() !== 'd' || isDiceDisabled) return;
+      if (e.repeat || (e.key.toLowerCase() !== 'd' && e.key !== ' ') || isDiceDisabled) return;
       handleDiceClick();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -114,7 +114,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
             [styles.rolling]: isPlaceholderShowing,
           })}
           tabIndex={isDiceDisabled ? -1 : undefined}
-          title={!isDiceDisabled ? 'Roll Dice (Press D)' : undefined}
+          title={!isDiceDisabled ? 'Roll Dice (Press D or Space)' : undefined}
           disabled={isDiceDisabled}
           style={{ '--player-colour': playerColours[colour] } as React.CSSProperties}
           type="button"

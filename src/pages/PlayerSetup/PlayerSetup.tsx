@@ -64,6 +64,17 @@ function PlayerSetup() {
     navigate('/play', { state: { initData: playerInitData } });
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' && matchFound && playerCount !== null) {
+        e.preventDefault();
+        handlePlayBtnClick();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [matchFound, playerCount, navigate]);
+
   return (
     <div className={styles.playerSetup}>
       {/* Background Spotlight */}
