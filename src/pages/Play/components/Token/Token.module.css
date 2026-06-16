@@ -13,6 +13,9 @@
   width: calc(var(--token-width));
   transition: transform var(--token-transition-time) var(--token-transition-timing-fn);
   transform-style: preserve-3d;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .token * {
   user-select: none;

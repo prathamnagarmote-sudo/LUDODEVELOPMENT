@@ -100,6 +100,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
+  const showRollArrow = isCurrentPlayer && !anyTokenActive && !isAnyTokenMoving && !isGameEnded && !isPlaceholderShowing;
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>
@@ -285,6 +286,48 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             {nameAndScoreContent}
           </div>
         </>
+      )}
+      {showRollArrow && (
+        <div className={styles.woodenArrowWrapper}>
+          <svg
+            className={styles.woodenArrow}
+            viewBox="0 0 40 60"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient id="brightWoodGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#FFF2D4" />
+                <stop offset="35%" stopColor="#FFC87A" />
+                <stop offset="70%" stopColor="#FF9F43" />
+                <stop offset="100%" stopColor="#D35400" />
+              </linearGradient>
+              <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+                <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#000000" floodOpacity="0.6" />
+              </filter>
+            </defs>
+            <g filter="url(#dropShadow)">
+              {/* 3D Extrusion Side */}
+              <path
+                d="M 20 8 L 36 26 H 28 V 56 H 12 V 26 H 4 Z"
+                fill="#933A00"
+              />
+              {/* Main Arrow Face */}
+              <path
+                d="M 20 4 L 35 23 H 27 V 53 H 13 V 23 H 5 Z"
+                fill="url(#brightWoodGrad)"
+                stroke="#6E2200"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+              {/* Grain lines */}
+              <path d="M 15 30 L 15 48" stroke="#B25300" strokeWidth="1" strokeLinecap="round" />
+              <path d="M 25 32 L 25 45" stroke="#B25300" strokeWidth="1" strokeLinecap="round" />
+              <path d="M 20 28 L 20 50" stroke="#B25300" strokeWidth="1" strokeLinecap="round" />
+              <path d="M 20 6 L 31 21 H 25 V 51 H 15 V 21 H 9 Z" stroke="#FFFFFF" strokeOpacity="0.75" strokeWidth="1.2" strokeLinejoin="round" />
+            </g>
+          </svg>
+        </div>
       )}
     </div>
   );

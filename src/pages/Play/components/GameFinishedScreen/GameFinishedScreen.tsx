@@ -36,7 +36,7 @@ function GameFinishedScreen({ players }: Props) {
           transition={{ duration: 0.2 }}
           className={styles.gameFinishedBackdrop}
         />
-        {!isGameOver && <Confetti width={width} height={height} style={{ zIndex: 20 }} />}
+        {!isGameOver && <Confetti width={width} height={height} style={{ zIndex: 220 }} />}
         <motion.div
           className={styles.gameFinishedDialog}
           initial={{ opacity: 0, scale: 0.9 }}

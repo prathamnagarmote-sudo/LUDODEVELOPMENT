@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: row;
   width: calc(var(--board-tile-size) * 5.1);
-  height: calc(var(--board-tile-size) * 3.5);
+  height: calc(var(--board-tile-size) * 3.75);
   box-sizing: border-box;
   z-index: 50;
   user-select: none;
@@ -22,6 +22,11 @@
   pointer-events: none;
   overflow: visible;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+.red .lShapeBg,
+.green .lShapeBg {
+  transform: scaleY(-1);
 }
 
 .lShapePath {
@@ -103,7 +108,12 @@
 .diceColumn {
   justify-content: flex-start;
   padding-top: calc(var(--board-tile-size) * 0.35);
-  gap: calc(var(--board-tile-size) * 0.05);
+  gap: calc(var(--board-tile-size) * 0.2);
+}
+
+.red .diceColumn,
+.green .diceColumn {
+  padding-top: calc(var(--board-tile-size) * 1.35);
 }
 
 .leftOriented .diceColumn {
@@ -243,6 +253,7 @@
   letter-spacing: 0.5px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
   line-height: 1;
+  transform: translateY(-6px);
 }
 
 .badgeYou {
@@ -280,32 +291,37 @@
   z-index: 10;
 }
 
+.diceFrameContainer.activeFrame {
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.22) 0%, transparent 80%);
+  transition: all 0.3s ease;
+}
+
 .diceFrameContainer.activeFrame.red {
   --bg-color: #b30006;
   --glow-color: #ff4d4d;
+  --glow-rgb: 255, 77, 77;
   border: 2.5px solid var(--glow-color);
-  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
 }
 
 .diceFrameContainer.activeFrame.blue {
   --bg-color: #005fa7;
   --glow-color: #00e5ff;
+  --glow-rgb: 0, 229, 255;
   border: 2.5px solid var(--glow-color);
-  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
 }
 
 .diceFrameContainer.activeFrame.green {
   --bg-color: #08852f;
   --glow-color: #00ff4d;
+  --glow-rgb: 0, 255, 77;
   border: 2.5px solid var(--glow-color);
-  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
 }
 
 .diceFrameContainer.activeFrame.yellow {
   --bg-color: #ffa012;
   --glow-color: #ffff00;
+  --glow-rgb: 255, 255, 0;
   border: 2.5px solid var(--glow-color);
-  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
 }
 
 .activeContainer .diceFrameContainer.activeFrame {
@@ -314,11 +330,19 @@
 
 @keyframes diceFramePulse {
   0% {
-    box-shadow: 0 0 4px var(--glow-color), inset 0 0 4px var(--glow-color);
+    box-shadow: 
+      0 0 6px rgba(var(--glow-rgb), 0.6), 
+      inset 0 0 6px rgba(var(--glow-rgb), 0.6),
+      0 0 2px rgba(255, 255, 255, 0.2);
+    transform: scale(1);
     filter: brightness(1);
   }
   100% {
-    box-shadow: 0 0 12px var(--glow-color), inset 0 0 10px var(--glow-color);
+    box-shadow: 
+      0 0 18px rgba(var(--glow-rgb), 0.95), 
+      inset 0 0 10px rgba(var(--glow-rgb), 0.8),
+      0 0 8px rgba(var(--glow-rgb), 0.4);
+    transform: scale(1.05);
     filter: brightness(1.2);
   }
 }
@@ -378,13 +402,26 @@
   justify-content: center;
   align-items: center;
   cursor: not-allowed;
-  outline: none;
-  box-shadow: none;
+  outline: none !important;
+  box-shadow: none !important;
   transform-style: preserve-3d;
+}
+
+.dice:focus,
+.dice:focus-visible,
+.dice:active,
+.diceFrameContainer:focus,
+.diceFrameContainer:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .dice.active {
   cursor: pointer;
+}
+
+.dice.active:hover .scene {
+  transform: rotateX(12deg) rotateY(12deg) scale(1.1);
 }
 
 .dice.rolling {
@@ -406,7 +443,7 @@
 }
 
 .dice.rolling .scene {
-  animation: sceneBounce 0.4s infinite ease-in-out, shadowBounce 0.4s infinite ease-in-out;
+  animation: sceneBounce 0.25s infinite ease-in-out, shadowBounce 0.25s infinite ease-in-out;
 }
 
 .cube {
@@ -418,7 +455,7 @@
 }
 
 .rollingCube {
-  animation: spinCube 0.4s infinite linear;
+  animation: spinCube 0.25s infinite linear;
 }
 
 .face {
@@ -577,3 +614,85 @@
   0% { transform: translateX(-50%) translateY(0); }
   100% { transform: translateX(-50%) translateY(-6px); }
 }
+
+.woodenArrowWrapper {
+  position: absolute;
+  width: calc(var(--board-tile-size) * 1.55);
+  height: calc(var(--board-tile-size) * 1.6);
+  z-index: 120;
+  pointer-events: none;
+}
+
+/* Blue & Yellow: bottom containers, pointing upwards */
+.blue .woodenArrowWrapper,
+.yellow .woodenArrowWrapper {
+  top: calc(100% - calc(var(--board-tile-size) * 0.35));
+  bottom: auto;
+  filter: brightness(1.2) drop-shadow(0 3px 6px rgba(0,0,0,0.45));
+  animation: woodArrowBounceUp 0.42s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.red .woodenArrowWrapper,
+.green .woodenArrowWrapper {
+  bottom: calc(100% - calc(var(--board-tile-size) * 0.45));
+  top: auto;
+  filter: brightness(1.2) drop-shadow(0 -3px 6px rgba(0,0,0,0.45));
+  animation: woodArrowBounceDown 0.42s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.leftOriented .woodenArrowWrapper {
+  left: 75%;
+}
+
+.rightOriented .woodenArrowWrapper {
+  left: 25%;
+}
+
+.woodenArrow {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@keyframes woodArrowBounceUp {
+  0% {
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+
+@keyframes woodArrowBounceDown {
+  0% {
+    transform: translateX(-50%) rotate(180deg) translateY(0);
+  }
+  100% {
+    transform: translateX(-50%) rotate(180deg) translateY(-10px);
+  }
+}
+
+/* Red & Green Profile Column vertical reverse layout */
+.red .profileColumn,
+.green .profileColumn {
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  padding-top: 0;
+  padding-bottom: calc(var(--board-tile-size) * 0.22);
+}
+
+.red .nameAndScoreWrapper,
+.green .nameAndScoreWrapper {
+  flex-direction: column-reverse;
+  margin-top: 0;
+  margin-bottom: calc(var(--board-tile-size) * 0.1);
+  gap: 4px;
+}
+
+/* Adjust translateY for score when placed above name */
+.red .playerScore,
+.green .playerScore {
+  transform: translateY(4px);
+  margin-bottom: 2px;
+}
+

@@ -1,6 +1,6 @@
 .scoreBoard {
   position: absolute;
-  top: calc(var(--board-tile-size) * -4.75);
+  top: calc(var(--board-tile-size) * -5.47);
   left: 50%;
   transform: translateX(-50%);
   width: calc(var(--board-tile-size) * 3.8);
