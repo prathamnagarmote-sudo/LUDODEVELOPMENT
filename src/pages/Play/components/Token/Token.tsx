@@ -102,19 +102,18 @@ function Token({ colour, id, tokenClickData }: Props) {
     if (newTokenClickData.colour === colour && newTokenClickData.id === id) {
       if (onlineContext?.isOnline) {
         if (isActive && diceNumber !== -1 && diceNumber) {
-          getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-            colour,
-            id,
-            isUnlock: isLocked,
-          }));
-
-          // OPTIMISTIC LOCAL ANIMATION — NON-HOST ONLY.
-          // HOST does NOT need optimistic: its loopback is ~0ms (via setTimeout(0)),
-          // so OpCode 5 → hostHandleTokenMoveRequest → OpCode 9 → animation
-          // fires almost instantly. Doing optimistic on host causes a race condition
-          // where the token's Redux coordinates change before computeMoveResult reads them.
-          if (colour === onlineContext.myPlayerColour && !onlineContext.amHost) {
-            console.log('[OPTIMISTIC] Non-host animating own token immediately (board click):', colour, id);
+          if (colour === onlineContext.myPlayerColour) {
+            onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
+            if (onlineContext.amHost) {
+              onlineContext.onHostTokenMove?.(colour, id, isLocked);
+            } else {
+              getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
+                colour,
+                id,
+                isUnlock: isLocked,
+              }));
+            }
+            console.log('[OPTIMISTIC] Animating own token immediately (board click):', colour, id);
             if (isLocked) unlock();
             else executeOptimisticAnimation();
           }
@@ -130,16 +129,18 @@ function Token({ colour, id, tokenClickData }: Props) {
     tokenElRef.current?.blur?.();
     if (onlineContext?.isOnline) {
       if (isActive && diceNumber !== -1 && diceNumber) {
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-          colour,
-          id,
-          isUnlock: isLocked,
-        }));
-
-        // OPTIMISTIC LOCAL ANIMATION — NON-HOST ONLY.
-        // Same rationale as the board-click path above.
-        if (colour === onlineContext.myPlayerColour && !onlineContext.amHost) {
-          console.log('[OPTIMISTIC] Non-host animating own token immediately (direct click):', colour, id);
+        if (colour === onlineContext.myPlayerColour) {
+          onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
+          if (onlineContext.amHost) {
+            onlineContext.onHostTokenMove?.(colour, id, isLocked);
+          } else {
+            getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
+              colour,
+              id,
+              isUnlock: isLocked,
+            }));
+          }
+          console.log('[OPTIMISTIC] Animating own token immediately (direct click):', colour, id);
           if (isLocked) unlock();
           else executeOptimisticAnimation();
         }

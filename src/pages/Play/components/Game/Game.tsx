@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, createContext, useMemo, useState } from 'react';
+import React, { useEffect, useRef, createContext, useMemo, useState, useCallback } from 'react';
 import {
   registerNewPlayer,
   setPlayerSequence,
@@ -49,6 +49,8 @@ export const OnlineGameContext = createContext<{
   roomId: string;
   myPlayerColour: TPlayerColour;
   amHost: boolean;
+  optimisticTokenMovesRef?: React.MutableRefObject<Set<string>>;
+  onHostTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
 } | null>(null);
 
 type Props = {
@@ -226,6 +228,63 @@ function Game({
   const myPlayerColourRef = useRef<TPlayerColour>(canonicalColour || 'blue');
   useEffect(() => { myPlayerColourRef.current = myPlayerColour; }, [myPlayerColour]);
 
+  const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
+
+  const onHostTokenMove = useCallback((colour: TPlayerColour, id: number, isUnlock: boolean) => {
+    try {
+      const socket = getNakamaSocket();
+      const currentRoomId = roomIdRef.current;
+      const state = store.getState();
+      const playersList = state.players.players;
+      const player = playersList.find(p => p.colour === colour);
+      if (!player) return;
+      const token = player.tokens.find(t => t.id === id);
+      if (!token) return;
+
+      const diceNumber = state.dice.dice.find(d => d.colour === colour)?.diceNumber || 1;
+
+      console.log('[HOST] Local Host executing and broadcasting token move:', colour, id, 'isUnlock:', isUnlock);
+
+      if (isUnlock) {
+        // Broadcast unlock result to ALL clients immediately
+        socket.sendMatchState(currentRoomId, 9, JSON.stringify({
+          colour,
+          id,
+          isUnlock: true,
+          hasTokenReachedHome: false,
+          isCaptured: false,
+          hasPlayerWon: false,
+        }));
+
+        // Unlock always gives the same player another turn
+        socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: colour }));
+      } else {
+        const { hasTokenReachedHome, isCaptured, hasPlayerWon } = computeMoveResult(token, diceNumber, state);
+
+        // Broadcast move result to ALL clients immediately
+        socket.sendMatchState(currentRoomId, 9, JSON.stringify({
+          colour,
+          id,
+          isUnlock: false,
+          hasTokenReachedHome,
+          isCaptured,
+          hasPlayerWon,
+        }));
+
+        if (!hasPlayerWon) {
+          const getsAnotherTurn =
+            (diceNumber === 6 && (player.numberOfConsecutiveSix ?? 0) < 3) ||
+            isCaptured ||
+            hasTokenReachedHome;
+          const nextColour = getsAnotherTurn ? colour : getNextTurnColour(colour, playerSequence);
+          socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+        }
+      }
+    } catch (err) {
+      console.error('[HOST] Failed to resolve and broadcast host token move:', err);
+    }
+  }, [store, playerSequence]);
+
   // Handle Online Match turn coordination
   // ARCHITECTURE: Host-Authoritative Relay
   //   - All game logic (dice, moves, turn changes) executes ONLY on the HOST.
@@ -251,12 +310,10 @@ function Game({
     // but our game architecture assumes all clients (including host/sender) process match state.
     const originalSendMatchState = socket.sendMatchState.bind(socket);
     socket.sendMatchState = async (matchId, opCode, data, presences) => {
-      // Send to other players
-      try {
-        await originalSendMatchState(matchId, opCode, data, presences);
-      } catch (err) {
+      // Send to other players (non-blocking)
+      originalSendMatchState(matchId, opCode, data, presences).catch((err) => {
         console.error(`[SOCKET] sendMatchState error for OpCode ${opCode}:`, err);
-      }
+      });
 
       // Simulate local loopback
       if (socket.onmatchdata) {
@@ -487,9 +544,14 @@ function Game({
 
       const diceNumber = state.dice.dice.find(d => d.colour === colour)?.diceNumber || 1;
 
-      // HOST must ALWAYS broadcast OpCode 6 (next turn) immediately — even for its own moves.
+      // HOST must ALWAYS broadcast OpCode 6 (next turn) immediately.
       // This must happen BEFORE any early returns so the turn always progresses.
-      if (amHost && !data.hasPlayerWon) {
+      // NOTE: We only broadcast OpCode 6 here if the move was NOT initiated by our own optimistic click.
+      // If it was our own click, we already broadcasted OpCode 6 synchronously on click.
+      const tokenKey = `${colour}-${data.id}`;
+      const isOptimistic = optimisticTokenMovesRef.current.has(tokenKey);
+
+      if (amHost && !data.hasPlayerWon && !isOptimistic) {
         if (data.isUnlock) {
           // Unlock always gives the same player another turn
           socket.sendMatchState(roomIdRef.current, 6, JSON.stringify({ nextTurnColour: colour }));
@@ -507,11 +569,10 @@ function Game({
         }
       }
 
-      // Optimistic skip: NON-HOST already animated their own token click optimistically.
-      // When OpCode 9 comes back for their own colour, skip re-animation.
-      // HOST does NOT skip — it animates its own moves normally via OpCode 9 loopback (~0ms delay).
-      if (!amHost && colour === myPlayerColourRef.current) {
-        console.log('[OPTIMISTIC] Non-host skipping re-animation of own token — already animated on click.');
+      // Optimistic skip: if we already animated this token click locally, skip re-animation.
+      if (isOptimistic) {
+        console.log('[OPTIMISTIC] Skipping re-animation of own token — already animated on click.', tokenKey);
+        optimisticTokenMovesRef.current.delete(tokenKey); // clean up
         return;
       }
 
@@ -741,6 +802,18 @@ function Game({
     return allSessionIds[0] === (localSessionId || myPlayerId || '');
   }, [matchedUsers, localSessionId, myPlayerId]);
 
+  const onlineContextValue = useMemo(() => {
+    if (!isOnline) return null;
+    return {
+      isOnline: true,
+      roomId,
+      myPlayerColour,
+      amHost: amHostValue,
+      optimisticTokenMovesRef,
+      onHostTokenMove,
+    };
+  }, [isOnline, roomId, myPlayerColour, amHostValue, onHostTokenMove]);
+
   if (isOnline && !isMatchJoined) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0b0222', color: '#ffca28', fontFamily: 'Jua, sans-serif' }}>
@@ -757,7 +830,7 @@ function Game({
   }
 
   return (
-    <OnlineGameContext.Provider value={isOnline ? { isOnline: true, roomId, myPlayerColour, amHost: amHostValue } : null}>
+    <OnlineGameContext.Provider value={onlineContextValue}>
       <div
         className={styles.game}
         style={
