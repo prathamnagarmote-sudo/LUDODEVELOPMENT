@@ -85,9 +85,7 @@ function GameFinishedScreen({ players }: Props) {
           exit={{ scale: 0.9, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <Link className={styles.closeBtn} to="/setup" title="Back to Lobby">
-            ✕
-          </Link>
+
           {showSplash ? (
             <ResultSplashScreen text={splashText} />
           ) : (
