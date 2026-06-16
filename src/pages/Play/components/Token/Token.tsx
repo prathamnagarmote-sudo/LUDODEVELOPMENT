@@ -67,7 +67,9 @@ function Token({ colour, id, tokenClickData }: Props) {
     }, FORWARD_TOKEN_TRANSITION_TIME);
   };
 
-  const executeTokenMove = useCallback(async () => {
+  // OFFLINE-only: full token move including post-move turn change logic.
+  // In ONLINE mode, turn changes come EXCLUSIVELY from OpCode 6 — never from local logic.
+  const executeTokenMoveOffline = useCallback(async () => {
     if (!isActive || diceNumber === -1 || !diceNumber) return;
 
     const moveData = await moveAndCapture(token, diceNumber);
@@ -78,6 +80,17 @@ function Token({ colour, id, tokenClickData }: Props) {
       return dispatch(changeTurnThunk(moveAndCapture));
     }
   }, [diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
+
+  // ONLINE NON-HOST ONLY: optimistic animation (fire-and-forget).
+  // Runs only the visual animation — no turn change, no game logic.
+  // Turn progression comes from OpCode 6 broadcast by the host.
+  const executeOptimisticAnimation = useCallback(async () => {
+    if (!isActive || diceNumber === -1 || !diceNumber) return;
+    // Fire-and-forget: animate the token move, but do NOT handle the result.
+    // The host will broadcast OpCode 9 (with authoritative isCaptured/hasPlayerWon)
+    // and OpCode 6 (turn change). We just show the animation instantly.
+    await moveAndCapture(token, diceNumber);
+  }, [diceNumber, isActive, moveAndCapture, token]);
 
   useEffect(() => {
     const prevClickData = tokenClickDataRef.current;
@@ -95,20 +108,22 @@ function Token({ colour, id, tokenClickData }: Props) {
             isUnlock: isLocked,
           }));
 
-          // Optimistic local update for ALL players (both host and non-host) to eliminate round-trip delay.
-          // Host will receive the OpCode 9 loopback but skip re-animation since it already animated.
-          // Non-host will receive OpCode 9 from host but also skip since it already animated.
-          if (colour === onlineContext.myPlayerColour) {
-            console.log('[OPTIMISTIC] Starting local token movement immediately from board click:', colour, id);
+          // OPTIMISTIC LOCAL ANIMATION — NON-HOST ONLY.
+          // HOST does NOT need optimistic: its loopback is ~0ms (via setTimeout(0)),
+          // so OpCode 5 → hostHandleTokenMoveRequest → OpCode 9 → animation
+          // fires almost instantly. Doing optimistic on host causes a race condition
+          // where the token's Redux coordinates change before computeMoveResult reads them.
+          if (colour === onlineContext.myPlayerColour && !onlineContext.amHost) {
+            console.log('[OPTIMISTIC] Non-host animating own token immediately (board click):', colour, id);
             if (isLocked) unlock();
-            else executeTokenMove();
+            else executeOptimisticAnimation();
           }
         }
       } else {
-        executeTokenMove();
+        executeTokenMoveOffline();
       }
     }
-  }, [colour, executeTokenMove, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber]);
+  }, [colour, executeTokenMoveOffline, executeOptimisticAnimation, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber]);
 
   const handleTokenClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     e.stopPropagation();
@@ -121,18 +136,17 @@ function Token({ colour, id, tokenClickData }: Props) {
           isUnlock: isLocked,
         }));
 
-        // Optimistic local update for ALL players (both host and non-host) to eliminate round-trip delay.
-        // Host will receive the OpCode 9 loopback but skip re-animation since it already animated.
-        // Non-host will receive OpCode 9 from host but also skip since it already animated.
-        if (colour === onlineContext.myPlayerColour) {
-          console.log('[OPTIMISTIC] Starting local token movement immediately from direct click:', colour, id);
+        // OPTIMISTIC LOCAL ANIMATION — NON-HOST ONLY.
+        // Same rationale as the board-click path above.
+        if (colour === onlineContext.myPlayerColour && !onlineContext.amHost) {
+          console.log('[OPTIMISTIC] Non-host animating own token immediately (direct click):', colour, id);
           if (isLocked) unlock();
-          else executeTokenMove();
+          else executeOptimisticAnimation();
         }
       }
     } else {
       if (isLocked && isActive && diceNumber !== -1 && diceNumber) unlock();
-      executeTokenMove();
+      executeTokenMoveOffline();
     }
   };
 
@@ -172,4 +186,3 @@ function Token({ colour, id, tokenClickData }: Props) {
 }
 
 export default React.memo(Token);
-

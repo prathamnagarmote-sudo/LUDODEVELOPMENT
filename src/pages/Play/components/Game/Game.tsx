@@ -344,8 +344,8 @@ function Game({
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 8) ─────────────────────────────
     // Show animation + activate/auto-move tokens for the rolling player's colour.
-    // PERF: Reduced blocking delay from 400ms → 150ms to make post-roll logic fire faster.
-    const DICE_ANIM_DELAY = 150;
+    // PERF: Reduced blocking delay from 400ms → 100ms to make post-roll logic fire faster.
+    const DICE_ANIM_DELAY = 100;
     const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number }) => {
       const colour = data.colour;
       const roll = data.roll;
@@ -507,10 +507,11 @@ function Game({
         }
       }
 
-      // Optimistic check: ALL players (host and non-host) animate their own token click immediately.
-      // When OpCode 9 comes back for our own colour, skip the re-animation (already done on click).
-      if (colour === myPlayerColourRef.current) {
-        console.log('[OPTIMISTIC] Skipping re-animation of own token move — already animated on click.');
+      // Optimistic skip: NON-HOST already animated their own token click optimistically.
+      // When OpCode 9 comes back for their own colour, skip re-animation.
+      // HOST does NOT skip — it animates its own moves normally via OpCode 9 loopback (~0ms delay).
+      if (!amHost && colour === myPlayerColourRef.current) {
+        console.log('[OPTIMISTIC] Non-host skipping re-animation of own token — already animated on click.');
         return;
       }
 
