@@ -431,6 +431,10 @@ function Game({
         initializeGame(parsed.players);
       } else if (opCode === 2) {
         handleTurnUpdate(parsed);
+      } else if (opCode === 7) {
+        if (parsed.colour) {
+          dispatch(quitMatchThunk(parsed.colour, moveAndCapture));
+        }
       } else if (opCode === 3) {
         // Dice roll request — in relay matches, the host handles this (server doesn't run)
         // Check if I'm the "host" (lowest session_id alphabetically)
@@ -609,19 +613,24 @@ function Game({
   };
 
   const handleExitBtnClick = () => {
-    if (isOnline) {
-      if (roomId) {
-        try {
-          getNakamaSocket().sendMatchState(roomId, 7, "{}");
-        } catch (e) {}
-      }
+    setIsMenuOpen(false);
+
+    const colourToQuit = isOnline ? (myPlayerColour || currentPlayerColour) : currentPlayerColour;
+
+    if (isOnline && roomId) {
+      try {
+        getNakamaSocket().sendMatchState(roomId, 7, JSON.stringify({ colour: colourToQuit }));
+      } catch (e) {}
+    }
+
+    if (colourToQuit) {
+      dispatch(quitMatchThunk(colourToQuit, moveAndCapture));
+    }
+
+    // 4-Player mode: The quitting player navigates to Home immediately and skips the leaderboard
+    // 2-Player mode: The match ends and the Leaderboard appears instantly
+    if (players.length > 2) {
       navigate('/setup');
-    } else {
-      if (players.length === 2 && currentPlayerColour) {
-        dispatch(quitMatchThunk(currentPlayerColour, moveAndCapture));
-      } else {
-        navigate('/');
-      }
     }
   };
 
@@ -696,11 +705,7 @@ function Game({
                 <button
                   type="button"
                   className={styles.quitBtn}
-                  onClick={() => {
-                    if (window.confirm(EXIT_MESSAGE)) {
-                      handleExitBtnClick();
-                    }
-                  }}
+                  onClick={handleExitBtnClick}
                 >
                   Quit Game
                 </button>

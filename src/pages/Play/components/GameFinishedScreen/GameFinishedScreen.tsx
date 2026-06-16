@@ -7,8 +7,9 @@ import styles from './GameFinishedScreen.module.css';
 
 import ResultSplashScreen from './ResultSplashScreen';
 import LeaderboardScreen from './LeaderboardScreen';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
+import { OnlineGameContext } from '../Game/Game';
 
 type Props = {
   players: TPlayer[];
@@ -20,12 +21,41 @@ function GameFinishedScreen({ players }: Props) {
   const inactivePlayer = players.find(p => p.missedTurns >= 3);
   const [showSplash, setShowSplash] = useState(true);
 
+  const onlineContext = useContext(OnlineGameContext);
+
   // In local pass-and-play, if Player 1 (Red) wins, show "You Win!", else show "You Lose!"
   // If the game ended early (all missed turns), it's a loss.
-  // Tie Handling: If original game was 2 players, and neither quit, and scores match.
-  const isTie = players.length === 2 && standings.length === 2 && standings[0].score === standings[1].score;
-  const isHumanWinner = standings[0] && !standings[0].isBot;
-  const splashText = isGameOver ? 'GAME OVER!' : (isTie ? "It's a Tie!" : (isHumanWinner ? 'You Win!' : 'You Lose!'));
+  const isTie = standings.length >= 2 && standings[0].score === standings[1].score && !standings[0].hasQuit && !standings[1].hasQuit;
+  
+  let splashText = '';
+  if (isGameOver) {
+    splashText = 'GAME OVER!';
+  } else {
+    if (onlineContext) {
+      // Online: check if the local player is rank 1 or tied for rank 1
+      const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
+      const amITiedForFirst = isTie && (standings[0].colour === onlineContext.myPlayerColour || standings[1].colour === onlineContext.myPlayerColour);
+
+      if (amITiedForFirst) {
+        splashText = "It's a Tie!";
+      } else {
+        splashText = isMyWin ? 'You Win!' : 'You Lose!';
+      }
+    } else {
+      // Local mode
+      if (isTie) {
+        splashText = "It's a Tie!";
+      } else {
+        const someoneQuit = standings.some(p => p.hasQuit);
+        if (players.length === 2 && someoneQuit) {
+          splashText = 'You Lose!';
+        } else {
+          const isHumanWinner = standings[0] && !standings[0].isBot;
+          splashText = isHumanWinner ? 'You Win!' : 'You Lose!';
+        }
+      }
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -51,7 +81,7 @@ function GameFinishedScreen({ players }: Props) {
           exit={{ scale: 0.9, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <Link className={styles.closeBtn} to="/" title="Back to Lobby">
+          <Link className={styles.closeBtn} to="/setup" title="Back to Lobby">
             ✕
           </Link>
           {showSplash ? (

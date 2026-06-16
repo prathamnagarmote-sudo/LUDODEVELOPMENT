@@ -404,20 +404,28 @@ function PlayerSetup() {
           type="button"
           onClick={(e) => {
              e.preventDefault();
-             navigate('/play', { 
-               state: { 
-                 initData: [
+             if (playerCount === null) {
+               toast.info('Please select 2 Players or 4 Players first.');
+               return;
+             }
+             const initData = playerCount === 2
+               ? [
+                   { name: 'MAXY', isBot: false },
+                   { name: 'PLAYER', isBot: false },
+                 ]
+               : [
                    { name: 'MAXY', isBot: false },
                    { name: 'PLAYER', isBot: false },
                    { name: 'ZENO', isBot: false },
                    { name: 'REX', isBot: false },
-                 ]
-               } 
+                 ];
+             navigate('/play', { 
+               state: { initData } 
              });
           }}
           style={{ display: 'block', width: '100%', maxWidth: '280px', margin: '20px auto', padding: '15px', backgroundColor: '#e53935', color: '#fff', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', textAlign: 'center', position: 'relative', zIndex: 1000 }}
         >
-          QUICK PLAY (TEMP 4-PLAYER MANUAL)
+          QUICK PLAY (TEMP MANUAL)
         </button>
 
         {/* Buttons (Play / Cancel) */}
