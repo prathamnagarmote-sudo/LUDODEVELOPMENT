@@ -170,6 +170,19 @@ const reducers = {
     // Automatically ending the game from this local reducer would cause race conditions.
   },
 
+  resetGameState: (state: TPlayerState) => {
+    state.isGameEnded = false;
+    state.isGameOver = false;
+    state.isAnyTokenMoving = false;
+    state.playerFinishOrder = [];
+    state.players.forEach((p) => {
+      p.missedTurns = 0;
+      p.numberOfConsecutiveSix = 0;
+      p.playerFinishTime = -1;
+      p.tokens = genLockedTokens(p.colour);
+    });
+  },
+
   setIsAnyTokenMoving: (state: TPlayerState, action: PayloadAction<boolean>) => {
     state.isAnyTokenMoving = action.payload;
   },
@@ -290,6 +303,7 @@ export const {
   resetNumberOfConsecutiveSix,
   incrementMissedTurns,
   setIsAnyTokenMoving,
+  resetGameState,
   markTokenAsReachedHome,
   setTokenAlignmentData,
   setPlayerSequenceDirect,
