@@ -104,7 +104,7 @@ function LeaderboardScreen({ standings, isTie }: Props) {
         </div>
 
         <div className={styles.buttonGroup}>
-          <Link to="/" className={styles.actionButton}>
+          <Link to="/setup" className={styles.actionButton}>
             <img src={homeBtnImg} alt="Home" />
             <span className={styles.btnText}>Home</span>
           </Link>
