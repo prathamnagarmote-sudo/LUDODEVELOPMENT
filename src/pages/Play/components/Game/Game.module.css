@@ -4,7 +4,7 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  height: 100vh;
+  height: 100dvh;
   background-image: url('../../../../assets/ludo bg-27.svg');
   background-size: cover;
   background-position: center;
@@ -14,19 +14,19 @@
 
 .boardWrapper {
   position: relative;
-  --board-side-length: min(94vw, 56vh);
+  /*
+   * Use container query inline-size (cqi) so the board is always sized
+   * relative to #root (max-width: 600px), not the raw viewport.
+   * This guarantees a consistent look across all devices and browsers.
+   * svh = small viewport height, which excludes browser chrome on mobile.
+   */
+  --board-side-length: min(95cqi, 88svh);
   width: var(--board-side-length);
   height: var(--board-side-length);
   display: flex;
   justify-content: center;
   align-items: center;
-  transform: translateY(-16px);
-}
-
-@media (max-width: 768px) {
-  .boardWrapper {
-    --board-side-length: min(95vw, 61vh);
-  }
+  transform: translateY(-2%);
 }
 
 .menuBtn {
