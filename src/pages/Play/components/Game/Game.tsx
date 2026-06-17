@@ -454,9 +454,10 @@ function Game({
           return;
         }
 
+        const allTokens = playersList.flatMap(p => p.tokens);
+
         // Bot auto-move
         if (activePlayer.isBot) {
-          const allTokens = playersList.flatMap(p => p.tokens);
           const bestToken = selectBestTokenForBot(colour, roll, allTokens);
           if (!bestToken) {
             const nextColour = getNextTurnColour(colour, pSeq);
@@ -469,7 +470,7 @@ function Game({
 
         // Human player — check if any tokens are movable
         const movableTokens = activePlayer.tokens.filter(t =>
-          isTokenMovable(t, roll) || (roll === 6 && t.isLocked && !t.hasTokenReachedHome)
+          isTokenMovable(t, roll, allTokens) || (roll === 6 && t.isLocked && !t.hasTokenReachedHome)
         );
         if (movableTokens.length === 0) {
           // No moves → auto-advance turn immediately

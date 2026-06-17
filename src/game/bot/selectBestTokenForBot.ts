@@ -21,7 +21,7 @@ export function selectBestTokenForBot(
   allTokens: TToken[]
 ): TToken | null {
   const botTokens = allTokens.filter((t) => t.colour === botPlayerColour);
-  const movableBotTokens = botTokens.filter((t) => isTokenMovable(t, diceNumber));
+  const movableBotTokens = botTokens.filter((t) => isTokenMovable(t, diceNumber, allTokens));
   const botTokenHomeCoord = getHomeCoordForColour(botPlayerColour);
   const botTokenStartCoord = tokenPaths[botPlayerColour][0];
   const activeOpponentTokens = allTokens.filter(
@@ -44,7 +44,7 @@ export function selectBestTokenForBot(
     } else {
       finalCoord = getFinalCoord(token, diceNumber);
       // If the move is not allowed (like going past the finish line), stop here.
-      if (!isTokenMovable(token, diceNumber))
+      if (!isTokenMovable(token, diceNumber, allTokens))
         return { token, feasibilityScore: Number.NEGATIVE_INFINITY };
     }
 
