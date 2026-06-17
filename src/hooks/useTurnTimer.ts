@@ -170,6 +170,7 @@ export function useTurnTimer(
                   6,
                   JSON.stringify({ nextTurnColour: nextColour })
                 );
+                dispatch(deactivateAllTokens(colour));
                 dispatch(setCurrentPlayerColour(nextColour));
                 dispatch(deactivateAllTokens(nextColour));
               }
@@ -183,6 +184,7 @@ export function useTurnTimer(
             // End the game locally
             dispatch({ type: 'players/endGameDueToTimeout' });
           } else {
+            dispatch(deactivateAllTokens(colour));
             dispatch(changeTurnThunk(moveAndCapture));
           }
         }
