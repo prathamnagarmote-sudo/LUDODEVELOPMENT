@@ -289,6 +289,17 @@ function PlayerSetup() {
     navigate('/');
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' && matchFound && playerCount !== null) {
+        e.preventDefault();
+        handlePlayBtnClick();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [matchFound, playerCount, navigate]);
+
   if (!currentUser) return null;
 
   return (

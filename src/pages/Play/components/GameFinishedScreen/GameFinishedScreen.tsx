@@ -9,7 +9,7 @@ import ResultSplashScreen from './ResultSplashScreen';
 import LeaderboardScreen from './LeaderboardScreen';
 import { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import Confetti from 'react-confetti';
-import { useWindowSize } from 'react-use';
+import { useMeasure } from 'react-use';
 import { OnlineGameContext } from '../Game/Game';
 import { useDispatch } from 'react-redux';
 import type { AppDispatch } from '../../../../state/store';
@@ -21,7 +21,7 @@ type Props = {
 };
 
 function GameFinishedScreen({ players }: Props) {
-  const { width, height } = useWindowSize();
+  const [ref, { width, height }] = useMeasure<HTMLDivElement>();
   const { isGameOver } = useSelector((state: RootState) => state.players);
   const standings = getLeaderboardStandings(players);
   const inactivePlayer = players.find(p => p.missedTurns >= 3);
@@ -223,7 +223,7 @@ function GameFinishedScreen({ players }: Props) {
 
   return (
     <AnimatePresence>
-      <motion.div className={styles.gameFinishedScreen}>
+      <motion.div className={styles.gameFinishedScreen} ref={ref}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.7 }}
@@ -231,7 +231,13 @@ function GameFinishedScreen({ players }: Props) {
           transition={{ duration: 0.2 }}
           className={styles.gameFinishedBackdrop}
         />
-        {!isGameOver && rematchState === 'idle' && <Confetti width={width} height={height} style={{ zIndex: 220 }} />}
+        {!isGameOver && rematchState === 'idle' && width > 0 && (
+          <Confetti
+            width={width}
+            height={height}
+            style={{ zIndex: 9999, position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+          />
+        )}
         <motion.div
           className={styles.gameFinishedDialog}
           initial={{ opacity: 0, scale: 0.9 }}

@@ -113,7 +113,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           return;
         }
       }
-      if (e.key.toLowerCase() === 'd' && !isDiceDisabled) {
+      if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
       }
     };
@@ -219,7 +219,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             [styles.rolling]: isPlaceholderShowing,
           })}
           tabIndex={isDiceDisabled ? -1 : undefined}
-          title={!isDiceDisabled ? 'Roll Dice (Press D)' : undefined}
+          title={!isDiceDisabled ? 'Roll Dice (Press D or Space)' : undefined}
           disabled={isDiceDisabled}
           style={{ '--player-colour': playerColours[colour] } as React.CSSProperties}
           type="button"
