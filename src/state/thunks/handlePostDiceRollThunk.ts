@@ -44,7 +44,8 @@ export const handlePostDiceRollThunk = (
 
     if (areUnlockableTokensPresent) return { shouldContinue: true, moveData: null };
 
-    const movableTokens = player.tokens.filter((t) => isTokenMovable(t, diceNumber));
+    const allTokens = players.flatMap((p) => p.tokens);
+    const movableTokens = player.tokens.filter((t) => isTokenMovable(t, diceNumber, allTokens));
 
     const areAllTokensInSameCoord =
       movableTokens.length === 0

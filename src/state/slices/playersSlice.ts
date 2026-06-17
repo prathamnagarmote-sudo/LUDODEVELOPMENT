@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { genLockedTokens } from '../../game/tokens/factory';
 import { ERRORS } from '../../utils/errors';
 import { TOKEN_START_COORDINATES } from '../../game/tokens/constants';
-import { getAvailableSteps, isTokenMovable } from '../../game/tokens/logic';
+import { isTokenMovable } from '../../game/tokens/logic';
 import type {
   TPlayer,
   TPlayerColour,
@@ -116,17 +116,18 @@ const reducers = {
     action: PayloadAction<{ all: boolean; colour: TPlayerColour; diceNumber: number }>
   ) => {
     const player = getPlayer(state, action.payload.colour);
+    const allTokens = state.players.flatMap((p) => p.tokens);
     if (action.payload.all) {
       return player.tokens.forEach((t) => {
         if (
           (!t.hasTokenReachedHome && t.isLocked) ||
-          (!t.isLocked && getAvailableSteps(t) >= action.payload.diceNumber)
+          (!t.isLocked && isTokenMovable(t, action.payload.diceNumber, allTokens))
         )
           t.isActive = true;
       });
     }
     player.tokens.forEach((t) => {
-      if (isTokenMovable(t, action.payload.diceNumber)) t.isActive = true;
+      if (isTokenMovable(t, action.payload.diceNumber, allTokens)) t.isActive = true;
     });
   },
 
