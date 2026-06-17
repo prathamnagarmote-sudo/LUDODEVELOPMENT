@@ -868,15 +868,15 @@ function Game({
         <div className={styles.boardWrapper}>
           <ScoreBoard />
           <Board onDiceClick={handleDiceRoll} />
+          <button
+            type="button"
+            aria-label="Menu button"
+            className={styles.menuBtn}
+            onClick={() => setIsMenuOpen(true)}
+          >
+            <img src={menuIcon} alt="Menu" className={styles.menuIconImg} />
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label="Menu button"
-          className={styles.menuBtn}
-          onClick={() => setIsMenuOpen(true)}
-        >
-          <img src={menuIcon} alt="Menu" className={styles.menuIconImg} />
-        </button>
         {isMenuOpen && (
           <div className={styles.menuOverlay} onClick={() => setIsMenuOpen(false)}>
             <div className={styles.menuModal} onClick={(e) => e.stopPropagation()}>

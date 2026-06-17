@@ -9,18 +9,21 @@
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  overflow: hidden;
+  /* Use clip (not hidden) so dice panels that extend outside boardWrapper
+     are still visible, but no scrollbar ever appears */
+  overflow: clip;
 }
 
 .boardWrapper {
   position: relative;
   /*
-   * Use container query inline-size (cqi) so the board is always sized
-   * relative to #root (max-width: 600px), not the raw viewport.
-   * This guarantees a consistent look across all devices and browsers.
-   * svh = small viewport height, which excludes browser chrome on mobile.
+   * Board is sized relative to #root container width (cqi) AND viewport
+   * height. We cap at 72svh so there is always space for the dice panels
+   * that extend above and below the board (~14svh each), keeping the
+   * hamburger and bottom dice comfortably within the visible area on
+   * every device without requiring a zoom-out.
    */
-  --board-side-length: min(95cqi, 88svh);
+  --board-side-length: min(95cqi, 72svh);
   width: var(--board-side-length);
   height: var(--board-side-length);
   display: flex;
@@ -30,14 +33,20 @@
 }
 
 .menuBtn {
+  /*
+   * Anchor the hamburger to the bottom-left of boardWrapper.
+   * top: 100% puts it right at the board's bottom edge;
+   * margin-top adds a small gap proportional to the board tile size.
+   * This keeps it always below the board regardless of screen height.
+   */
   position: absolute;
-  left: 42px;
-  bottom: 38px;
+  left: 0;
+  top: calc(100% + calc(var(--board-tile-size) * 0.35));
   background: transparent;
   border: none;
   padding: 0;
-  width: calc(var(--board-tile-size) * 1.0);
-  height: calc(var(--board-tile-size) * 1.0);
+  width: calc(var(--board-tile-size) * 1.1);
+  height: calc(var(--board-tile-size) * 1.1);
   cursor: pointer;
   z-index: 100;
   transition: transform 0.2s ease, filter 0.2s ease;
