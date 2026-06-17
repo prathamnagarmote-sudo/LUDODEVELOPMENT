@@ -4,7 +4,7 @@ import { type RootState } from '../state/store';
 import { type TPlayerColour } from '../types';
 import { changeTurnThunk } from '../state/thunks/changeTurnThunk';
 import { useMoveAndCaptureToken } from './useMoveAndCaptureToken';
-import { incrementMissedTurns, setCurrentPlayerColour, deactivateAllTokens, setIsAnyTokenMoving } from '../state/slices/playersSlice';
+import { incrementMissedTurns, setCurrentPlayerColour, deactivateTokensOfAllPlayers, setIsAnyTokenMoving } from '../state/slices/playersSlice';
 import { OnlineGameContext } from '../pages/Play/components/Game/Game';
 import { getNakamaSocket } from '../services/nakama';
 import { cancelActiveTokenAnimation } from './useMoveTokenForward';
@@ -170,9 +170,8 @@ export function useTurnTimer(
                   6,
                   JSON.stringify({ nextTurnColour: nextColour })
                 );
-                dispatch(deactivateAllTokens(colour));
+                dispatch(deactivateTokensOfAllPlayers());
                 dispatch(setCurrentPlayerColour(nextColour));
-                dispatch(deactivateAllTokens(nextColour));
               }
             } catch (e) {}
           }
@@ -184,7 +183,7 @@ export function useTurnTimer(
             // End the game locally
             dispatch({ type: 'players/endGameDueToTimeout' });
           } else {
-            dispatch(deactivateAllTokens(colour));
+            dispatch(deactivateTokensOfAllPlayers());
             dispatch(changeTurnThunk(moveAndCapture));
           }
         }

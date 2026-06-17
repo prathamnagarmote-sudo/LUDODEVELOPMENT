@@ -6,6 +6,7 @@ import {
   setCurrentPlayerColour,
   activateTokens,
   deactivateAllTokens,
+  deactivateTokensOfAllPlayers,
   setIsAnyTokenMoving,
   declareForfeit,
   incrementNumberOfConsecutiveSix,
@@ -384,13 +385,8 @@ function Game({
 
     // ─── Helper: apply turn transition on every client ─────────────────────────
     const applyTurnTransition = (nextColour: TPlayerColour) => {
-      const state = store.getState();
-      const currentColour = state.players.currentPlayerColour;
-      if (currentColour) {
-        dispatch(deactivateAllTokens(currentColour));
-      }
+      dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
-      dispatch(deactivateAllTokens(nextColour));
     };
 
     // ─── HOST: Handle dice roll request (OpCode 3) ─────────────────────────────

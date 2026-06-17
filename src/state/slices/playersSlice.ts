@@ -93,12 +93,10 @@ const reducers = {
 
   changeTurn: (state: TPlayerState) => {
     const { currentPlayerColour, playerSequence } = state;
-    if (currentPlayerColour) {
-      const player = state.players.find((p) => p.colour === currentPlayerColour);
-      if (player) {
-        player.tokens.forEach((t) => (t.isActive = false));
-      }
-    }
+    // Deactivate all tokens for all players on turn change
+    state.players.forEach((p) => {
+      p.tokens.forEach((t) => (t.isActive = false));
+    });
     if (!currentPlayerColour) {
       state.currentPlayerColour = 'blue';
       return;
@@ -140,6 +138,12 @@ const reducers = {
   deactivateAllTokens: (state: TPlayerState, action: PayloadAction<TPlayerColour>) => {
     const player = getPlayer(state, action.payload);
     player.tokens.forEach((t) => (t.isActive = false));
+  },
+
+  deactivateTokensOfAllPlayers: (state: TPlayerState) => {
+    state.players.forEach((p) => {
+      p.tokens.forEach((t) => (t.isActive = false));
+    });
   },
 
   unlockToken: (state: TPlayerState, action: PayloadAction<TTokenColourAndId>) => {
@@ -304,6 +308,7 @@ export const {
   changeTurn,
   activateTokens,
   deactivateAllTokens,
+  deactivateTokensOfAllPlayers,
   unlockToken,
   lockToken,
   incrementNumberOfConsecutiveSix,
