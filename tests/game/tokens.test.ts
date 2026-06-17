@@ -225,5 +225,41 @@ describe('Test tokens/logic', () => {
         expect(isTokenMovable(token, 5)).toBe(expected);
       }
     );
+
+    describe('block logic validation', () => {
+      it('returns false if there is an opponent block in the path', () => {
+        const token: TToken = {
+          ...DUMMY_TOKEN,
+          colour: 'blue',
+          coordinates: { x: 6, y: 13 },
+          isLocked: false,
+          hasTokenReachedHome: false,
+        };
+        // Place two red tokens on the path at { x: 6, y: 11 } which is not safe
+        const opponentTokens: TToken[] = [
+          { ...DUMMY_TOKEN, colour: 'red', id: 0, coordinates: { x: 6, y: 11 }, isLocked: false, hasTokenReachedHome: false },
+          { ...DUMMY_TOKEN, colour: 'red', id: 1, coordinates: { x: 6, y: 11 }, isLocked: false, hasTokenReachedHome: false },
+        ];
+        const allTokens = [token, ...opponentTokens];
+        expect(isTokenMovable(token, 3, allTokens)).toBe(false);
+      });
+
+      it('returns true if the block is on a safe spot', () => {
+        const token: TToken = {
+          ...DUMMY_TOKEN,
+          colour: 'blue',
+          coordinates: { x: 8, y: 13 },
+          isLocked: false,
+          hasTokenReachedHome: false,
+        };
+        // Place two red tokens on the star at { x: 8, y: 12 }
+        const opponentTokens: TToken[] = [
+          { ...DUMMY_TOKEN, colour: 'red', id: 0, coordinates: { x: 8, y: 12 }, isLocked: false, hasTokenReachedHome: false },
+          { ...DUMMY_TOKEN, colour: 'red', id: 1, coordinates: { x: 8, y: 12 }, isLocked: false, hasTokenReachedHome: false },
+        ];
+        const allTokens = [token, ...opponentTokens];
+        expect(isTokenMovable(token, 1, allTokens)).toBe(true);
+      });
+    });
   });
 });
