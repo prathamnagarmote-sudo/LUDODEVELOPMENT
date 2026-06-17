@@ -1,0 +1,119 @@
+Server-side API Specification — Game Server Lifecycle
+Purpose
+Describe the server-side endpoints the client platform must expose so Stacknize's game-server lifecycle can spawn, bind, and stop match-backed servers.
+This is an implementation contract for the client backend, not a frontend integration guide.
+Runtime Environment
+For the caller side:
+GAME_SERVERS_URL: public base URL of the client platform endpoint group, for example https://games.example.com
+INTERNAL_HOOK_SECRET: shared secret that must be sent in the X-Internal-Auth header
+For the server implementation side, the backend typically also needs values like:
+GAME_SERVER_IMAGE
+GAME_SERVER_PORT_START
+GAME_SERVER_PORT_END
+GAME_SERVER_INTERNAL_PORT
+GAME_SERVER_DOCKER_NETWORK
+GAME_SERVER_MEMORY_LIMIT
+GAME_SERVER_CPU_LIMIT
+GAME_SERVER_CLEANUP_INTERVAL_SECONDS
+GAME_SERVER_MAX_LIFETIME_MINUTES
+GAME_SERVER_BOOT_TIMEOUT_SECONDS
+Shared Request Rules
+All requests are JSON.
+Every endpoint must require the header: X-Internal-Auth: <INTERNAL_HOOK_SECRET>.
+Reject missing or wrong secrets with 401 Unauthorized.
+Validate required strings as non-empty.
+
+1) POST /api/game-servers/spawn
+Purpose: Create or reuse a dedicated server for a match.
+Request Body:
+{  "matchId": "string",  "gameType": "string"}
+What the server should do:
+Check whether a server already exists for the same matchId.
+If it exists, return the existing match path and mark it as already running.
+If it does not exist, allocate a free host port, start the container, wait until the server is ready, then store the active match state.
+If container startup fails after partial creation, clean up the container and release the reserved port.
+Success Response (200 OK):
+{  "matchPath": "string",   "alreadyRunning": boolean }
+Note: matchPath should be the server route for the match, for example /match/<matchId>. alreadyRunning should be false for a new spawn and true if the server already existed.
+Error Responses:
+401 Unauthorized — invalid X-Internal-Auth
+422 Unprocessable Entity — invalid body
+503 Service Unavailable — no ports available, server image missing, or container did not become ready
+500 Internal Server Error — unexpected Docker or cleanup failure
+
+2) POST /api/game-servers/bind-route
+Purpose: Persist the mapping between the external match id and the spawned server match id.
+Request Body:
+{  "matchId": "string",  "serverMatchId": "string"}
+What the server should do:
+Resolve serverMatchId to an active spawned server.
+Bind matchId to that active server so later lookups can resolve to the same container.
+Keep the operation idempotent.
+Success Response (200 OK):
+{  "success": true}
+Error Responses:
+401 Unauthorized — invalid X-Internal-Auth
+422 Unprocessable Entity — invalid body
+404 Not Found — serverMatchId does not map to an active server
+500 Internal Server Error — unexpected failure
+
+3) POST /api/game-servers/stop
+Purpose: Stop a running match server and clear its state.
+Request Body:
+{  "matchId": "string"}
+What the server should do:
+Resolve aliases if the request uses a bound match id.
+Stop the container, release the port, remove the active match entry, and clear route aliases.
+Return 404 if the match is already gone.
+Success Response (200 OK):
+{  "success": true}
+Error Responses:
+401 Unauthorized — invalid X-Internal-Auth
+404 Not Found — no active server exists for the match
+500 Internal Server Error — Docker removal or cleanup failed
+
+Cleanup Behavior Used by the Backend
+Manual Cleanup Path:
+stop removes the container with docker rm -f.
+The implementation then releases the reserved port and clears all in-memory match aliases.
+Failure Cleanup Path:
+If spawn fails after a container is created, the implementation removes the partially created container and releases the port.
+Background Cleanup Cycle:
+Runs every GAME_SERVER_CLEANUP_INTERVAL_SECONDS seconds, with a minimum effective interval of 5 seconds.
+Removes active matches older than GAME_SERVER_MAX_LIFETIME_MINUTES.
+Removes managed containers in exited or dead state.
+Removes orphaned running managed containers that are older than the max lifetime.
+Cleanup State the Backend Tracks:
+active match id
+game type
+allocated host port
+upstream container name and id
+start time
+route aliases
+
+Implementation Notes
+Keep spawn and bind-route idempotent.
+Choose a stable, free port and keep the response time short.
+Prefer returning a single JSON object with a clear success flag or route path.
+If your platform uses a different internal representation, keep the external contract identical so Games can keep calling the same paths.
+
+Example Flow
+Nakama hook calls POST /api/game-servers/spawn with { "matchId": "...", "gameType": "..." }.
+Client backend creates or reuses the match server and returns { "matchPath": "/match/...", "alreadyRunning": false }.
+Nakama hook calls POST /api/game-servers/bind-route with { "matchId": "...", "serverMatchId": "..." }.
+When the match ends, the hook calls POST /api/game-servers/stop with { "matchId": "..." }.
+
+Testing Checklist
+Verify all three endpoints reject bad secrets (X-Internal-Auth).
+Verify spawn returns the same active match path when called twice for the same match.
+Verify bind-route fails with 404 when the spawned server does not exist.
+Verify stop removes the container and releases the route alias.
+Verify the background cleanup cycle removes stale and orphaned containers.
+
+Nakama Hooks Deployment
+To integrate the game lifecycle with your Nakama instance, we have provided a pre-packaged ZIP file containing the required server-side Nakama hooks.
+Download Link: nakama-hooks.zip
+Deployment Instructions:
+Extract and Install: Extract the contents of this ZIP file into your Nakama server's data/modules directory (or bake them directly into your custom Nakama Docker image).
+Environment Variables: Ensure the Nakama environment has GAME_SERVERS_URL and INTERNAL_HOOK_SECRET defined so these hooks can successfully authenticate and communicate with your backend API.
+Domain Binding (Important): Once Nakama is successfully deployed and running with these hooks, the server must be exposed via a public, secure domain name (for example, nakama.example.com). The WebGL game client will use this domain to establish the initial connection, authenticate players, and queue for matchmaking.

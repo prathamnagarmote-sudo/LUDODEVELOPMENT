@@ -1,0 +1,12 @@
+{
+  "name": "scratch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "fetch_debug.js",
+  "type": "module",
+  "dependencies": {
+    "@heroiclabs/nakama-js": "^2.8.0",
+    "pg": "^8.11.3",
+    "ws": "^8.21.0"
+  }
+}

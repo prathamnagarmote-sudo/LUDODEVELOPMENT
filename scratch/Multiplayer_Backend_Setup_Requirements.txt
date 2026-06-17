@@ -1,0 +1,48 @@
+Technical Specification: Secure Multiplayer Infrastructure Deployment
+1. Executive Summary
+To achieve production-ready hosting for a secure Unity WebGL multiplayer game, the server infrastructure must comply with modern browser security architectures (specifically CORS and Mixed Content protections). Under these native security policies, standard unencrypted public connections (HTTP or WS) are immediately blocked by the client browser. All public communication must traverse an encrypted TLS/SSL layer bound to fully qualified subdomains.
+This specification document serves as the formal technical deliverable list for the Backend Engineering/DevOps team to deploy the secure gateway infrastructure that supports Nakama Matchmaking and the Mirror Real-Time Dedicated Game Server.
+2. Network Architectural Topology
+The deployment topology utilizes a Secure Reverse Proxy Gateway to isolate internal services from direct internet exposure:
+Public Internet                 Secure Gateway (Port 443)           Internal Services----------------------------------------------------------------------------------------------WebGL Client (HTTPS)   --->   [ nakama.yourdomain.com ]   --->   [ Docker Nakama: 7350 HTTP ]WebGL Client (WSS)     --->   [ mirror.yourdomain.com ]   --->   [ Docker Mirror: 7778 TCP ]Standalone (PC/Mobile) --->   [ mirror.yourdomain.com ]   --->   [ Host/Docker: 7777 UDP ]
+
+3. Actionable Infrastructure Deliverables
+Task 1: DNS Subdomain Provisioning
+Provision standard A-Records mapping the target server IPv4 to two dedicated subdomains:
+Matchmaking Services (Nakama API): nakama.yourdomain.com -> [Target Server IPv4]
+Gameplay Routing (Mirror Server): mirror.yourdomain.com -> [Target Server IPv4]
+Task 2: SSL/TLS Certificate Deployment
+Generate and install trusted browser SSL certificates (e.g., Certbot/Let's Encrypt, AWS ACM) for both subdomains. Termination of incoming TLS connections must occur on the standard public HTTPS Port 443.
+Task 3: Reverse Proxy Routing Map
+Configure your proxy (Nginx, Traefik, HAProxy, ALB) to offload SSL and route to internal loopback targets:
+Ingress Route
+Edge Action
+Internal Destination
+Protocol Type
+https://nakama.yourdomain.com:443
+SSL Offload & Proxy
+127.0.0.1:7350
+HTTP / REST
+wss://mirror.yourdomain.com:443
+SSL Offload & Proxy
+127.0.0.1:7778
+WebSocket (TCP)
+
+⚠️ CRITICAL PROXY REQUIREMENT: WebSocket Upgrade HeadersFor the mirror.yourdomain.com configuration block, the proxy MUST explicitly permit and forward protocol upgrade requests. If 'Upgrade: websocket' and 'Connection: Upgrade' headers are missing from the upstream request, the Mirror handshake negotiation will immediately abort.
+Task 4: Network Firewall Ingress Policies
+Configure VM Security Groups and OS Firewalls to whitelist external traffic as follows:
+Ingress Port
+Protocol
+Service Scope
+Destination
+443
+TCP
+HTTPS APIs & Secure WebSockets (WebGL)
+Reverse Proxy
+7777
+UDP
+High-Performance Real-Time Data (Standalone EXE)
+Game Server (Docker)
+
+Conclusion & Operational Target
+Provisioning these four deliverables establishes an enterprise-compliant, secured gateway. This masks internal topology and guarantees absolute security compliance with all modern Web browsers, enabling seamless global publishing.

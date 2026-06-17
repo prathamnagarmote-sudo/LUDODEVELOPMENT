@@ -337,12 +337,11 @@ function Game({
             node: '',
           }
         } as any;
-        setTimeout(() => {
+        queueMicrotask(() => {
           if (socket.onmatchdata) {
-            console.log(`[LOCAL-LOOPBACK] Simulating match data event for OpCode ${opCode}`);
             socket.onmatchdata(fakeMatchData);
           }
-        }, 0);
+        });
       }
     };
 
@@ -410,82 +409,101 @@ function Game({
     };
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 8) ─────────────────────────────
-    // Show animation + activate/auto-move tokens for the rolling player's colour.
-    const DICE_ANIM_DELAY = 300;
+    // ZERO-DELAY: Show result immediately, run ALL post-dice logic on EVERY client.
+    // The host still broadcasts OpCodes as authoritative confirmation, but every client
+    // independently computes deterministic outcomes (auto-moves, turn skips) for instant feel.
     const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number }) => {
       const colour = data.colour;
       const roll = data.roll;
-      console.log('[ALL] Applying dice result:', colour, roll);
 
+      // Set the dice number immediately — no artificial delay
       dispatch(setDiceNumberDirect({ colour, diceNumber: roll }));
-      dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
-      dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
+      dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
+      dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
 
-      setTimeout(() => {
-        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
-        // Let the visual rolling animation finish slightly after we unblock logic
-        setTimeout(() => dispatch(setIsVisualRolling({ colour, isVisualRolling: false })), 200);
+      if (roll === 6) {
+        dispatch(incrementNumberOfConsecutiveSix(colour));
+      } else {
+        dispatch(resetNumberOfConsecutiveSix(colour));
+      }
 
-        if (roll === 6) {
-          dispatch(incrementNumberOfConsecutiveSix(colour));
-        } else {
-          dispatch(resetNumberOfConsecutiveSix(colour));
-        }
+      // ── ALL CLIENTS resolve post-dice logic deterministically ─────────────────
+      const mySessionId = getEffectivePlayerId();
+      const freshState = store.getState();
+      const allSessionIds = matchedUsers ? matchedUsers.map(u => u.presence.session_id).sort() : [];
+      const amHost = allSessionIds.length > 0 && allSessionIds[0] === mySessionId;
 
-        // ── Only the HOST resolves post-dice logic ──────────────────────────────
-        const mySessionId = getEffectivePlayerId();
-        const freshState = store.getState();
-        const allSessionIds = matchedUsers ? matchedUsers.map(u => u.presence.session_id).sort() : [];
-        const amHost = allSessionIds.length > 0 && allSessionIds[0] === mySessionId;
+      const playersList = freshState.players.players;
+      const activePlayer = playersList.find(p => p.colour === colour);
+      if (!activePlayer) return;
+
+      const currentRoomId = roomIdRef.current;
+      const pSeq = freshState.players.playerSequence;
+
+      // 3 consecutive sixes → forfeit turn
+      if (activePlayer.numberOfConsecutiveSix >= 3) {
+        dispatch(resetNumberOfConsecutiveSix(colour));
+        dispatch(deactivateAllTokens(colour));
+        const nextColour = getNextTurnColour(colour, pSeq);
+        // ALL clients apply turn change optimistically
+        dispatch(deactivateTokensOfAllPlayers());
+        dispatch(setCurrentPlayerColour(nextColour));
+        // Host also broadcasts for confirmation
+        if (amHost) socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+        return;
+      }
+
+      const allTokens = playersList.flatMap(p => p.tokens);
+
+      // Bot auto-move — host-only (bots are non-deterministic due to scoring heuristics)
+      if (activePlayer.isBot) {
         if (!amHost) return;
-
-        const playersList = freshState.players.players;
-        const activePlayer = playersList.find(p => p.colour === colour);
-        if (!activePlayer) return;
-
-        const currentRoomId = roomIdRef.current;
-        const pSeq = freshState.players.playerSequence;
-
-        // 3 consecutive sixes → forfeit turn
-        if (activePlayer.numberOfConsecutiveSix >= 3) {
-          dispatch(resetNumberOfConsecutiveSix(colour));
-          dispatch(deactivateAllTokens(colour));
+        const bestToken = selectBestTokenForBot(colour, roll, allTokens);
+        if (!bestToken) {
           const nextColour = getNextTurnColour(colour, pSeq);
           socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
-          return;
-        }
-
-        const allTokens = playersList.flatMap(p => p.tokens);
-
-        // Bot auto-move
-        if (activePlayer.isBot) {
-          const bestToken = selectBestTokenForBot(colour, roll, allTokens);
-          if (!bestToken) {
-            const nextColour = getNextTurnColour(colour, pSeq);
-            socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
-          } else {
-            socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: bestToken.id, isUnlock: bestToken.isLocked }));
-          }
-          return;
-        }
-
-        // Human player — check if any tokens are movable
-        const movableTokens = activePlayer.tokens.filter(t =>
-          isTokenMovable(t, roll, allTokens) || (roll === 6 && t.isLocked && !t.hasTokenReachedHome)
-        );
-        if (movableTokens.length === 0) {
-          // No moves → auto-advance turn immediately
-          const nextColour = getNextTurnColour(colour, pSeq);
-          socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
-        } else if (movableTokens.length === 1 && areAllTokensInSameCoord(movableTokens)) {
-          // Only one choice → auto-move it immediately
-          const token = movableTokens[0];
-          socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: token.id, isUnlock: token.isLocked }));
         } else {
-          // Multiple choices → activate tokens on ALL clients via broadcast
-          socket.sendMatchState(currentRoomId, 11, JSON.stringify({ colour, diceNumber: roll }));
+          socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: bestToken.id, isUnlock: bestToken.isLocked }));
         }
-      }, DICE_ANIM_DELAY);
+        return;
+      }
+
+      // Human player — deterministic auto-move computed on ALL clients
+      const movableTokens = activePlayer.tokens.filter(t =>
+        isTokenMovable(t, roll, allTokens) || (roll === 6 && t.isLocked && !t.hasTokenReachedHome)
+      );
+
+      if (movableTokens.length === 0) {
+        // No moves → ALL clients advance turn optimistically
+        const nextColour = getNextTurnColour(colour, pSeq);
+        dispatch(deactivateTokensOfAllPlayers());
+        dispatch(setCurrentPlayerColour(nextColour));
+        if (amHost) socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+      } else if (movableTokens.length === 1 && areAllTokensInSameCoord(movableTokens)) {
+        // Only one choice → ALL clients start optimistic move animation immediately
+        const token = movableTokens[0];
+        const tokenKey = `${colour}-${token.id}`;
+        optimisticTokenMovesRef.current.add(tokenKey);
+
+        // Start animation immediately on this client
+        if (token.isLocked) {
+          dispatch(setIsAnyTokenMoving(true));
+          setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
+          dispatch(unlockAndAlignTokens({ colour, id: token.id }));
+          dispatch(deactivateAllTokens(colour));
+          setTimeout(() => dispatch(setIsAnyTokenMoving(false)), FORWARD_TOKEN_TRANSITION_TIME);
+        } else {
+          moveAndCapture(token, roll);
+        }
+
+        // Host broadcasts authoritative result as confirmation
+        if (amHost) socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: token.id, isUnlock: token.isLocked }));
+      } else {
+        // Multiple choices → ALL clients activate tokens immediately
+        dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
+        // Host also broadcasts for confirmation
+        if (amHost) socket.sendMatchState(currentRoomId, 11, JSON.stringify({ colour, diceNumber: roll }));
+      }
     };
 
     // ─── HOST: Handle token move request (OpCode 5) ────────────────────────────

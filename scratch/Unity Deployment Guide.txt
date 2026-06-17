@@ -1,0 +1,43 @@
+Unity Deployment & Hosting Guide
+This guide explains how to take the compiled WebGL and Linux Dedicated Server builds provided by the game development team and deploy them to your infrastructure so that the entire multiplayer ecosystem communicates flawlessly.
+
+1. Ecosystem Overview
+The multiplayer architecture relies on two distinct Unity builds communicating through your backend infrastructure:
+WebGL Build (Frontend): The client application played directly in the user's browser. It communicates with your Nakama server for matchmaking and your custom Game Server Backend for real-time physics.
+Linux Server Build (Backend): A headless Unity executable. It contains the authoritative game logic. It is packaged as a Docker image and spawned dynamically by your backend API for every new match.
+In-Game Communication (Post-Matchmaking)
+Once matchmaking is complete, the architecture shifts entirely to a Client-Server model:
+No Peer-to-Peer: The WebGL clients do not communicate directly with each other, nor do they use Nakama for real-time gameplay.
+The Authoritative Server: Both WebGL clients establish a persistent, low-latency WebSocket connection directly to the spawned Linux Server Container.
+The Gameplay Loop: The WebGL clients only send player inputs (e.g., "I dragged the striker back 50%"). The Linux Server receives these inputs, simulates the actual physics (collisions, bounces, scoring) using its internal engine, and continuously broadcasts the exact positions of all coins back to the WebGL clients to render on the screen.
+
+2. Deploying the WebGL Frontend
+The game development team will provide a standard WebGL build folder containing static files (index.html, Build/, TemplateData/).
+Hosting Requirements
+Static Hosting: Because WebGL is entirely client-side, you can host these files on any standard static web server or CDN (e.g., AWS S3 + CloudFront, Nginx, Apache, Vercel, Netlify).
+HTTPS is Mandatory: Modern browsers require a secure context (HTTPS) to open Secure WebSockets (wss://). If the WebGL build is hosted on http://, the browser will block the connection to your secure game server.
+Compression Headers: Unity WebGL builds are heavily compressed. Ensure your web server is configured to serve .gz or .br files with the correct Content-Encoding: gzip or Content-Encoding: br HTTP headers, otherwise the browser will fail to parse the game engine.
+Connecting to Your Infrastructure
+The WebGL client needs to know the addresses of your Nakama server and your Game Server backend. Ensure that the game development team provides you with a configuration file (like config.json), URL query parameters, or environment variables in the index.html to inject your specific production URLs into the WebGL build.
+
+3. Deploying the Linux Dedicated Server
+The game development team will provide a compiled Linux x86_64 build (e.g., a .zip containing Server.x86_64 and a Server_Data folder).
+Your backend infrastructure needs this build converted into a Docker Image so your Node/NestJS backend can dynamically spawn it when matches are created.
+Step 3A: Dockerizing the Server Build
+Unzip the provided Linux build on your server machine. In the same directory as the Server.x86_64 executable, create a file named exactly Dockerfile with the following contents:
+# Use a lightweight Ubuntu base imageFROM ubuntu:22.04# Set the working directoryWORKDIR /app# Install certificates required for secure network requestsRUN apt-get update && \    apt-get install -y ca-certificates libssl-dev && \    rm -rf /var/lib/apt/lists/*# Copy all the unzipped Unity build files into the containerCOPY . .# Ensure the Unity executable has run permissionsRUN chmod +x ./Server.x86_64# Expose the internal Mirror SimpleWebTransport portEXPOSE 7778# Run the server in headless batch modeENTRYPOINT ["./Server.x86_64", "-batchmode", "-nographics"]
+Step 3B: Building the Image
+Open your terminal in that directory and build the Docker image. Note: The tag name must match the GAME_SERVER_IMAGE variable in your backend API's .env file.
+docker build -t yourorg/your-unity-headless:latest .
+Step 3C: Making the Image Available
+Single Server: If your NestJS backend API is running on the exact same physical machine, running the docker build command above is enough. The backend can now spawn it locally.
+Cloud Cluster: If your backend runs on a cluster (AWS ECS, Kubernetes, etc.), you must push this newly built image to your private container registry:
+docker push yourorg/your-unity-headless:latest
+
+4. The Communication Pipeline (How It All Connects)
+Once the WebGL files are hosted and the Linux Server is dockerized, here is the exact chronological sequence of how they communicate:
+Auth & Matchmaking (WebGL → Nakama): The player opens the WebGL site. The browser connects to your Nakama server (usually Port 7350) to authenticate and queue for a match.
+Spawn Request (Nakama → Backend API): Nakama finds two matched players. It triggers your server-side hook, which sends a POST request to your Backend API's /spawn endpoint.
+Container Boot (Backend API → Docker): Your Backend API uses the host machine's Docker socket to instantly spin up a container using the yourorg/your-unity-headless:latest image you built in Step 3.
+Gameplay (WebGL → Backend Proxy → Unity Container): The Backend API returns the connection route to Nakama, which passes it to the WebGL clients. The WebGL clients open a Secure WebSocket (wss://) to your Backend API. The Backend API seamlessly proxies this traffic directly into the newly spawned Unity Docker container on Port 7778.
+When the match finishes, the Unity container sends a /stop command to the Backend API, which deletes the container and frees the memory.

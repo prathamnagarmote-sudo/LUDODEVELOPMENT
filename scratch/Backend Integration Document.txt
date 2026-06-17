@@ -1,0 +1,68 @@
+Backend Matchmaking Engine Integration Guide
+This document outlines the architecture, integration patterns, and operational flow of the Matchmaking Engine, acting as the game-agnostic middleware between the Main Platform and Game Providers.
+
+1. SCOPE UNDERSTANDING
+The Matchmaking Engine is designed as a game-agnostic middleware layer. Its primary responsibility is to decouple the business logic of the Main Platform (wallets, user profiles, social) from the real-time execution of individual Game Modules.
+Role: Orchestrates the transition from a “Match Request” on the platform to an “Active Game Session” in the engine.
+Boundaries:
+Northbound (Main Platform): Handles match requests, validates player eligibility, and reports final game results for settlement.
+Southbound (Game Providers): Provisions game instances (Mirror/Headless), manages WebSocket traffic, and validates incoming game state signatures.
+
+2. SYSTEM ARCHITECTURE
+The engine utilizes a hybrid approach combining robust RESTful services for orchestration and a high-performance socket bus for real-time state.
+Tech Stack
+Backend Framework: NestJS (Node.js) for the REST API and orchestration layer.
+Real-Time Engine: Nakama (High-performance distributed server for matchmaking and social).
+Game Networking: Mirror (Unity-integrated networking for authoritative game state).
+Databases:
+MySQL: Stores core platform data, user metadata, and persistent engine state.
+PostgreSQL: Dedicated to Nakama runtime data (sessions, matches, accounts).
+Containerization: Docker for consistent environment deployment and orchestration.
+Scalability Approach
+Stateless API Services: NestJS containers are stateless, allowing horizontal scaling via a Load Balancer (ALB/Nginx).
+WebSocket Gateway: Load-balanced WebSocket layer with session affinity (sticky sessions) to handle persistent connections.
+Nakama Clustering: Leverages Nakama’s native clustering capabilities to scale real-time traffic and matchmaking throughput.
+
+3. SESSION LIFECYCLE
+The Engine manages the full lifecycle of a game session to ensure reliability and data integrity.
+Creation: Triggered by a match-up from the Matchmaker. A unique MatchID is generated, and a Mirror Headless server is provisioned or assigned.
+Active State: Real-time synchronization of game data. State is periodically cached to the State Store (PostgreSQL) to survive service restarts.
+Archival: Upon match completion, the final state is moved to MySQL for long-term historical access and auditing.
+Reconnection Support: If a player disconnects, the session remains active in the “Waiting” state. If they fail to return within the window, the Engine triggers a forfeit (for 2-player matches) or a kick-off (for multi-player), as detailed in Section 5.
+
+4. REAL-TIME WEBSOCKET INFRASTRUCTURE
+Managing persistent connections at scale requires a robust gateway approach.
+Fan-out Strategy: The engine uses a publish-subscribe model. Game state updates are broadcasted to all connected clients in a match via the Nakama socket bus.
+Heartbeat Handling: Clients send regular heartbeats. If a heartbeat is missed for a defined threshold (e.g., 10s), the Engine marks the player as “Disconnected” but keeps their “Seat” reserved.
+Reconnect Flow: Upon reconnection, the client sends a ResumeSession request. The Engine sends a “State Dump” to bring the client’s local view in sync with the server.
+
+5. PLAYER AND RECONNECT MANAGEMENT
+Seat Ownership: Each player in a match is assigned a SeatID. This is cryptographically linked to their Platform User ID.
+Disconnect Detection: Managed via the WebSocket heartbeat. The engine distinguishes between a “Soft Drop” (brief lag) and a “Hard Drop” (connection closed).
+Reconnect Window & Forfeit: Players have a configurable window to return (e.g., 60 seconds). If a player fails to reconnect within this window:
+2-Player Match: The opponent is automatically declared the winner.
+Multi-Player (>2): The disconnected player is kicked from the session, and the game continues with the remaining participants.
+Matchmaking Bot Fill: To ensure low wait times, the Matchmaker uses a 30-second window:
+0s - 20s: The Engine prioritizes matching with real human players.
+20s - 30s: If the slot remains empty, the Engine triggers a Bot Fill event to randomly populate the remaining seats with AI agents, ensuring the match starts within the 30-second limit.
+
+6. RESULT VALIDATION AND SETTLEMENT
+Ensuring game integrity is paramount for platform trust.
+Signed Results: Game Modules (Headless Servers) submit results signed with a Secure Private Key.
+Validation: The Engine verifies the signature and checks for logical consistency (e.g., “Does the winner’s score align with the game duration?”).
+Settlement Relay: Once validated, the Engine calls the Main Platform’s Settlement API via an idempotent webhook.
+De-duplication: Every settlement instruction includes a TransactionID based on the MatchID to prevent double-crediting or duplicate payouts.
+
+7. MAIN PLATFORM INTEGRATION
+Communication is handled via a two-way asynchronous model.
+Outgoing (To Platform): Webhooks for Match Started, Match Ended, and Settlement. Includes automatic Retry Logic with exponential backoff.
+Incoming (From Platform): REST APIs for triggering matchmaking or cancelling sessions.
+Security: Webhook signature verification (HMAC-SHA256) ensures all platform-to-engine communication is authentic.
+Idempotency: All state-changing requests require an Idempotency-Key header to prevent side effects from network retries.
+
+
+8. SECURITY
+Service Authentication: mTLS or API Key rotation for Engine-to-Platform communication.
+Player Validation: Support for JWT/JWKS (JSON Web Key Sets). The Engine validates the platform-issued token to confirm player identity without sharing passwords.
+Rate Limiting: Enforced at the API Gateway level to prevent DDoS and brute-force matchmaking requests.
+Replay Attack Prevention: Nonce tracking and timestamp validation on all critical game actions (e.g., move submissions, result signing).

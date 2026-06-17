@@ -1,0 +1,24 @@
+NGINX Reverse Proxy Configuration Guide
+This document provides the standard NGINX server blocks required to securely expose both the Nakama Matchmaking Server and the Game Server Backend to the public internet.
+To ensure browsers can establish Secure WebSockets (wss://), both endpoints must be served over HTTPS. These configurations utilize standard proxy_pass blocks that correctly forward HTTP Upgrade headers required for WebSocket connections.
+
+Prerequisites
+A Linux server running NGINX.
+Two registered subdomains pointed at your server's IP (e.g., nakama.example.com and mirror.example.com).
+SSL Certificates generated via Certbot (Let's Encrypt).
+Nakama running locally on port 7350.
+The Node/NestJS Backend API running locally on port 4000.
+
+1. Nakama Server Block
+This block routes traffic from nakama.example.com directly into the Nakama game engine. It includes standard WebSocket upgrade headers.
+Create a file at /etc/nginx/sites-available/nakama (or append to your main config) and paste the following:
+# --- Nakama ---server {    server_name nakama.example.com;    location / {        # Forward traffic to the local Nakama instance        proxy_pass http://127.0.0.1:7350;        proxy_http_version 1.1;        # Mandatory headers to support WebSockets (wss://)        proxy_set_header Upgrade $http_upgrade;        proxy_set_header Connection "upgrade";        proxy_set_header Host $host;        proxy_cache_bypass $http_upgrade;        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;    }    # SSL Configuration (Managed by Certbot)    listen 443 ssl;     ssl_certificate /etc/letsencrypt/live/nakama.example.com/fullchain.pem;     ssl_certificate_key /etc/letsencrypt/live/nakama.example.com/privkey.pem;     include /etc/letsencrypt/options-ssl-nginx.conf;     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; }# Redirect unencrypted HTTP traffic to HTTPSserver {    if ($host = nakama.example.com) {        return 301 https://$host$request_uri;    }     server_name nakama.example.com;    listen 80;    return 404; }
+
+2. Mirror / Backend API Server Block
+This block routes traffic from mirror.example.com/match/ into your custom Node/NestJS backend. Note the extremely high proxy_read_timeout to ensure long-running gameplay WebSocket connections are not aggressively dropped by NGINX.
+Create a file at /etc/nginx/sites-available/mirror (or append to your main config) and paste the following:
+# --- Mirror (Game Server Backend) ---server {    server_name mirror.example.com;    location /match/ {        # Forward traffic to the local Node/NestJS Backend        proxy_pass http://127.0.0.1:4000;        proxy_http_version 1.1;                # Mandatory headers to support WebSockets (wss://)        proxy_set_header Upgrade $http_upgrade;        proxy_set_header Connection "Upgrade";        proxy_set_header Host $host;        proxy_set_header X-Real-IP $remote_addr;        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;        proxy_set_header X-Forwarded-Proto $scheme;                # Prevent NGINX from closing idle persistent gameplay connections        proxy_read_timeout 86400s;        proxy_send_timeout 86400s;    }    # SSL Configuration (Managed by Certbot)    listen 443 ssl;     ssl_certificate /etc/letsencrypt/live/mirror.example.com/fullchain.pem;     ssl_certificate_key /etc/letsencrypt/live/mirror.example.com/privkey.pem;     include /etc/letsencrypt/options-ssl-nginx.conf;     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; }# Redirect unencrypted HTTP traffic to HTTPSserver {    if ($host = mirror.example.com) {        return 301 https://$host$request_uri;    }     server_name mirror.example.com;    listen 80;    return 404; }
+
+3. Activating the Configuration
+After adding the files to /etc/nginx/sites-available/, enable them and reload NGINX:
+# Create symlinks to sites-enabledsudo ln -s /etc/nginx/sites-available/nakama /etc/nginx/sites-enabled/sudo ln -s /etc/nginx/sites-available/mirror /etc/nginx/sites-enabled/# Test the NGINX configuration for syntax errorssudo nginx -t# Reload NGINX to apply changessudo systemctl reload nginx
