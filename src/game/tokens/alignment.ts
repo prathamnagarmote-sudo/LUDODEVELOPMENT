@@ -720,11 +720,40 @@ export function getTokenAlignmentData(numberOfTokensInOneTile: number): TTokenAl
   return tokenAlignmentData[numberOfTokensInOneTile];
 }
 
+export function getHomeTokenAlignmentData(numberOfTokens: number): TTokenAlignmentData[] {
+  if (numberOfTokens === 1) return [{ xOffset: 0, yOffset: 0, scaleFactor: 1.1 }];
+  if (numberOfTokens === 2) return [
+    { xOffset: -0.2, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: 0.2, yOffset: 0, scaleFactor: 1.1 }
+  ];
+  if (numberOfTokens === 3) return [
+    { xOffset: -0.3, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: 0, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: 0.3, yOffset: 0, scaleFactor: 1.1 }
+  ];
+  if (numberOfTokens === 4) return [
+    { xOffset: -0.3, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: -0.1, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: 0.1, yOffset: 0, scaleFactor: 1.1 },
+    { xOffset: 0.3, yOffset: 0, scaleFactor: 1.1 }
+  ];
+  return getTokenAlignmentData(numberOfTokens);
+}
+
+import { tokenPaths } from './paths';
+
 export function applyAlignmentData(tokens: TToken[], dispatch: Dispatch<UnknownAction>) {
   if (!tokens.every((t) => areCoordsEqual(t.coordinates, tokens[0].coordinates)))
     throw new Error('All tokens must have the same coordinate');
 
-  const alignmentData = getTokenAlignmentData(tokens.length);
+  const coord = tokens[0].coordinates;
+  const colour = tokens[0].colour;
+  const homeCoord = tokenPaths[colour][tokenPaths[colour].length - 1];
+  const isAtHome = areCoordsEqual(coord, homeCoord);
+
+  const alignmentData = isAtHome 
+    ? getHomeTokenAlignmentData(tokens.length)
+    : getTokenAlignmentData(tokens.length);
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];

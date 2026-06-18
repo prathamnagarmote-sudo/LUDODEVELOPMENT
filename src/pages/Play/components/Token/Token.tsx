@@ -45,7 +45,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   const [isCurrentlyFocused, setIsCurrentlyFocused] = useState(false);
   const tokenElRef = useRef<HTMLButtonElement | null>(null);
 
-  const { coordinates, isActive, isLocked, tokenAlignmentData } = token;
+  const { coordinates, isActive, isLocked, tokenAlignmentData, hasTokenReachedHome } = token;
 
   const prevCoordsRef = useRef(coordinates);
   useEffect(() => {
@@ -56,7 +56,7 @@ function Token({ colour, id, tokenClickData }: Props) {
 
   const { scaleFactor } = tokenAlignmentData;
   const getPosition = useCoordsToPosition();
-  const { x, y } = getPosition(coordinates, tokenAlignmentData);
+  const { x, y } = getPosition(coordinates, tokenAlignmentData, hasTokenReachedHome, colour);
   const diceNumber = useSelector((state: RootState) =>
     state.dice.dice.find((d) => d.colour === colour)
   )?.diceNumber;
@@ -173,7 +173,7 @@ function Token({ colour, id, tokenClickData }: Props) {
           '--token-height': `${tokenHeight}px`,
           '--token-width': `${tokenWidth}px`,
           '--fill-colour': woodStainColours[colour],
-          transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
+          transform: `translate3d(${x}, ${y}, 12px) scale(${hasTokenReachedHome ? scaleFactor * 0.75 : scaleFactor})`,
         } as React.CSSProperties
       }
     >
