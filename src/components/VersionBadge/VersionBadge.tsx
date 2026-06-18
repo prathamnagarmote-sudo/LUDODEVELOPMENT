@@ -16,16 +16,23 @@ export const VersionBadge = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleReload = () => {
-    // Clear caches and perform hard reload
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.unregister();
-        }
-        window.location.reload();
-      });
-    } else {
+  const handleReload = async () => {
+    try {
+      // 1. Clear Cache Storage
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(key => caches.delete(key)));
+      }
+      
+      // 2. Unregister Service Workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+      }
+      
+      // 3. Force reload to home page with cache-busting parameter
+      window.location.href = window.location.origin + '/?cb=' + Date.now();
+    } catch (err) {
       window.location.reload();
     }
   };
