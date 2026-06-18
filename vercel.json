@@ -1,9 +1,0 @@
-{
-  "experimentalServices": {
-    "nakama-server": {
-      "type": "web",
-      "routePrefix": "/",
-      "framework": "vite"
-    }
-  }
-}

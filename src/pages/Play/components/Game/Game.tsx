@@ -232,6 +232,8 @@ function Game({
 
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
   const diceRollStartTimestampRef = useRef<number>(0);
+  const messageQueueRef = useRef<any[]>([]);
+  const isProcessingQueueRef = useRef<boolean>(false);
 
   const onHostTokenMove = useCallback((colour: TPlayerColour, id: number, isUnlock: boolean) => {
     try {
@@ -414,7 +416,7 @@ function Game({
     // ZERO-DELAY: Show result immediately, run ALL post-dice logic on EVERY client.
     // The host still broadcasts OpCodes as authoritative confirmation, but every client
     // independently computes deterministic outcomes (auto-moves, turn skips) for instant feel.
-    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number }) => {
+    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number }, onComplete?: () => void) => {
       const colour = data.colour;
       const roll = data.roll;
 
@@ -497,6 +499,7 @@ function Game({
           dispatch(deactivateTokensOfAllPlayers());
           dispatch(setCurrentPlayerColour(nextColour));
           if (amHost) socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+          onComplete?.();
         } else if (movableTokens.length === 1 && areAllTokensInSameCoord(movableTokens)) {
           // Only one choice → ALL clients start optimistic move animation immediately
           const token = movableTokens[0];
@@ -509,9 +512,14 @@ function Game({
             setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
             dispatch(unlockAndAlignTokens({ colour, id: token.id }));
             dispatch(deactivateAllTokens(colour));
-            setTimeout(() => dispatch(setIsAnyTokenMoving(false)), FORWARD_TOKEN_TRANSITION_TIME);
+            setTimeout(() => {
+              dispatch(setIsAnyTokenMoving(false));
+              onComplete?.();
+            }, FORWARD_TOKEN_TRANSITION_TIME);
           } else {
-            moveAndCapture(token, roll);
+            moveAndCapture(token, roll).then(() => {
+              onComplete?.();
+            });
           }
 
           // Host broadcasts authoritative result as confirmation
@@ -521,6 +529,7 @@ function Game({
           dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
           // Host also broadcasts for confirmation
           if (amHost) socket.sendMatchState(currentRoomId, 11, JSON.stringify({ colour, diceNumber: roll }));
+          onComplete?.();
         }
       }, remainingDelay);
     };
@@ -629,9 +638,12 @@ function Game({
         setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
         dispatch(unlockAndAlignTokens({ colour, id: data.id }));
         dispatch(deactivateAllTokens(colour));
-        setTimeout(() => {
-          dispatch(setIsAnyTokenMoving(false));
-        }, FORWARD_TOKEN_TRANSITION_TIME);
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            dispatch(setIsAnyTokenMoving(false));
+            resolve();
+          }, FORWARD_TOKEN_TRANSITION_TIME);
+        });
       } else {
         // Animate the opponent's token move concurrently
         await moveAndCapture(token, diceNumber);
@@ -648,18 +660,12 @@ function Game({
 
     let requestInterval: any;
 
-    // IMPORTANT: Register onmatchdata BEFORE calling joinMatch() so we never miss OpCode 1
-    socket.onmatchdata = (result: MatchData) => {
-      const data = new TextDecoder().decode(result.data);
-      let parsed: any;
-      try { parsed = JSON.parse(data); } catch(e) { return; }
-
-      const opCode = result.op_code;
+    const handleSingleSocketMessage = async (opCode: number, parsed: any, result: MatchData) => {
       const mySessionId = getEffectivePlayerId();
       const allSessionIds = matchedUsers ? matchedUsers.map(u => u.presence.session_id).sort() : [];
       const amHost = allSessionIds.length > 0 && allSessionIds[0] === mySessionId;
 
-      console.log(`[SOCKET] OpCode ${opCode}`, parsed);
+      console.log(`[SOCKET QUEUE] Processing OpCode ${opCode}`, parsed);
 
       if (opCode >= 101 && opCode <= 103) {
         document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
@@ -689,11 +695,13 @@ function Game({
 
       } else if (opCode === 8) {
         // STATE: Dice rolled — ALL clients apply
-        allClientsApplyDiceResult(parsed);
+        await new Promise<void>((resolve) => {
+          allClientsApplyDiceResult(parsed, resolve);
+        });
 
       } else if (opCode === 9) {
         // STATE: Token moved result — ALL clients apply (host skips re-application)
-        allClientsApplyTokenMove(parsed);
+        await allClientsApplyTokenMove(parsed);
 
       } else if (opCode === 11) {
         // STATE: Activate tokens for player to choose — ALL clients apply
@@ -736,6 +744,36 @@ function Game({
           }
         }
       }
+    };
+
+    const processMessageQueue = async () => {
+      if (isProcessingQueueRef.current || messageQueueRef.current.length === 0) return;
+      isProcessingQueueRef.current = true;
+
+      while (messageQueueRef.current.length > 0) {
+        const nextMsg = messageQueueRef.current.shift();
+        if (!nextMsg) continue;
+        try {
+          await handleSingleSocketMessage(nextMsg.opCode, nextMsg.parsed, nextMsg.result);
+        } catch (err) {
+          console.error('[QUEUE] Error processing socket message:', err);
+        }
+      }
+
+      isProcessingQueueRef.current = false;
+    };
+
+    // IMPORTANT: Register onmatchdata BEFORE calling joinMatch() so we never miss OpCode 1
+    socket.onmatchdata = (result: MatchData) => {
+      const data = new TextDecoder().decode(result.data);
+      let parsed: any;
+      try { parsed = JSON.parse(data); } catch(e) { return; }
+
+      const opCode = result.op_code;
+      console.log(`[SOCKET] Enqueueing OpCode ${opCode}`, parsed);
+
+      messageQueueRef.current.push({ opCode, parsed, result });
+      processMessageQueue();
     };
 
     // Now join the match — handler is already registered above
