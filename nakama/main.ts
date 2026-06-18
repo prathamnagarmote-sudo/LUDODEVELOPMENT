@@ -79,10 +79,11 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
     const errMsg = e?.message || e?.error || JSON.stringify(e) || String(e);
     logger.error("=== ERROR in matchmakerMatched: %v ===", errMsg);
     try {
+      const activeUserId = (matches && matches[0] && matches[0].presence && matches[0].presence.userId) || "00000000-0000-0000-0000-000000000000";
       nk.storageWrite([{
         collection: "debug",
         key: "matchmaker_error",
-        userId: "00000000-0000-0000-0000-000000000000",
+        userId: activeUserId,
         value: { error: errMsg, timestamp: Date.now() },
         permissionRead: 2,
         permissionWrite: 0
