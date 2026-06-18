@@ -16,6 +16,7 @@ import {
   changeCoordsOfToken,
   markTokenAsReachedHome,
   convertPlayerToBot,
+  quitMatch,
 } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
@@ -391,6 +392,12 @@ function Game({
             if (p.isBot) {
               dispatch(convertPlayerToBot({ colour: p.colour }));
             }
+            if (p.hasQuit) {
+              const localPlayer = store.getState().players.players.find(lp => lp.colour === p.colour);
+              if (localPlayer && !localPlayer.hasQuit) {
+                dispatch(quitMatch(p.colour));
+              }
+            }
             p.tokens.forEach((t: any) => {
               dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
               if (t.isLocked) {
@@ -403,6 +410,7 @@ function Game({
               }
             });
           });
+          dispatch(setPlayerSequenceDirect(parsed.playerSequence));
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
         }
 
