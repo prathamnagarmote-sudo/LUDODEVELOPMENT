@@ -110,3 +110,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   initializer.registerMatchmakerMatched(matchmakerMatched);
   logger.info("Matchmaker matched callback registered successfully");
 }
+
+// @ts-ignore
+if (typeof exports !== 'undefined') {
+  // @ts-ignore
+  exports.InitModule = InitModule;
+}

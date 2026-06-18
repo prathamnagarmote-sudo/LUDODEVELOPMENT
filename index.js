@@ -1423,3 +1423,8 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerMatchmakerMatched(matchmakerMatched);
     logger.info("Matchmaker matched callback registered successfully");
 }
+// @ts-ignore
+if (typeof exports !== 'undefined') {
+    // @ts-ignore
+    exports.InitModule = InitModule;
+}
