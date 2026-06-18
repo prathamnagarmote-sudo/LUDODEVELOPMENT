@@ -24,7 +24,7 @@ function matchInit(
 
     return {
       state,
-      tickRate: 10,
+      tickRate: 60, // 60Hz for ultra-low processing latency (16.6ms ticks)
       label: ""
     };
   } catch (e: any) {
@@ -120,7 +120,7 @@ function matchLeave(
   presences.forEach(presence => {
     const playerIndex = state.players.findIndex((p: any) => p.userId === presence.userId);
     if (playerIndex !== -1) {
-      state.botTakeoverTicks[presence.userId] = tick + 40;
+      state.botTakeoverTicks[presence.userId] = tick + 240; // 4 seconds at 60Hz
     }
   });
   return { state };
@@ -142,7 +142,8 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, playerId
   dispatcher.broadcastMessage(8, JSON.stringify({
     playerId,
     playerUserId: player ? player.userId : undefined,
-    roll
+    roll,
+    colour: player ? player.color : undefined
   }));
 }
 
@@ -192,8 +193,13 @@ function matchLoop(
 
   messages.forEach(function(message) {
     try {
-      const data = JSON.parse(nk.binaryToString(message.data));
       const opCode = message.opCode;
+      let data: any = {};
+      try {
+        data = JSON.parse(nk.binaryToString(message.data));
+      } catch (e) {
+        // Handle non-JSON or empty message bodies
+      }
       
       const currentPlayer = state.players[state.currentTurnIndex];
 
@@ -203,13 +209,6 @@ function matchLoop(
         }
         executeRoll(state, dispatcher, currentPlayer.id);
       } 
-      else if (opCode === 4) {
-        dispatcher.broadcastMessage(5, JSON.stringify({
-          colour: currentPlayer.color,
-          id: data.tokenId,
-          isUnlock: data.isUnlock
-        }));
-      }
       else if (opCode === 6) {
         const nextIndex = state.players.findIndex((p: any) => p.color === data.nextTurnColour);
         if (nextIndex !== -1) {
@@ -242,15 +241,33 @@ function matchLoop(
           }
         }
       }
+
+      // ─── TRANSPARENT RELAY FOR CLIENT-BROADCAST MESSAGES ───────────────────
+      // Relay the client message to all other active human players in the match.
+      // OpCode 3 does not need client-side relay since it is server-driven,
+      // but relaying other OpCodes (e.g. 1, 5, 6, 8, 9, 11, 98, 101, 102, 103)
+      // is critical for the client's host-authoritative relay architecture.
+      if (opCode !== 3) {
+        const otherPlayers = state.players.filter((p: any) => p.id && p.id !== message.sender.sessionId && !p.isBot);
+        const relayPresences: nkruntime.Presence[] = otherPlayers.map((p: any) => ({
+          sessionId: p.id,
+          userId: p.userId,
+          username: p.name,
+          node: ""
+        }));
+        if (relayPresences.length > 0) {
+          dispatcher.broadcastMessage(opCode, message.data, relayPresences);
+        }
+      }
     } catch (e) {
-      logger.error("Error processing message: %v", e);
+      logger.error("Error processing message in matchLoop: %v", e);
     }
   });
 
   const currentPlayer = state.players[state.currentTurnIndex];
   if (currentPlayer.isBot) {
     if (!state.botRollTick) {
-      state.botRollTick = tick + 15;
+      state.botRollTick = tick + 90; // 1.5 seconds at 60Hz
     } else if (tick >= state.botRollTick) {
       executeRoll(state, dispatcher, currentPlayer.id);
       state.botRollTick = null;
@@ -270,7 +287,7 @@ function matchLoop(
 
   if (isMatchEmpty) {
     state.emptyTicks++;
-    if (state.emptyTicks > 100) {
+    if (state.emptyTicks > 600) { // 10 seconds at 60Hz
       return null;
     }
   } else {
