@@ -62,7 +62,7 @@ type Props = {
   matchId?: string;
   matchedUsers?: Array<{
     presence: { user_id: string; session_id: string; username: string };
-    string_properties?: { avatarUrl?: string; avatar_url?: string; level?: string; name?: string; userName?: string };
+    string_properties?: { avatarurl?: string; avatarUrl?: string; avatar_url?: string; level?: string; name?: string; userName?: string };
   }>;
   myPlayerId?: string;
   myUserId?: string;
@@ -733,7 +733,7 @@ function Game({
             userId: u.presence.user_id,
             name: u.string_properties?.name || u.string_properties?.userName || u.presence.username || ('Player ' + (idx + 1)),
             isBot: false,
-            avatarUrl: u.string_properties?.avatarUrl || u.string_properties?.avatar_url || '',
+            avatarUrl: u.string_properties?.avatarurl || u.string_properties?.avatarUrl || u.string_properties?.avatar_url || '',
             level: parseInt(u.string_properties?.level || '1'),
             color: colors[idx],
           }));
@@ -818,7 +818,7 @@ function Game({
               userId: u.presence.user_id,
               name: u.string_properties?.name || u.string_properties?.userName || u.presence.username || ('Player ' + (idx + 1)),
               isBot: false,
-              avatarUrl: u.string_properties?.avatarUrl || u.string_properties?.avatar_url || '',
+              avatarUrl: u.string_properties?.avatarurl || u.string_properties?.avatarUrl || u.string_properties?.avatar_url || '',
               level: parseInt(u.string_properties?.level || '1'),
               color: colors[idx],
             }));
