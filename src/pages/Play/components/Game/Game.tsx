@@ -42,6 +42,8 @@ import { toast } from 'react-toastify';
 import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTokens';
 import { setTokenTransitionTime } from '../../../../utils/setTokenTransitionTime';
 import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
+import { isTokenMovable } from '../../../../game/tokens/logic';
+import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
 
 
@@ -298,12 +300,49 @@ function Game({
 
         if (roll === 6) {
           dispatch(incrementNumberOfConsecutiveSix(colour));
+          // Reset consecutive sixes if it reaches 3 to match server logic
+          const freshState = store.getState();
+          const playerObj = freshState.players.players.find(p => p.colour === colour);
+          if (playerObj && playerObj.numberOfConsecutiveSix >= 3) {
+            dispatch(resetNumberOfConsecutiveSix(colour));
+          }
         } else {
           dispatch(resetNumberOfConsecutiveSix(colour));
         }
 
         // Activate tokens locally ONLY for the active local player so they can click.
         if (data.hasMovableTokens && colour === myPlayerColourRef.current) {
+          const freshState = store.getState();
+          const players = freshState.players.players;
+          const player = players.find((p) => p.colour === colour);
+          if (player) {
+            const areUnlockableTokensPresent =
+              roll === 6 && player.tokens.some((t) => areCoordsEqual(t.coordinates, t.initialCoords));
+
+            const allTokens = players.flatMap((p) => p.tokens);
+            const movableTokens = player.tokens.filter((t) => isTokenMovable(t, roll, allTokens));
+
+            const areAllTokensInSameCoord =
+              movableTokens.length === 0
+                ? false
+                : movableTokens.every((t) => areCoordsEqual(movableTokens[0].coordinates, t.coordinates));
+
+            if (areAllTokensInSameCoord && !areUnlockableTokensPresent) {
+              const targetToken = movableTokens[0];
+              console.log('[AUTO-MOVE] Automatically moving token:', colour, targetToken.id);
+              optimisticTokenMovesRef.current.add(`${colour}-${targetToken.id}`);
+              try {
+                const socket = getNakamaSocket();
+                socket.sendMatchState(roomIdRef.current, 101, JSON.stringify({ id: targetToken.id }));
+              } catch (err) {
+                console.error('[CLIENT] Failed to send auto-move input:', err);
+              }
+              moveAndCapture(targetToken, roll).then(() => {
+                onComplete?.();
+              });
+              return;
+            }
+          }
           dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
         }
         

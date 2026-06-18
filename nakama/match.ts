@@ -619,65 +619,360 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
   }
 }
 
+const BOT_WEIGHTS = {
+  UNLOCK_BONUS: 50000,
+  CAPTURE_BASE: 60000,
+  OPPONENT_PROGRESS_MULTIPLIER: 1000,
+  HOME_ENTRY_BONUS: 20000,
+  SAFE_TOKEN_MOVE_PENALTY: 10000,
+  SAFE_POSITION_BONUS: 5000,
+  GOAL_COMPLETION_BONUS: 150000,
+  BASE_DISTANCE_PENALTY: 150,
+  CROWDED_EXIT_BONUS: 10000,
+  UNSAFE_STACKING_PENALTY: 65000,
+  SAFE_HUNT_CRITICAL_RANGE_BONUS: 20000,
+  SAFE_CHASE_BASE_BONUS: 15000,
+  RISKY_CHASE_BASE_BONUS: 10000,
+  RISKY_HUNT_CRITICAL_RANGE_BONUS: 15000,
+  HIGH_INVESTMENT_ESCAPE_PRIORITY: 55000,
+  LOW_INVESTMENT_ESCAPE_PRIORITY: 42000,
+  ESCAPE_DISTANCE_MULTIPLIER: 5000,
+  CRITICAL_ESCAPE_BONUS: 20000,
+  SAFE_HAVEN_BONUS: 35000,
+  UNSAFE_ESCAPE_PENALTY: 10000,
+  SAFE_SPOT_ABANDONMENT_PENALTY: 100000,
+  SAFE_SPOT_EXIT_PENALTY: 5000,
+  STACK_SPLIT_BONUS: 2000,
+  IMMINENT_CAPTURE_PENALTY: 120000,
+};
+
+const BOT_LOGIC_CONFIG = {
+  UNLOCK_DICE_VALUE: 6,
+  TOKENS_PER_PLAYER: 4,
+  MAX_CHASE_LOOKAHEAD: 15,
+  MAX_THREAT_LOOKAHEAD: 12,
+  RISKY_HUNT_RANGE: 8,
+  CRITICAL_COMBAT_RANGE: 6,
+  HIGH_INVESTMENT_DIST: 25,
+  ENDGAME_TOKEN_COUNT: 3,
+  SAFETY_TOKEN_COUNT: 2,
+  ENDGAME_SCORE_MULTIPLIER: 10,
+  SAFETY_SCORE_MULTIPLIER: 2,
+  DEFAULT_MULTIPLIER: 1,
+  DANGER_ZONE_RANGE: 9,
+};
+
+function areTokensOnOverlappingPaths(token1: TToken, token2: TToken): boolean {
+  const coord1 = token1.coordinates;
+  const coord2 = token2.coordinates;
+
+  const tokenPath1 = tokenPaths[token1.colour];
+  const tokenPath2 = tokenPaths[token2.colour];
+
+  const tokenPath1CoordIndex = findCoordIndex(tokenPath1, coord1);
+  const tokenPath2CoordIndex = findCoordIndex(tokenPath2, coord2);
+
+  if (tokenPath1CoordIndex === -1 || tokenPath2CoordIndex === -1) return false;
+
+  for (let i = tokenPath1CoordIndex; i < tokenPath1.length; i++) {
+    if (areCoordsEqual(tokenPath1[i], coord2)) return true;
+  }
+  for (let i = tokenPath2CoordIndex; i < tokenPath2.length; i++) {
+    if (areCoordsEqual(tokenPath2[i], coord1)) return true;
+  }
+
+  return false;
+}
+
+function getDistanceBetweenTokens(token1: TToken, token2: TToken): number {
+  const coord1 = token1.coordinates;
+  const coord2 = token2.coordinates;
+  if (!areTokensOnOverlappingPaths(token1, token2)) return -1;
+  
+  const expandedGeneralTokenPath = expandTokenPath(GENERAL_TOKEN_PATH).slice(0, -1);
+  const index1 = findCoordIndex(expandedGeneralTokenPath, coord1);
+  const index2 = findCoordIndex(expandedGeneralTokenPath, coord2);
+  if (index1 === -1 || index2 === -1) return -1;
+  const pathLength = expandedGeneralTokenPath.length;
+  const forwardDistance = (index2 - index1 + pathLength) % pathLength;
+  const backwardDistance = (index1 - index2 + pathLength) % pathLength;
+
+  return Math.min(forwardDistance, backwardDistance);
+}
+
+function isTokenAhead(token1: TToken, token2: TToken): boolean {
+  if (areCoordsEqual(token1.coordinates, token2.coordinates)) return false;
+  if (!areTokensOnOverlappingPaths(token1, token2)) return false;
+
+  const token1Path = tokenPaths[token1.colour];
+  const token2Path = tokenPaths[token2.colour];
+  const token2CoordIndex = findCoordIndex(token2Path, token2.coordinates);
+  const token1CoordIndex = findCoordIndex(token1Path, token1.coordinates);
+  const minDist = getDistanceBetweenTokens(token1, token2);
+
+  if (token2CoordIndex === -1 || token1CoordIndex === -1) return false;
+
+  for (let i = token2CoordIndex; i < token2Path.length; i++) {
+    if (i - token2CoordIndex > minDist) break;
+    if (areCoordsEqual(token2Path[i], token1.coordinates)) return true;
+  }
+  for (let i = token1CoordIndex; i < token1Path.length; i++) {
+    if (i - token1CoordIndex > minDist) break;
+    if (areCoordsEqual(token1Path[i], token2.coordinates)) return false;
+  }
+  return false;
+}
+
+function getFinalCoord(token: TToken, diceNumber: number): TCoordinate | null {
+  const tokenPath = tokenPaths[token.colour];
+  const currentCoordIndex = findCoordIndex(tokenPath, token.coordinates);
+  if (currentCoordIndex === -1) return null;
+  const finalIndex = currentCoordIndex + diceNumber;
+  if (finalIndex >= tokenPath.length) return null;
+  return tokenPath[finalIndex];
+}
+
 function selectBestBotToken(player: TPlayer, roll: number, allTokens: TToken[]): TToken | null {
-  const movableTokens: TToken[] = [];
-  if (player.tokens) {
-    for (let i = 0; i < player.tokens.length; i++) {
-      if (isTokenMovable(player.tokens[i], roll, allTokens)) {
-        movableTokens.push(player.tokens[i]);
-      }
+  const botTokens: TToken[] = [];
+  for (let i = 0; i < allTokens.length; i++) {
+    if (allTokens[i].colour === player.colour) {
+      botTokens.push(allTokens[i]);
     }
   }
-  if (movableTokens.length === 0) return null;
 
-  // 1. Prioritize Capture moves
-  for (let i = 0; i < movableTokens.length; i++) {
-    const t = movableTokens[i];
-    const result = computeMoveResult(t, roll, [player]);
-    if (result.path.length > 0) {
-      const dest = result.path[result.path.length - 1];
-      let opponentExists = false;
-      for (let k = 0; k < allTokens.length; k++) {
-        const opp = allTokens[k];
-        if (opp.colour !== player.colour && !opp.isLocked && !opp.hasTokenReachedHome && areCoordsEqual(opp.coordinates, dest)) {
-          opponentExists = true;
-          break;
+  const movableBotTokens: TToken[] = [];
+  for (let i = 0; i < botTokens.length; i++) {
+    if (isTokenMovable(botTokens[i], roll, allTokens)) {
+      movableBotTokens.push(botTokens[i]);
+    }
+  }
+  if (movableBotTokens.length === 0) return null;
+
+  const botTokenHomeCoord = getHomeCoordForColour(player.colour);
+  const botTokenStartCoord = tokenPaths[player.colour][0];
+  
+  const expandedGeneralTokenPath = expandTokenPath(GENERAL_TOKEN_PATH).slice(0, -1);
+  const activeOpponentTokens: TToken[] = [];
+  for (let i = 0; i < allTokens.length; i++) {
+    const t = allTokens[i];
+    if (t.colour !== player.colour && isTokenMovable(t) && findCoordIndex(expandedGeneralTokenPath, t.coordinates) !== -1) {
+      activeOpponentTokens.push(t);
+    }
+  }
+
+  interface TokenScore {
+    token: TToken;
+    feasibilityScore: number;
+  }
+  
+  const tokenScores: TokenScore[] = [];
+
+  for (let idx = 0; idx < botTokens.length; idx++) {
+    const token = botTokens[idx];
+    let feasibilityScore = 0;
+    let finalCoord: TCoordinate | null = null;
+
+    const isUnlockable = token.isLocked && !token.hasTokenReachedHome && roll === BOT_LOGIC_CONFIG.UNLOCK_DICE_VALUE;
+    if (isUnlockable) {
+      feasibilityScore += BOT_WEIGHTS.UNLOCK_BONUS;
+      finalCoord = tokenPaths[token.colour][0];
+    } else {
+      finalCoord = getFinalCoord(token, roll);
+      if (!isTokenMovable(token, roll, allTokens)) {
+        tokenScores.push({ token, feasibilityScore: -Infinity });
+        continue;
+      }
+    }
+
+    if (!finalCoord) {
+      tokenScores.push({ token, feasibilityScore: -Infinity });
+      continue;
+    }
+
+    const isFinalCoordSafe = isCoordASafeSpot(finalCoord, token.colour);
+    const isCurrentCoordSafe = isCoordASafeSpot(token.coordinates, token.colour);
+    
+    let botTokensAtHome = 0;
+    for (let i = 0; i < botTokens.length; i++) {
+      if (botTokens[i].hasTokenReachedHome) botTokensAtHome++;
+    }
+
+    const endgameMultiplier = botTokensAtHome >= BOT_LOGIC_CONFIG.ENDGAME_TOKEN_COUNT ? BOT_LOGIC_CONFIG.ENDGAME_SCORE_MULTIPLIER : BOT_LOGIC_CONFIG.DEFAULT_MULTIPLIER;
+    const safetyMultiplier = botTokensAtHome > BOT_LOGIC_CONFIG.SAFETY_TOKEN_COUNT ? BOT_LOGIC_CONFIG.SAFETY_SCORE_MULTIPLIER : BOT_LOGIC_CONFIG.DEFAULT_MULTIPLIER;
+
+    // Capturable check
+    for (let i = 0; i < allTokens.length; i++) {
+      const t = allTokens[i];
+      if (t.colour !== player.colour && areCoordsEqual(finalCoord, t.coordinates) && !isCoordASafeSpot(t.coordinates, t.colour)) {
+        const distToEnd = getDistanceInTokenPath(t.colour, t.coordinates, getHomeCoordForColour(t.colour));
+        const distTraveled = tokenPaths[t.colour].length - distToEnd;
+        feasibilityScore += BOT_WEIGHTS.CAPTURE_BASE + distTraveled * BOT_WEIGHTS.OPPONENT_PROGRESS_MULTIPLIER;
+      }
+    }
+
+    if (isFinalCoordSafe) feasibilityScore += BOT_WEIGHTS.SAFE_POSITION_BONUS;
+
+    const isTokenAlreadyInHomeEntryPath = isCoordInHomeEntryPathForColour(token.coordinates, token.colour);
+    const willTokenBeInHomeEntryPath = isCoordInHomeEntryPathForColour(finalCoord, token.colour);
+
+    if (willTokenBeInHomeEntryPath && !isTokenAlreadyInHomeEntryPath) {
+      feasibilityScore += BOT_WEIGHTS.HOME_ENTRY_BONUS;
+    }
+
+    if (isTokenAlreadyInHomeEntryPath) {
+      feasibilityScore -= BOT_WEIGHTS.SAFE_TOKEN_MOVE_PENALTY;
+    }
+
+    if (token.isLocked) {
+      tokenScores.push({ token, feasibilityScore });
+      continue;
+    }
+
+    const distFromHome = getDistanceInTokenPath(token.colour, token.coordinates, botTokenHomeCoord);
+    const distFromStart = getDistanceInTokenPath(token.colour, token.coordinates, botTokenStartCoord);
+    
+    let botTokensInCurrentCoord = 0;
+    for (let i = 0; i < movableBotTokens.length; i++) {
+      if (areCoordsEqual(movableBotTokens[i].coordinates, token.coordinates)) {
+        botTokensInCurrentCoord++;
+      }
+    }
+
+    const canTokenReachHome = distFromHome === roll;
+    if (canTokenReachHome) feasibilityScore += BOT_WEIGHTS.GOAL_COMPLETION_BONUS;
+
+    feasibilityScore -= distFromHome * BOT_WEIGHTS.BASE_DISTANCE_PENALTY * endgameMultiplier;
+
+    let oppTokensAtCurrentCoord = 0;
+    for (let i = 0; i < activeOpponentTokens.length; i++) {
+      if (areCoordsEqual(activeOpponentTokens[i].coordinates, token.coordinates)) {
+        oppTokensAtCurrentCoord++;
+      }
+    }
+
+    const isCrowdedSafeSpotAndRolled6 = roll === BOT_LOGIC_CONFIG.UNLOCK_DICE_VALUE && isCurrentCoordSafe && oppTokensAtCurrentCoord > 0;
+    if (isCrowdedSafeSpotAndRolled6) feasibilityScore += BOT_WEIGHTS.CROWDED_EXIT_BONUS;
+
+    let botTokensInFinalCoord = 0;
+    for (let i = 0; i < movableBotTokens.length; i++) {
+      if (areCoordsEqual(movableBotTokens[i].coordinates, finalCoord)) {
+        botTokensInFinalCoord++;
+      }
+    }
+    if (botTokensInFinalCoord > 0 && !isFinalCoordSafe) {
+      feasibilityScore -= BOT_WEIGHTS.UNSAFE_STACKING_PENALTY;
+    }
+
+    let isSafeLaunchHunter = false;
+    let hasRefundedDistance = false;
+
+    for (let i = 0; i < activeOpponentTokens.length; i++) {
+      const oppToken = activeOpponentTokens[i];
+      const isBotTokenAheadOfOppTokenInFuture = isTokenAhead({ ...token, coordinates: finalCoord }, oppToken);
+      const futureDist = getDistanceBetweenTokens({ ...token, coordinates: finalCoord }, oppToken);
+      const isBotTokenAheadOfOppTokenCurrently = isTokenAhead(token, oppToken);
+      const currentDist = getDistanceBetweenTokens(token, oppToken);
+
+      if (currentDist >= 1 && currentDist <= BOT_LOGIC_CONFIG.MAX_CHASE_LOOKAHEAD && !isBotTokenAheadOfOppTokenCurrently) {
+        let isThreatenedFromBehind = false;
+        for (let j = 0; j < activeOpponentTokens.length; j++) {
+          const t = activeOpponentTokens[j];
+          const dist = getDistanceBetweenTokens(token, t);
+          const isOpponentBehind = isTokenAhead(token, t);
+          if (isOpponentBehind && dist >= 1 && dist <= BOT_LOGIC_CONFIG.MAX_THREAT_LOOKAHEAD) {
+            isThreatenedFromBehind = true;
+            break;
+          }
+        }
+
+        if (!isThreatenedFromBehind || isFinalCoordSafe) {
+          if (currentDist <= BOT_LOGIC_CONFIG.CRITICAL_COMBAT_RANGE) {
+            feasibilityScore += BOT_WEIGHTS.SAFE_HUNT_CRITICAL_RANGE_BONUS;
+          }
+          feasibilityScore += BOT_WEIGHTS.SAFE_CHASE_BASE_BONUS;
+          if (!isThreatenedFromBehind) isSafeLaunchHunter = true;
+        } else if (currentDist <= BOT_LOGIC_CONFIG.RISKY_HUNT_RANGE) {
+          feasibilityScore += BOT_WEIGHTS.RISKY_CHASE_BASE_BONUS;
+          if (currentDist <= BOT_LOGIC_CONFIG.CRITICAL_COMBAT_RANGE) {
+            feasibilityScore += BOT_WEIGHTS.RISKY_HUNT_CRITICAL_RANGE_BONUS;
+          }
         }
       }
-      if (opponentExists && !isCoordASafeSpot(dest)) {
-        return t;
+
+      if (currentDist >= 1 && currentDist <= BOT_LOGIC_CONFIG.MAX_THREAT_LOOKAHEAD && isBotTokenAheadOfOppTokenCurrently && !isCurrentCoordSafe) {
+        const distFromStartCurrent = tokenPaths[token.colour].length - distFromHome;
+        if (distFromStartCurrent > BOT_LOGIC_CONFIG.HIGH_INVESTMENT_DIST) {
+          feasibilityScore += BOT_WEIGHTS.HIGH_INVESTMENT_ESCAPE_PRIORITY;
+        } else {
+          feasibilityScore += BOT_WEIGHTS.LOW_INVESTMENT_ESCAPE_PRIORITY;
+        }
+      }
+
+      if (futureDist >= 1 && futureDist <= BOT_LOGIC_CONFIG.MAX_THREAT_LOOKAHEAD && isBotTokenAheadOfOppTokenInFuture) {
+        let threatsCount = 0;
+        for (let j = 0; j < activeOpponentTokens.length; j++) {
+          const t = activeOpponentTokens[j];
+          const dist = getDistanceBetweenTokens({ ...token, coordinates: finalCoord }, t);
+          const isOpponentBehind = isTokenAhead({ ...token, coordinates: finalCoord }, t);
+          if (isOpponentBehind && dist >= 1 && dist <= BOT_LOGIC_CONFIG.DANGER_ZONE_RANGE) {
+            threatsCount++;
+          }
+        }
+
+        const isGoingIntoDanger = isBotTokenAheadOfOppTokenInFuture && !isBotTokenAheadOfOppTokenCurrently && !isFinalCoordSafe && threatsCount > 0;
+        if (isGoingIntoDanger) {
+          feasibilityScore -= BOT_WEIGHTS.IMMINENT_CAPTURE_PENALTY * threatsCount * Math.max(1, distFromStart / 2);
+        }
+
+        const isEscaping = isBotTokenAheadOfOppTokenCurrently && futureDist > currentDist && !isCurrentCoordSafe;
+        if (isEscaping || (isFinalCoordSafe && isBotTokenAheadOfOppTokenCurrently && !isCurrentCoordSafe)) {
+          if (isEscaping) {
+            feasibilityScore += (futureDist - currentDist) * BOT_WEIGHTS.ESCAPE_DISTANCE_MULTIPLIER;
+          }
+          if (currentDist <= BOT_LOGIC_CONFIG.CRITICAL_COMBAT_RANGE) {
+            if (isEscaping) feasibilityScore += BOT_WEIGHTS.CRITICAL_ESCAPE_BONUS;
+            if (!hasRefundedDistance) {
+              feasibilityScore += distFromHome * BOT_WEIGHTS.BASE_DISTANCE_PENALTY * endgameMultiplier;
+              hasRefundedDistance = true;
+            }
+          }
+          if (isFinalCoordSafe) feasibilityScore += BOT_WEIGHTS.SAFE_HAVEN_BONUS;
+          else if (isEscaping) feasibilityScore -= BOT_WEIGHTS.UNSAFE_ESCAPE_PENALTY;
+        } else {
+          const isProtected = isFinalCoordSafe || willTokenBeInHomeEntryPath;
+          if (!isProtected && isCurrentCoordSafe && !isGoingIntoDanger) {
+            feasibilityScore -= BOT_WEIGHTS.SAFE_SPOT_ABANDONMENT_PENALTY * safetyMultiplier;
+          }
+        }
       }
     }
+
+    if (isCurrentCoordSafe && !isSafeLaunchHunter && !isCrowdedSafeSpotAndRolled6) {
+      feasibilityScore -= BOT_WEIGHTS.SAFE_SPOT_EXIT_PENALTY;
+    } else if (botTokensInCurrentCoord > 1) {
+      feasibilityScore += botTokensInCurrentCoord * BOT_WEIGHTS.STACK_SPLIT_BONUS;
+    }
+
+    tokenScores.push({ token, feasibilityScore });
   }
 
-  // 2. Prioritize Reaching Home
-  for (let i = 0; i < movableTokens.length; i++) {
-    const t = movableTokens[i];
-    const result = computeMoveResult(t, roll, [player]);
-    if (result.hasTokenReachedHome) return t;
-  }
-
-  // 3. Prioritize Unlocking
-  for (let i = 0; i < movableTokens.length; i++) {
-    const t = movableTokens[i];
-    if (t.isLocked && roll === 6) return t;
-  }
-
-  // 4. Default: Pick the token furthest along the path
-  let bestToken = movableTokens[0];
-  let maxPathIndex = -1;
-  const path = tokenPaths[player.colour];
-  
-  for (let i = 0; i < movableTokens.length; i++) {
-    const t = movableTokens[i];
-    const idx = findCoordIndex(path, t.coordinates);
-    if (idx > maxPathIndex) {
-      maxPathIndex = idx;
-      bestToken = t;
+  let maxScore = -Infinity;
+  for (let i = 0; i < tokenScores.length; i++) {
+    if (tokenScores[i].feasibilityScore > maxScore) {
+      maxScore = tokenScores[i].feasibilityScore;
     }
   }
 
-  return bestToken;
+  const bestTokens: TToken[] = [];
+  for (let i = 0; i < tokenScores.length; i++) {
+    if (tokenScores[i].feasibilityScore === maxScore) {
+      bestTokens.push(tokenScores[i].token);
+    }
+  }
+
+  if (bestTokens.length === 0) return null;
+  const randIndex = Math.floor(Math.random() * bestTokens.length);
+  return bestTokens[randIndex];
 }
 
 function executeMove(
