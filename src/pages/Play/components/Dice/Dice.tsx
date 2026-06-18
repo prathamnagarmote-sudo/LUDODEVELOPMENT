@@ -92,19 +92,16 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
         onlineContext.diceRollStartTimestampRef.current = Date.now();
       }
 
-      if (onlineContext.amHost) {
-        // Host: generate the roll and broadcast OpCode 8 directly.
-        // All clients (including host itself via relay loopback) apply the result.
-        // Do NOT call rollDiceThunk — wait for OpCode 8 loopback to apply state.
-        const roll = forcedNumber !== null ? forcedNumber : Math.floor(Math.random() * 6) + 1;
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 8, JSON.stringify({
-          colour,
-          roll,
-        }));
-      } else {
-        // Non-host: ask the host to roll for the current player
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 3, '{}');
-      }
+      // Generate the roll result locally
+      const roll = forcedNumber !== null ? forcedNumber : Math.floor(Math.random() * 6) + 1;
+
+      // Broadcast OpCode 8 directly to all players in the match (the socket's sendMatchState
+      // is monkeypatched to simulate loopback, which will apply it locally to this client too)
+      getNakamaSocket().sendMatchState(onlineContext.roomId, 8, JSON.stringify({
+        colour,
+        roll,
+        timestamp: Date.now(),
+      }));
     } else {
       dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), forcedNumber !== null ? forcedNumber : undefined));
     }

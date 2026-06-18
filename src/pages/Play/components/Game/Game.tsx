@@ -51,7 +51,7 @@ export const OnlineGameContext = createContext<{
   myPlayerColour: TPlayerColour;
   amHost: boolean;
   optimisticTokenMovesRef?: React.MutableRefObject<Set<string>>;
-  onHostTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
+  onTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
   diceRollStartTimestampRef?: React.MutableRefObject<number>;
 } | null>(null);
 
@@ -235,7 +235,7 @@ function Game({
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef<boolean>(false);
 
-  const onHostTokenMove = useCallback((colour: TPlayerColour, id: number, isUnlock: boolean) => {
+  const onTokenMove = useCallback((colour: TPlayerColour, id: number, isUnlock: boolean) => {
     try {
       const socket = getNakamaSocket();
       const currentRoomId = roomIdRef.current;
@@ -248,7 +248,7 @@ function Game({
 
       const diceNumber = state.dice.dice.find(d => d.colour === colour)?.diceNumber || 1;
 
-      console.log('[HOST] Local Host executing and broadcasting token move:', colour, id, 'isUnlock:', isUnlock);
+      console.log('[CLIENT] Executing and broadcasting token move:', colour, id, 'isUnlock:', isUnlock);
 
       if (isUnlock) {
         // Broadcast unlock result to ALL clients immediately
@@ -294,7 +294,7 @@ function Game({
         }
       }
     } catch (err) {
-      console.error('[HOST] Failed to resolve and broadcast host token move:', err);
+      console.error('[CLIENT] Failed to resolve and broadcast token move:', err);
     }
   }, [store, playerSequence]);
 
@@ -392,31 +392,11 @@ function Game({
       dispatch(setCurrentPlayerColour(nextColour));
     };
 
-    // ─── HOST: Handle dice roll request (OpCode 3) ─────────────────────────────
-    // Rolls dice, applies state locally, broadcasts OpCode 8 (result) to ALL.
-    const hostHandleDiceRequest = () => {
-      const state = store.getState();
-      const currentPlayer = state.players.players.find(
-        p => p.colour === state.players.currentPlayerColour
-      );
-      if (!currentPlayer) return;
-
-      const roll = Math.floor(Math.random() * 6) + 1;
-      const rollPayload = JSON.stringify({
-        colour: currentPlayer.colour,
-        roll,
-        timeRemainingMs: store.getState().session.timeRemainingMs,
-      });
-      console.log('[HOST] Rolling dice for', currentPlayer.colour, '=', roll);
-      // Broadcast to ALL clients (including self via relay loopback)
-      socket.sendMatchState(roomIdRef.current, 8, rollPayload);
-    };
-
     // ─── ALL CLIENTS: Apply dice result (OpCode 8) ─────────────────────────────
     // ZERO-DELAY: Show result immediately, run ALL post-dice logic on EVERY client.
-    // The host still broadcasts OpCodes as authoritative confirmation, but every client
+    // The rolling player broadcasts OpCode 8 directly, and every client
     // independently computes deterministic outcomes (auto-moves, turn skips) for instant feel.
-    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number }, onComplete?: () => void) => {
+    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number; timestamp?: number }, onComplete?: () => void) => {
       const colour = data.colour;
       const roll = data.roll;
 
@@ -430,10 +410,13 @@ function Game({
         const elapsed = Date.now() - diceRollStartTimestampRef.current;
         remainingDelay = Math.max(0, 300 - elapsed);
       } else {
-        // If opponent rolled, start their visual roll animation now and spin for 300ms
+        // If opponent rolled, compensate visual spin duration by network latency
+        const elapsed = data.timestamp ? (Date.now() - data.timestamp) : 0;
+        const compensatedDuration = Math.max(50, 300 - elapsed);
+
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 300;
+        remainingDelay = compensatedDuration;
       }
 
       setTimeout(() => {
@@ -468,8 +451,10 @@ function Game({
           // ALL clients apply turn change optimistically
           dispatch(deactivateTokensOfAllPlayers());
           dispatch(setCurrentPlayerColour(nextColour));
-          // Host also broadcasts for confirmation
-          if (amHost) socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+          // Broadcast turn change (only from owner client)
+          if (colour === myPlayerColourRef.current || (activePlayer.isBot && amHost)) {
+            socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+          }
           return;
         }
 
@@ -483,7 +468,7 @@ function Game({
             const nextColour = getNextTurnColour(colour, pSeq);
             socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
           } else {
-            socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: bestToken.id, isUnlock: bestToken.isLocked }));
+            onTokenMove(colour, bestToken.id, bestToken.isLocked);
           }
           return;
         }
@@ -498,7 +483,9 @@ function Game({
           const nextColour = getNextTurnColour(colour, pSeq);
           dispatch(deactivateTokensOfAllPlayers());
           dispatch(setCurrentPlayerColour(nextColour));
-          if (amHost) socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+          if (colour === myPlayerColourRef.current || (activePlayer.isBot && amHost)) {
+            socket.sendMatchState(currentRoomId, 6, JSON.stringify({ nextTurnColour: nextColour }));
+          }
           onComplete?.();
         } else if (movableTokens.length === 1 && areAllTokensInSameCoord(movableTokens)) {
           // Only one choice → ALL clients start optimistic move animation immediately
@@ -522,13 +509,19 @@ function Game({
             });
           }
 
-          // Host broadcasts authoritative result as confirmation
-          if (amHost) socket.sendMatchState(currentRoomId, 5, JSON.stringify({ colour, id: token.id, isUnlock: token.isLocked }));
+          // Broadcast authoritative result as confirmation (only from owner client)
+          if (colour === myPlayerColourRef.current) {
+            onTokenMove(colour, token.id, token.isLocked);
+          } else if (activePlayer.isBot && amHost) {
+            onTokenMove(colour, token.id, token.isLocked);
+          }
         } else {
           // Multiple choices → ALL clients activate tokens immediately
           dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
-          // Host also broadcasts for confirmation
-          if (amHost) socket.sendMatchState(currentRoomId, 11, JSON.stringify({ colour, diceNumber: roll }));
+          // Broadcast activation for confirmation (only from owner client)
+          if (colour === myPlayerColourRef.current || (activePlayer.isBot && amHost)) {
+            socket.sendMatchState(currentRoomId, 11, JSON.stringify({ colour, diceNumber: roll }));
+          }
           onComplete?.();
         }
       }, remainingDelay);
@@ -536,65 +529,7 @@ function Game({
 
     // ─── HOST: Handle token move request (OpCode 5) ────────────────────────────
     // Executes the move, then broadcasts OpCode 9 (move result) + OpCode 6 (turn).
-    const hostHandleTokenMoveRequest = (data: { colour: TPlayerColour; id: number; isUnlock: boolean }) => {
-      const colour = data.colour;
-      const state = store.getState();
-      const playersList = state.players.players;
-      const player = playersList.find(p => p.colour === colour);
-      if (!player) return;
-      const token = player.tokens.find(t => t.id === data.id);
-      if (!token) return;
 
-      const diceNumber = state.dice.dice.find(d => d.colour === colour)?.diceNumber || 1;
-      const currentRoomId = roomIdRef.current;
-      const pSeq = state.players.playerSequence;
-
-      console.log('[HOST] Instantly calculating token move:', colour, data.id, 'isUnlock:', data.isUnlock);
-
-      if (data.isUnlock) {
-        // Broadcast unlock result to ALL clients (including self via loopback) immediately
-        socket.sendMatchState(currentRoomId, 9, JSON.stringify({
-          colour,
-          id: data.id,
-          isUnlock: true,
-          hasTokenReachedHome: false,
-          isCaptured: false,
-          hasPlayerWon: false,
-          timeRemainingMs: store.getState().session.timeRemainingMs,
-        }));
-
-        // Unlock always gives the same player another turn
-        socket.sendMatchState(currentRoomId, 6, JSON.stringify({
-          nextTurnColour: colour,
-          timeRemainingMs: store.getState().session.timeRemainingMs,
-        }));
-      } else {
-        const { hasTokenReachedHome, isCaptured, hasPlayerWon } = computeMoveResult(token, diceNumber, state);
-
-        // Broadcast move result to ALL clients (including self via loopback) immediately
-        socket.sendMatchState(currentRoomId, 9, JSON.stringify({
-          colour,
-          id: data.id,
-          isUnlock: false,
-          hasTokenReachedHome,
-          isCaptured,
-          hasPlayerWon,
-          timeRemainingMs: store.getState().session.timeRemainingMs,
-        }));
-
-        if (!hasPlayerWon) {
-          const getsAnotherTurn =
-            (diceNumber === 6 && (player.numberOfConsecutiveSix ?? 0) < 3) ||
-            isCaptured ||
-            hasTokenReachedHome;
-          const nextColour = getsAnotherTurn ? colour : getNextTurnColour(colour, pSeq);
-          socket.sendMatchState(currentRoomId, 6, JSON.stringify({
-            nextTurnColour: nextColour,
-            timeRemainingMs: store.getState().session.timeRemainingMs,
-          }));
-        }
-      }
-    };
 
     // ─── ALL CLIENTS: Apply token move result (OpCode 9) ──────────────────────
     // Both host and non-host clients execute and animate the resulting state concurrently.
@@ -682,12 +617,9 @@ function Game({
         initializeGame(parsed.players);
 
       } else if (opCode === 3) {
-        // REQUEST: Roll dice — HOST ONLY handles this
-        if (amHost) hostHandleDiceRequest();
-
+        // OpCode 3 no longer used as clients roll locally and broadcast OpCode 8
       } else if (opCode === 5) {
-        // REQUEST: Move token — HOST ONLY handles this
-        if (amHost) hostHandleTokenMoveRequest(parsed);
+        // OpCode 5 no longer used as clients broadcast OpCode 9 and 6 directly
 
       } else if (opCode === 6) {
         // STATE: Turn changed — ALL clients apply
@@ -904,10 +836,10 @@ function Game({
       myPlayerColour,
       amHost: amHostValue,
       optimisticTokenMovesRef,
-      onHostTokenMove,
+      onTokenMove,
       diceRollStartTimestampRef,
     };
-  }, [isOnline, roomId, myPlayerColour, amHostValue, onHostTokenMove]);
+  }, [isOnline, roomId, myPlayerColour, amHostValue, onTokenMove]);
 
   if (isOnline && !isMatchJoined) {
     return (

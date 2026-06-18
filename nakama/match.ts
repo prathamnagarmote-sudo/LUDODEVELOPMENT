@@ -216,6 +216,9 @@ function matchLoop(
           processTurn(state, dispatcher);
         }
       }
+      else if (opCode === 8) {
+        state.diceValue = data.roll;
+      }
       else if (opCode === 7) {
         const playerIndex = state.players.findIndex((p: any) => p.id === message.sender.sessionId);
         if (playerIndex !== -1) {

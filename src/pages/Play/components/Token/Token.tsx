@@ -4,7 +4,6 @@ import { type TPlayerColour, type TTokenClickData } from '../../../../types';
 import { type TToken } from '../../../../types';
 import { useDispatch, useSelector } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
-import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import TokenImage from '../../../../assets/token.svg?react';
 import { useCoordsToPosition } from '../../../../hooks/useCoordsToPosition';
@@ -111,15 +110,7 @@ function Token({ colour, id, tokenClickData }: Props) {
         if (isActive && diceNumber !== -1 && diceNumber) {
           if (colour === onlineContext.myPlayerColour) {
             onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
-            if (onlineContext.amHost) {
-              onlineContext.onHostTokenMove?.(colour, id, isLocked);
-            } else {
-              getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-                colour,
-                id,
-                isUnlock: isLocked,
-              }));
-            }
+            onlineContext.onTokenMove?.(colour, id, isLocked);
             console.log('[OPTIMISTIC] Animating own token immediately (board click):', colour, id);
             if (isLocked) unlock();
             else executeOptimisticAnimation();
@@ -138,15 +129,7 @@ function Token({ colour, id, tokenClickData }: Props) {
       if (isActive && diceNumber !== -1 && diceNumber) {
         if (colour === onlineContext.myPlayerColour) {
           onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
-          if (onlineContext.amHost) {
-            onlineContext.onHostTokenMove?.(colour, id, isLocked);
-          } else {
-            getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-              colour,
-              id,
-              isUnlock: isLocked,
-            }));
-          }
+          onlineContext.onTokenMove?.(colour, id, isLocked);
           console.log('[OPTIMISTIC] Animating own token immediately (direct click):', colour, id);
           if (isLocked) unlock();
           else executeOptimisticAnimation();
