@@ -429,14 +429,14 @@ function PlayerSetup() {
              }
              const initData = playerCount === 2
                ? [
-                   { name: 'MAXY', isBot: false },
-                   { name: 'PLAYER', isBot: false },
+                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
                  ]
                : [
-                   { name: 'MAXY', isBot: false },
-                   { name: 'PLAYER', isBot: false },
-                   { name: 'ZENO', isBot: false },
-                   { name: 'REX', isBot: false },
+                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+                   { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
+                   { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
                  ];
              navigate('/play', { 
                state: { initData } 
