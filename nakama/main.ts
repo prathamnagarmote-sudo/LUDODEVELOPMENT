@@ -78,6 +78,16 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
   } catch (e: any) {
     const errMsg = e?.message || e?.error || JSON.stringify(e) || String(e);
     logger.error("=== ERROR in matchmakerMatched: %v ===", errMsg);
+    try {
+      nk.storageWrite([{
+        collection: "debug",
+        key: "matchmaker_error",
+        userId: "00000000-0000-0000-0000-000000000000",
+        value: { error: errMsg, timestamp: Date.now() },
+        permissionRead: 2,
+        permissionWrite: 0
+      }]);
+    } catch (writeErr) {}
     return; // returning void causes Nakama to send relay token to clients — do NOT do this
   }
 };
