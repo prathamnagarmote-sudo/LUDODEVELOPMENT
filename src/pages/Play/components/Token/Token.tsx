@@ -180,7 +180,7 @@ function Token({ colour, id, tokenClickData }: Props) {
           '--token-height': `${tokenHeight}px`,
           '--token-width': `${tokenWidth}px`,
           '--fill-colour': woodStainColours[colour],
-          transform: `translate3d(${x}, ${y}, 12px) scale(${hasTokenReachedHome ? scaleFactor * 0.75 : scaleFactor})`,
+          transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
         } as React.CSSProperties
       }
     >
