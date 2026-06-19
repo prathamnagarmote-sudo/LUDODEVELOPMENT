@@ -345,7 +345,8 @@ function matchInit(ctx, logger, nk, params) {
             botMoveTick: null,
             noMovableTokensTimer: null,
             rematchAccepted: [],
-            terminateAfterTicks: null
+            terminateAfterTicks: null,
+            lastStateSyncTick: 0 // track when we last broadcast periodic STATE_SYNC
         };
         return {
             state: state,
@@ -931,6 +932,22 @@ function executeMove(state, dispatcher, colour, tokenId) {
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var s = state;
     s.tickCount = tick;
+    // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (150 ticks @ 30Hz)
+    // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
+    if (tick - s.lastStateSyncTick >= 150) {
+        s.lastStateSyncTick = tick;
+        dispatcher.broadcastMessage(200, JSON.stringify({
+            roomId: s.roomId,
+            players: s.players,
+            playerSequence: s.playerSequence,
+            currentTurnColour: s.playerSequence[s.currentTurnIndex],
+            diceNumber: s.diceNumber,
+            hasRolled: s.hasRolled,
+            consecutiveSixes: s.consecutiveSixes,
+            turnDeadlineMs: s.turnDeadlineMs,
+            status: s.status
+        }));
+    }
     if (s.status === 'ended') {
         // Process rematch messages
         messages.forEach(function (message) {

@@ -408,7 +408,8 @@ function matchInit(
       botMoveTick: null as number | null,
       noMovableTokensTimer: null as number | null,
       rematchAccepted: [] as TPlayerColour[],
-      terminateAfterTicks: null as number | null
+      terminateAfterTicks: null as number | null,
+      lastStateSyncTick: 0  // track when we last broadcast periodic STATE_SYNC
     };
 
     return {
@@ -1092,6 +1093,23 @@ function matchLoop(
 ): {state: nkruntime.MatchState} | null {
   const s = state as any;
   s.tickCount = tick;
+
+  // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (150 ticks @ 30Hz)
+  // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
+  if (tick - s.lastStateSyncTick >= 150) {
+    s.lastStateSyncTick = tick;
+    dispatcher.broadcastMessage(200, JSON.stringify({
+      roomId: s.roomId,
+      players: s.players,
+      playerSequence: s.playerSequence,
+      currentTurnColour: s.playerSequence[s.currentTurnIndex],
+      diceNumber: s.diceNumber,
+      hasRolled: s.hasRolled,
+      consecutiveSixes: s.consecutiveSixes,
+      turnDeadlineMs: s.turnDeadlineMs,
+      status: s.status
+    }));
+  }
 
   if (s.status === 'ended') {
     // Process rematch messages

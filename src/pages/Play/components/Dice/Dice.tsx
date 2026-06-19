@@ -80,7 +80,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     playDiceRollSound();
 
     let forcedNumber: number | null = null;
-    if (import.meta.env.DEV && forcedNumberRef.current !== null) {
+    if (forcedNumberRef.current !== null) {
       forcedNumber = forcedNumberRef.current;
       forcedNumberRef.current = null;
     }
@@ -95,7 +95,9 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
 
       try {
         // Send roll request input to Nakama (OpCode 100)
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 100, JSON.stringify({}));
+        // forcedRoll is a dev/test hint — the server ignores it in production
+        const payload = forcedNumber !== null ? JSON.stringify({ forcedRoll: forcedNumber }) : JSON.stringify({});
+        getNakamaSocket().sendMatchState(onlineContext.roomId, 100, payload);
       } catch (err) {
         console.error("Failed to send dice roll input:", err);
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
@@ -110,13 +112,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (import.meta.env.DEV) {
-        const num = parseInt(e.key, 10);
-        if (!isNaN(num) && num >= 1 && num <= 6) {
-          forcedNumberRef.current = num;
-          if (!isDiceDisabled) handleDiceClick();
-          return;
-        }
+      // Keys 1-6 force a specific dice number (works in all environments for testing)
+      const num = parseInt(e.key, 10);
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        forcedNumberRef.current = num;
+        if (!isDiceDisabled) handleDiceClick();
+        return;
       }
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
