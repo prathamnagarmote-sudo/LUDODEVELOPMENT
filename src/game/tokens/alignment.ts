@@ -721,21 +721,22 @@ export function getTokenAlignmentData(numberOfTokensInOneTile: number): TTokenAl
 }
 
 export function getHomeTokenAlignmentData(numberOfTokens: number): TTokenAlignmentData[] {
-  if (numberOfTokens === 1) return [{ xOffset: 0, yOffset: 0, scaleFactor: 1.1 }];
+  const scale = 0.75;
+  if (numberOfTokens === 1) return [{ xOffset: 0, yOffset: 0, scaleFactor: scale }];
   if (numberOfTokens === 2) return [
-    { xOffset: -0.2, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: 0.2, yOffset: 0, scaleFactor: 1.1 }
+    { xOffset: -0.15, yOffset: 0, scaleFactor: scale },
+    { xOffset: 0.15, yOffset: 0, scaleFactor: scale }
   ];
   if (numberOfTokens === 3) return [
-    { xOffset: -0.3, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: 0, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: 0.3, yOffset: 0, scaleFactor: 1.1 }
+    { xOffset: -0.25, yOffset: 0, scaleFactor: scale },
+    { xOffset: 0, yOffset: 0, scaleFactor: scale },
+    { xOffset: 0.25, yOffset: 0, scaleFactor: scale }
   ];
   if (numberOfTokens === 4) return [
-    { xOffset: -0.3, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: -0.1, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: 0.1, yOffset: 0, scaleFactor: 1.1 },
-    { xOffset: 0.3, yOffset: 0, scaleFactor: 1.1 }
+    { xOffset: -0.3, yOffset: 0, scaleFactor: scale },
+    { xOffset: -0.1, yOffset: 0, scaleFactor: scale },
+    { xOffset: 0.1, yOffset: 0, scaleFactor: scale },
+    { xOffset: 0.3, yOffset: 0, scaleFactor: scale }
   ];
   return getTokenAlignmentData(numberOfTokens);
 }

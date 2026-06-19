@@ -74,7 +74,7 @@ export const TokenCelebration: React.FC<Props> = ({ show }) => {
         />
       ))}
 
-      {particles.sparkles.map((p) => (
+      {/* {particles.sparkles.map((p) => (
         <div
           key={p.id}
           className={`${styles.particle} ${styles.sparkle}`}
@@ -85,7 +85,7 @@ export const TokenCelebration: React.FC<Props> = ({ show }) => {
             backgroundColor: p.color,
           } as React.CSSProperties}
         />
-      ))}
+      ))} */}
 
       {particles.stars.map((p) => (
         <div
