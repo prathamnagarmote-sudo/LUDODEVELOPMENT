@@ -194,6 +194,21 @@ function Game({
   const myPlayerColourRef = useRef<TPlayerColour>(canonicalColour || 'blue');
   useEffect(() => { myPlayerColourRef.current = myPlayerColour; }, [myPlayerColour]);
 
+  // Match start timeout handler to prevent hanging on "Joining Match Session..."
+  useEffect(() => {
+    if (!isOnline || isMatchJoined) return;
+
+    const timeoutId = setTimeout(() => {
+      if (!isMatchJoined) {
+        console.error('[ONLINE] Match start timeout. No STATE_SYNC received from server.');
+        toast.error('Match start timeout: Could not sync with game loop.');
+        navigate('/setup');
+      }
+    }, 12000); // 12 seconds timeout
+
+    return () => clearTimeout(timeoutId);
+  }, [isOnline, isMatchJoined, navigate]);
+
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
   const diceRollStartTimestampRef = useRef<number>(0);
   const messageQueueRef = useRef<any[]>([]);
@@ -228,6 +243,23 @@ function Game({
       navigate('/setup');
       return;
     }
+
+    const originalOnDisconnect = socket.ondisconnect;
+    const originalOnError = socket.onerror;
+
+    socket.ondisconnect = (evt) => {
+      console.warn('[ONLINE] Nakama socket disconnected:', evt);
+      toast.error('Game server connection lost.');
+      navigate('/setup');
+      if (originalOnDisconnect) originalOnDisconnect(evt);
+    };
+
+    socket.onerror = (err) => {
+      console.error('[ONLINE] Nakama socket error:', err);
+      toast.error('Game server connection error.');
+      navigate('/setup');
+      if (originalOnError) originalOnError(err);
+    };
 
     const getEffectivePlayerId = () => localSessionId || myPlayerId || '';
     const originalSendMatchState = socket.sendMatchState.bind(socket);
@@ -562,6 +594,8 @@ function Game({
 
     return () => {
       socket.onmatchdata = () => {};
+      socket.ondisconnect = originalOnDisconnect;
+      socket.onerror = originalOnError;
       socket.sendMatchState = originalSendMatchState; // Restore original sendMatchState
       if (requestInterval) clearInterval(requestInterval);
     };
