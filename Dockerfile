@@ -13,8 +13,8 @@ RUN npm run build
 # Run Nakama
 FROM heroiclabs/nakama:3.21.1
 
-COPY --from=node-builder /app/nakama/data/modules/index.js /nakama/modules_backup/index.js
+COPY --from=node-builder /app/nakama/data/modules/index.js /nakama/modules/index.js
 
 EXPOSE 7349 7350 7351
 
-ENTRYPOINT ["/bin/sh", "-ecx", "mkdir -p /nakama/data/modules && cp /nakama/modules_backup/index.js /nakama/data/modules/ && /nakama/nakama migrate up --database.address ${NAKAMA_DATABASE_ADDRESS} && exec /nakama/nakama --name nakama1 --database.address ${NAKAMA_DATABASE_ADDRESS}"]
+ENTRYPOINT ["/bin/sh", "-ecx", "/nakama/nakama migrate up --database.address ${NAKAMA_DATABASE_ADDRESS} && exec /nakama/nakama --name nakama1 --database.address ${NAKAMA_DATABASE_ADDRESS} --runtime.path /nakama/modules"]

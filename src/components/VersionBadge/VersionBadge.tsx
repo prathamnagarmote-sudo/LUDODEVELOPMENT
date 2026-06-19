@@ -3,6 +3,7 @@ import styles from './VersionBadge.module.css';
 
 export const VersionBadge = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close the popup if clicked outside
@@ -17,6 +18,8 @@ export const VersionBadge = () => {
   }, []);
 
   const handleReload = async () => {
+    if (isReloading) return;
+    setIsReloading(true);
     try {
       // 1. Clear Cache Storage
       if ('caches' in window) {
@@ -76,8 +79,9 @@ export const VersionBadge = () => {
               type="button" 
               className={styles.reloadBtn} 
               onClick={handleReload}
+              disabled={isReloading}
             >
-              FORCE UPDATE / RELOAD
+              {isReloading ? 'RELOADING...' : 'FORCE UPDATE / RELOAD'}
             </button>
           </div>
         </div>
