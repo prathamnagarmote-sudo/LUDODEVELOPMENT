@@ -20,7 +20,7 @@ export function getDice(state: TDiceState, colour: TPlayerColour): TDice {
 }
 
 export function generateRollBag(): number[] {
-  const diceNumbers = Array(36)
+  const diceNumbers = Array(6)
     .fill(null)
     .map((_, i) => (i % 6) + 1);
   return diceNumbers;
