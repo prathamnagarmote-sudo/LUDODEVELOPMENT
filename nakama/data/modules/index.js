@@ -338,7 +338,6 @@ function matchInit(ctx, logger, nk, params) {
             consecutiveSixes: 0,
             turnDeadlineMs: Date.now() + 15000,
             status: 'playing',
-            sequence: 0,
             tickCount: 0,
             emptyTicks: 0,
             botTakeoverTicks: {},
@@ -385,8 +384,7 @@ function sendStateSync(dispatcher, state, presence) {
         hasRolled: state.hasRolled,
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
-        status: state.status,
-        sequence: state.sequence
+        status: state.status
     }), [presence]);
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
@@ -441,9 +439,7 @@ function nextTurn(state, dispatcher, animDuration) {
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
-    state.sequence++;
     dispatcher.broadcastMessage(203, JSON.stringify({
-        sequence: state.sequence,
         nextTurnColour: nextColour,
         deadlineMs: state.turnDeadlineMs
     }));
@@ -458,9 +454,7 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         state.botRollTick = null;
         state.botMoveTick = null;
         state.noMovableTokensTimer = null;
-        state.sequence++;
         dispatcher.broadcastMessage(203, JSON.stringify({
-            sequence: state.sequence,
             nextTurnColour: colour,
             deadlineMs: state.turnDeadlineMs
         }));
@@ -510,17 +504,10 @@ function executeRoll(state, dispatcher, colour) {
             }
         }
     }
-    state.sequence++;
-    var serverNowMs = Date.now();
-    var startAtMs = serverNowMs + 500;
     dispatcher.broadcastMessage(201, JSON.stringify({
-        sequence: state.sequence,
-        serverNowMs: serverNowMs,
-        startAtMs: startAtMs,
         roll: roll,
         colour: colour,
-        hasMovableTokens: hasMovableTokens,
-        diceAnimMs: 300
+        hasMovableTokens: hasMovableTokens
     }));
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
@@ -922,14 +909,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
         }
     }
     // Broadcast the move result
-    state.sequence++;
-    var serverNowMs = Date.now();
-    var startAtMs = serverNowMs + 500;
     dispatcher.broadcastMessage(202, JSON.stringify({
-        sequence: state.sequence,
-        serverNowMs: serverNowMs,
-        startAtMs: startAtMs,
-        stepMs: 300,
         colour: colour,
         id: tokenId,
         isUnlock: wasLocked === true && roll === 6 && path.length === 1,
@@ -945,9 +925,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
         state.winnerColour = colour;
         state.terminateAfterTicks = state.tickCount + 1200; // 20 seconds at 60Hz
         state.rematchAccepted = [];
-        state.sequence++;
         dispatcher.broadcastMessage(204, JSON.stringify({
-            sequence: state.sequence,
             winnerColour: colour
         }));
         return;
@@ -1001,8 +979,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             hasRolled: s.hasRolled,
             consecutiveSixes: s.consecutiveSixes,
             turnDeadlineMs: s.turnDeadlineMs,
-            status: s.status,
-            sequence: s.sequence
+            status: s.status
         }));
     }
     if (s.status === 'ended') {
@@ -1080,8 +1057,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                                 hasRolled: s.hasRolled,
                                 consecutiveSixes: s.consecutiveSixes,
                                 turnDeadlineMs: s.turnDeadlineMs,
-                                status: s.status,
-                                sequence: s.sequence
+                                status: s.status
                             }));
                         }
                     }
@@ -1122,8 +1098,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     hasRolled: s.hasRolled,
                     consecutiveSixes: s.consecutiveSixes,
                     turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status,
-                    sequence: s.sequence
+                    status: s.status
                 }));
             }
             delete s.botTakeoverTicks[userId];
@@ -1164,8 +1139,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     hasRolled: s.hasRolled,
                     consecutiveSixes: s.consecutiveSixes,
                     turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status,
-                    sequence: s.sequence
+                    status: s.status
                 }));
             }
             var allTokens = [];
@@ -1253,9 +1227,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                         s.winnerColour = winnerColour;
                         s.terminateAfterTicks = tick + 1200;
                         s.rematchAccepted = [];
-                        s.sequence++;
                         dispatcher.broadcastMessage(204, JSON.stringify({
-                            sequence: s.sequence,
                             winnerColour: winnerColour
                         }));
                     }
@@ -1270,8 +1242,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                             hasRolled: s.hasRolled,
                             consecutiveSixes: s.consecutiveSixes,
                             turnDeadlineMs: s.turnDeadlineMs,
-                            status: s.status,
-                            sequence: s.sequence
+                            status: s.status
                         }));
                         // If it was the quitting player's turn, change turn
                         var turnColour = s.playerSequence[s.currentTurnIndex];
@@ -1351,7 +1322,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 executeMove(s, dispatcher, currentColour_2, tokenId);
             }
             else if (opCode === 102) { // INPUT_PING / HEARTBEAT
-                dispatcher.broadcastMessage(102, JSON.stringify({ serverNowMs: Date.now() }), [message.sender]);
+                dispatcher.broadcastMessage(102, "", [message.sender]);
             }
         }
         catch (e) {

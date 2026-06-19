@@ -4,13 +4,14 @@ import dice3 from '../../../../assets/dice/3.svg';
 import dice4 from '../../../../assets/dice/4.svg';
 import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
-import { useCallback, useEffect, useContext, useRef, useState } from 'react';
+import { useCallback, useEffect, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
 import { useDispatch, useSelector } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
 import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
+import { setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
@@ -56,8 +57,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     state.dice.dice.find((d) => d.isVisualRolling)?.colour
   );
 
-  const [isPendingClick, setIsPendingClick] = useState(false);
-
   const isCurrentPlayer = currentPlayer === colour;
   const isVisualCurrentPlayer = (rollingPlayer || currentPlayer) === colour;
   const isMyTurn = onlineContext?.isOnline ? colour === onlineContext.myPlayerColour : true;
@@ -68,7 +67,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     isAnyTokenMoving ||
     isGameEnded ||
     isPlaceholderShowing ||
-    isPendingClick ||
     isBot;
 
   const timerPathRef = useRef<SVGPathElement>(null);
@@ -88,8 +86,9 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     }
 
     if (onlineContext?.isOnline) {
-      // Set local pending click state to disable further clicks immediately
-      setIsPendingClick(true);
+      // Optimistic roll: immediately show dice rolling state locally
+      dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
+      dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
       if (onlineContext.diceRollStartTimestampRef) {
         onlineContext.diceRollStartTimestampRef.current = Date.now();
       }
@@ -101,20 +100,14 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
         getNakamaSocket().sendMatchState(onlineContext.roomId, 100, payload);
       } catch (err) {
         console.error("Failed to send dice roll input:", err);
-        setIsPendingClick(false);
+        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
         toast.error("Failed to sync dice roll with server.");
       }
     } else {
       dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), forcedNumber !== null ? forcedNumber : undefined));
     }
   }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext]);
-
-  useEffect(() => {
-    // Reset pending click if it's no longer our turn, or if dice number is set
-    if (!isCurrentPlayer || (diceNumber !== -1 && diceNumber !== undefined)) {
-      setIsPendingClick(false);
-    }
-  }, [isCurrentPlayer, diceNumber]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

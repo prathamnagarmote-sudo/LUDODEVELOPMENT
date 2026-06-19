@@ -4,7 +4,7 @@ import {
   markTokenAsReachedHome,
   setIsAnyTokenMoving,
 } from '../state/slices/playersSlice';
-import { type TToken, type TCoordinate } from '../types';
+import { type TToken } from '../types';
 import { ERRORS } from '../utils/errors';
 import type { AppDispatch, RootState } from '../state/store';
 import { areCoordsEqual } from '../game/coords/logic';
@@ -47,12 +47,12 @@ export const useMoveTokenForward = () => {
   const store = useStore<RootState>();
 
   return useCallback(
-    (diceNumber: number, token: TToken, customPath?: TCoordinate[]): Promise<TMoveTokenCompletionData> => {
+    (diceNumber: number, token: TToken): Promise<TMoveTokenCompletionData> => {
       return new Promise((resolve) => {
         if (diceNumber < 0) throw new Error(ERRORS.numberOfStepsNegative());
         const { colour, id, coordinates, isLocked } = token;
         if (isLocked) throw new Error(ERRORS.lockedToken(colour, id));
-        const tokenPath = customPath || tokenPaths[colour];
+        const tokenPath = tokenPaths[colour];
         const players = store.getState().players.players;
         dispatch(deactivateAllTokens(colour));
         setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
@@ -63,10 +63,6 @@ export const useMoveTokenForward = () => {
         const myAnimationId = activeAnimationId;
         let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
         let isCancelled = false;
-
-        const initialCoordinateIndex = customPath ? -1 : tokenPath.findIndex((v) => areCoordsEqual(v, coordinates));
-        let i = initialCoordinateIndex;
-        let count = 0;
 
         // Register the cancel function for this animation
         cancelFn = () => {
@@ -79,7 +75,7 @@ export const useMoveTokenForward = () => {
           // Immediately release the moving lock so the next player's turn can start
           dispatch(setIsAnyTokenMoving(false));
           resolve({
-            lastTokenCoord: customPath ? (count > 0 ? customPath[count - 1] : coordinates) : tokenPath[i],
+            lastTokenCoord: tokenPath[i],
             hasTokenReachedHome: false,
             moved: false,
             hasPlayerWon: false,
@@ -92,26 +88,21 @@ export const useMoveTokenForward = () => {
         const tokenEl = document.getElementById(getTokenDOMId(colour, id));
         if (!tokenEl) throw new Error(ERRORS.tokenDoesNotExist(colour, id));
 
+        const initialCoordinateIndex = tokenPath.findIndex((v) => areCoordsEqual(v, coordinates));
+        let i = initialCoordinateIndex;
+        let count = 0;
+
         const moveStep = () => {
           // If another animation started or this one was cancelled, abort immediately.
           if (isCancelled || myAnimationId !== activeAnimationId) return;
 
-          let nextCoords: TCoordinate;
-          if (customPath) {
-            nextCoords = customPath[count];
-          } else {
-            i++;
-            nextCoords = tokenPath[i];
-          }
+          i++;
           count++;
-          dispatch(updateTokenPositionAndAlignmentThunk({ colour, id, newCoords: nextCoords }));
+          dispatch(updateTokenPositionAndAlignmentThunk({ colour, id, newCoords: tokenPath[i] }));
 
-          const finalIndexCoord = customPath ? customPath[customPath.length - 1] : tokenPath[tokenPath.length - 1];
-          const hasTokenReachedHome = areCoordsEqual(nextCoords, finalIndexCoord);
+          const hasTokenReachedHome = areCoordsEqual(tokenPath[i], tokenPath[tokenPath.length - 1]);
 
-          const totalSteps = customPath ? customPath.length : diceNumber;
-
-          if (count >= totalSteps || hasTokenReachedHome) {
+          if (count >= diceNumber || hasTokenReachedHome) {
             // Last step — wait for its CSS transition to finish then resolve
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
@@ -127,7 +118,7 @@ export const useMoveTokenForward = () => {
               dispatch(setIsAnyTokenMoving(false));
               cancelFn = null; // Clean up cancel reference
               resolve({
-                lastTokenCoord: nextCoords,
+                lastTokenCoord: tokenPath[i],
                 hasTokenReachedHome,
                 moved: true,
                 hasPlayerWon,

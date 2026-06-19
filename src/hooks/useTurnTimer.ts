@@ -76,8 +76,7 @@ export function useTurnTimer(
     const updateTimer = (timestamp: number) => {
       let MathRemaining = 0;
       if (onlineContext?.isOnline && onlineContext.turnDeadlineMs) {
-        const offset = onlineContext.serverClockOffsetMsRef?.current || 0;
-        MathRemaining = Math.max(0, onlineContext.turnDeadlineMs - (Date.now() + offset));
+        MathRemaining = Math.max(0, onlineContext.turnDeadlineMs - Date.now());
       } else {
         if (!startTimeRef.current) startTimeRef.current = timestamp;
         const elapsed = timestamp - startTimeRef.current;
