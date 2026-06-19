@@ -115,18 +115,6 @@ function Token({ colour, id, tokenClickData }: Props) {
             dispatch(deactivateAllTokens(colour));
             try {
               onlineContext.onTokenMove?.(colour, id, isLocked);
-              const moveKey = `${colour}_${id}`;
-              onlineContext.optimisticTokenMovesRef?.current.add(moveKey);
-              if (isLocked) {
-                dispatch(setIsAnyTokenMoving(true));
-                setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
-                dispatch(unlockAndAlignTokens({ colour, id }));
-                setTimeout(() => {
-                  dispatch(setIsAnyTokenMoving(false));
-                }, FORWARD_TOKEN_TRANSITION_TIME);
-              } else {
-                moveAndCapture(token, diceNumber);
-              }
             } catch (err) {
               console.error("Failed to execute token move:", err);
               toast.error("Failed to sync token move with server.");
@@ -137,7 +125,7 @@ function Token({ colour, id, tokenClickData }: Props) {
         executeTokenMoveOffline();
       }
     }
-  }, [colour, executeTokenMoveOffline, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber, dispatch, moveAndCapture, token]);
+  }, [colour, executeTokenMoveOffline, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber, dispatch]);
 
   const handleTokenClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     e.stopPropagation();
@@ -148,18 +136,6 @@ function Token({ colour, id, tokenClickData }: Props) {
           dispatch(deactivateAllTokens(colour));
           try {
             onlineContext.onTokenMove?.(colour, id, isLocked);
-            const moveKey = `${colour}_${id}`;
-            onlineContext.optimisticTokenMovesRef?.current.add(moveKey);
-            if (isLocked) {
-              dispatch(setIsAnyTokenMoving(true));
-              setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
-              dispatch(unlockAndAlignTokens({ colour, id }));
-              setTimeout(() => {
-                dispatch(setIsAnyTokenMoving(false));
-              }, FORWARD_TOKEN_TRANSITION_TIME);
-            } else {
-              moveAndCapture(token, diceNumber);
-            }
           } catch (err) {
             console.error("Failed to execute token move:", err);
             toast.error("Failed to sync token move with server.");

@@ -400,6 +400,7 @@ function matchInit(
       consecutiveSixes: 0,
       turnDeadlineMs: Date.now() + 15000,
       status: 'playing',
+      sequence: 0,
       
       tickCount: 0,
       emptyTicks: 0,
@@ -458,7 +459,8 @@ function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presen
     hasRolled: state.hasRolled,
     consecutiveSixes: state.consecutiveSixes,
     turnDeadlineMs: state.turnDeadlineMs,
-    status: state.status
+    status: state.status,
+    sequence: state.sequence
   }), [presence]);
 }
 
@@ -535,7 +537,9 @@ function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuratio
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
 
+  state.sequence++;
   dispatcher.broadcastMessage(203, JSON.stringify({
+    sequence: state.sequence,
     nextTurnColour: nextColour,
     deadlineMs: state.turnDeadlineMs
   }));
@@ -560,7 +564,9 @@ function resolvePostMoveTurnHandoff(
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
 
+    state.sequence++;
     dispatcher.broadcastMessage(203, JSON.stringify({
+      sequence: state.sequence,
       nextTurnColour: colour,
       deadlineMs: state.turnDeadlineMs
     }));
@@ -613,10 +619,17 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
     }
   }
 
+  state.sequence++;
+  const serverNowMs = Date.now();
+  const startAtMs = serverNowMs + 500;
   dispatcher.broadcastMessage(201, JSON.stringify({
+    sequence: state.sequence,
+    serverNowMs: serverNowMs,
+    startAtMs: startAtMs,
     roll: roll,
     colour: colour,
-    hasMovableTokens: hasMovableTokens
+    hasMovableTokens: hasMovableTokens,
+    diceAnimMs: 300
   }));
 
   if (state.consecutiveSixes === 3) {
@@ -1058,7 +1071,14 @@ function executeMove(
   }
 
   // Broadcast the move result
+  state.sequence++;
+  const serverNowMs = Date.now();
+  const startAtMs = serverNowMs + 500;
   dispatcher.broadcastMessage(202, JSON.stringify({
+    sequence: state.sequence,
+    serverNowMs: serverNowMs,
+    startAtMs: startAtMs,
+    stepMs: 300,
     colour: colour,
     id: tokenId,
     isUnlock: wasLocked === true && roll === 6 && path.length === 1,
@@ -1075,7 +1095,9 @@ function executeMove(
     state.winnerColour = colour;
     state.terminateAfterTicks = state.tickCount + 1200; // 20 seconds at 60Hz
     state.rematchAccepted = [];
+    state.sequence++;
     dispatcher.broadcastMessage(204, JSON.stringify({
+      sequence: state.sequence,
       winnerColour: colour
     }));
     return;
@@ -1142,7 +1164,8 @@ function matchLoop(
       hasRolled: s.hasRolled,
       consecutiveSixes: s.consecutiveSixes,
       turnDeadlineMs: s.turnDeadlineMs,
-      status: s.status
+      status: s.status,
+      sequence: s.sequence
     }));
   }
 
@@ -1228,7 +1251,8 @@ function matchLoop(
                 hasRolled: s.hasRolled,
                 consecutiveSixes: s.consecutiveSixes,
                 turnDeadlineMs: s.turnDeadlineMs,
-                status: s.status
+                status: s.status,
+                sequence: s.sequence
               }));
             }
           } else if (opCode === 103) {
@@ -1271,7 +1295,8 @@ function matchLoop(
           hasRolled: s.hasRolled,
           consecutiveSixes: s.consecutiveSixes,
           turnDeadlineMs: s.turnDeadlineMs,
-          status: s.status
+          status: s.status,
+          sequence: s.sequence
         }));
       }
       delete s.botTakeoverTicks[userId];
@@ -1318,7 +1343,8 @@ function matchLoop(
           hasRolled: s.hasRolled,
           consecutiveSixes: s.consecutiveSixes,
           turnDeadlineMs: s.turnDeadlineMs,
-          status: s.status
+          status: s.status,
+          sequence: s.sequence
         }));
       }
       
@@ -1410,7 +1436,9 @@ function matchLoop(
             s.winnerColour = winnerColour;
             s.terminateAfterTicks = tick + 1200;
             s.rematchAccepted = [];
+            s.sequence++;
             dispatcher.broadcastMessage(204, JSON.stringify({
+              sequence: s.sequence,
               winnerColour: winnerColour
             }));
           } else {
@@ -1424,7 +1452,8 @@ function matchLoop(
               hasRolled: s.hasRolled,
               consecutiveSixes: s.consecutiveSixes,
               turnDeadlineMs: s.turnDeadlineMs,
-              status: s.status
+              status: s.status,
+              sequence: s.sequence
             }));
 
             // If it was the quitting player's turn, change turn
@@ -1513,7 +1542,7 @@ function matchLoop(
         executeMove(s, dispatcher, currentColour, tokenId);
       }
       else if (opCode === 102) { // INPUT_PING / HEARTBEAT
-        dispatcher.broadcastMessage(102, "", [message.sender]);
+        dispatcher.broadcastMessage(102, JSON.stringify({ serverNowMs: Date.now() }), [message.sender]);
       }
     } catch (e) {
       logger.error("Error processing message in matchLoop: %v", e);
