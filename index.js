@@ -344,6 +344,8 @@ function matchInit(ctx, logger, nk, params) {
             botRollTick: null,
             botMoveTick: null,
             noMovableTokensTimer: null,
+            pendingTurnChangeTimer: null,
+            pendingTurnChangeData: null,
             rematchAccepted: [],
             terminateAfterTicks: null,
             lastStateSyncTick: 0 // track when we last broadcast periodic STATE_SYNC
@@ -509,10 +511,10 @@ function executeRoll(state, dispatcher, colour) {
     }));
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
-        state.noMovableTokensTimer = Date.now() + 1500;
+        state.noMovableTokensTimer = Date.now() + 800;
     }
     else if (!hasMovableTokens) {
-        state.noMovableTokensTimer = Date.now() + 1500;
+        state.noMovableTokensTimer = Date.now() + 800;
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -864,6 +866,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
     }
     if (!token)
         return;
+    var wasLocked = token.isLocked;
     var roll = state.diceNumber;
     var allTokens = [];
     for (var p = 0; p < state.players.length; p++) {
@@ -909,7 +912,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
     dispatcher.broadcastMessage(202, JSON.stringify({
         colour: colour,
         id: tokenId,
-        isUnlock: token.isLocked === false && roll === 6 && path.length === 1,
+        isUnlock: wasLocked === true && roll === 6 && path.length === 1,
         path: path,
         hasTokenReachedHome: hasTokenReachedHome,
         isCaptured: isCaptured,
@@ -927,7 +930,46 @@ function executeMove(state, dispatcher, colour, tokenId) {
         }));
         return;
     }
-    resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
+    // Calculate animation duration
+    var forwardDuration = 0;
+    var isUnlock = wasLocked && roll === 6 && path.length === 1;
+    if (isUnlock) {
+        forwardDuration = 150;
+    }
+    else {
+        forwardDuration = path.length * 150;
+    }
+    var captureDuration = 0;
+    if (isCaptured && capturedTokenColour && typeof capturedTokenId === 'number') {
+        var dest = token.coordinates;
+        for (var k = 0; k < allTokens.length; k++) {
+            var oppToken = allTokens[k];
+            if (oppToken.colour === capturedTokenColour && oppToken.id === capturedTokenId) {
+                var oppPath = tokenPaths[oppToken.colour];
+                var oppIndex = -1;
+                for (var i = 0; i < oppPath.length; i++) {
+                    if (areCoordsEqual(oppPath[i], dest)) {
+                        oppIndex = i;
+                        break;
+                    }
+                }
+                if (oppIndex !== -1) {
+                    captureDuration = oppIndex * 100;
+                }
+                break;
+            }
+        }
+    }
+    var animDuration = forwardDuration + captureDuration + 200; // 200ms safety buffer
+    var getsAnotherTurn = (roll === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
+    state.pendingTurnChangeTimer = Date.now() + animDuration;
+    state.pendingTurnChangeData = {
+        colour: colour,
+        roll: roll,
+        hasTokenReachedHome: hasTokenReachedHome,
+        isCaptured: isCaptured,
+        getsAnotherTurn: getsAnotherTurn
+    };
 }
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var s = state;
@@ -1075,6 +1117,33 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         if (Date.now() >= s.noMovableTokensTimer) {
             s.noMovableTokensTimer = null;
             nextTurn(s, dispatcher);
+        }
+        return { state: state };
+    }
+    // 2.1 Pending Turn Change Delay Handler (after a token move animation finishes)
+    if (s.pendingTurnChangeTimer !== null) {
+        if (Date.now() >= s.pendingTurnChangeTimer) {
+            var data = s.pendingTurnChangeData;
+            s.pendingTurnChangeTimer = null;
+            s.pendingTurnChangeData = null;
+            if (data) {
+                if (data.getsAnotherTurn) {
+                    s.diceNumber = -1;
+                    s.hasRolled = false;
+                    s.turnDeadlineMs = Date.now() + 15000;
+                    s.botRollTick = null;
+                    s.botMoveTick = null;
+                    s.noMovableTokensTimer = null;
+                    dispatcher.broadcastMessage(203, JSON.stringify({
+                        nextTurnColour: data.colour,
+                        deadlineMs: s.turnDeadlineMs
+                    }));
+                }
+                else {
+                    s.consecutiveSixes = 0;
+                    nextTurn(s, dispatcher);
+                }
+            }
         }
         return { state: state };
     }
@@ -1307,7 +1376,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (currentPlayer && currentPlayer.isBot && s.noMovableTokensTimer === null) {
         if (!s.hasRolled) {
             if (!s.botRollTick) {
-                s.botRollTick = tick + 30; // 1 second think time at 30Hz
+                s.botRollTick = tick + 12; // 400ms think time at 30Hz
             }
             else if (tick >= s.botRollTick) {
                 executeRoll(s, dispatcher, currentColour);
@@ -1316,7 +1385,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         else {
             if (!s.botMoveTick) {
-                s.botMoveTick = tick + 30;
+                s.botMoveTick = tick + 12;
             }
             else if (tick >= s.botMoveTick) {
                 var allTokens = [];
