@@ -373,16 +373,29 @@ function Game({
             if (areAllTokensInSameCoord && !areUnlockableTokensPresent) {
               const targetToken = movableTokens[0];
               console.log('[AUTO-MOVE] Automatically moving token:', colour, targetToken.id);
-              optimisticTokenMovesRef.current.add(`${colour}-${targetToken.id}`);
+              dispatch(deactivateAllTokens(colour));
+
+              // Optimistic animation for auto-move
+              const moveKey = `${colour}_${targetToken.id}`;
+              optimisticTokenMovesRef.current.add(moveKey);
+              if (targetToken.isLocked) {
+                dispatch(setIsAnyTokenMoving(true));
+                setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, targetToken);
+                dispatch(unlockAndAlignTokens({ colour, id: targetToken.id }));
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              } else {
+                moveAndCapture(targetToken, roll);
+              }
+
               try {
                 const socket = getNakamaSocket();
                 socket.sendMatchState(roomIdRef.current, 101, JSON.stringify({ id: targetToken.id }));
               } catch (err) {
                 console.error('[CLIENT] Failed to send auto-move input:', err);
               }
-              moveAndCapture(targetToken, roll).then(() => {
-                onComplete?.();
-              });
+              onComplete?.();
               return;
             }
           }
@@ -412,16 +425,15 @@ function Game({
       const token = player.tokens.find(t => t.id === data.id);
       if (!token) return;
 
-      const tokenKey = `${colour}-${data.id}`;
-      const isOptimistic = optimisticTokenMovesRef.current.has(tokenKey);
+      console.log('[ALL] Applying token move result:', colour, data.id);
 
-      // Optimistic skip: if we already animated this token click locally, skip re-animation.
+      const moveKey = `${colour}_${data.id}`;
+      const isOptimistic = optimisticTokenMovesRef.current.has(moveKey);
+
       if (isOptimistic) {
-        console.log('[OPTIMISTIC] Skipping re-animation of own token — already animated on click.', tokenKey);
-        optimisticTokenMovesRef.current.delete(tokenKey);
+        optimisticTokenMovesRef.current.delete(moveKey);
+        console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
       } else {
-        console.log('[ALL] Applying token move result:', colour, data.id);
-
         if (data.isUnlock) {
           dispatch(setIsAnyTokenMoving(true));
           setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
