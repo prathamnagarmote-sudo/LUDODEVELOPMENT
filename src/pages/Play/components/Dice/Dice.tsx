@@ -20,6 +20,7 @@ import styles from './Dice.module.css';
 import clsx from 'clsx';
 import { playDiceRollSound } from '../../../../utils/audio';
 import { useTurnTimer } from '../../../../hooks/useTurnTimer';
+import { toast } from 'react-toastify';
 
 const woodStainColours: Record<TPlayerColour, string> = {
   red: 'url(#token-grad-red)',
@@ -79,7 +80,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     playDiceRollSound();
 
     let forcedNumber: number | null = null;
-    if (import.meta.env.DEV && forcedNumberRef.current !== null) {
+    if (forcedNumberRef.current !== null) {
       forcedNumber = forcedNumberRef.current;
       forcedNumberRef.current = null;
     }
@@ -88,19 +89,20 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
       // Optimistic roll: immediately show dice rolling state locally
       dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
       dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
+      if (onlineContext.diceRollStartTimestampRef) {
+        onlineContext.diceRollStartTimestampRef.current = Date.now();
+      }
 
-      if (onlineContext.amHost) {
-        // Host: generate the roll and broadcast OpCode 8 directly.
-        // All clients (including host itself via relay loopback) apply the result.
-        // Do NOT call rollDiceThunk — wait for OpCode 8 loopback to apply state.
-        const roll = forcedNumber !== null ? forcedNumber : Math.floor(Math.random() * 6) + 1;
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 8, JSON.stringify({
-          colour,
-          roll,
-        }));
-      } else {
-        // Non-host: ask the host to roll for the current player
-        getNakamaSocket().sendMatchState(onlineContext.roomId, 3, '{}');
+      try {
+        // Send roll request input to Nakama (OpCode 100)
+        // forcedRoll is a dev/test hint — the server ignores it in production
+        const payload = forcedNumber !== null ? JSON.stringify({ forcedRoll: forcedNumber }) : JSON.stringify({});
+        getNakamaSocket().sendMatchState(onlineContext.roomId, 100, payload);
+      } catch (err) {
+        console.error("Failed to send dice roll input:", err);
+        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
+        toast.error("Failed to sync dice roll with server.");
       }
     } else {
       dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), forcedNumber !== null ? forcedNumber : undefined));
@@ -110,13 +112,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (import.meta.env.DEV) {
-        const num = parseInt(e.key, 10);
-        if (!isNaN(num) && num >= 1 && num <= 6) {
-          forcedNumberRef.current = num;
-          if (!isDiceDisabled) handleDiceClick();
-          return;
-        }
+      // Keys 1-6 force a specific dice number (works in all environments for testing)
+      const num = parseInt(e.key, 10);
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        forcedNumberRef.current = num;
+        if (!isDiceDisabled) handleDiceClick();
+        return;
       }
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();

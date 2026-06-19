@@ -4,8 +4,8 @@ import { type TPlayerColour, type TTokenClickData } from '../../../../types';
 import { type TToken } from '../../../../types';
 import { useDispatch, useSelector } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
-import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
+import { toast } from 'react-toastify';
 import TokenImage from '../../../../assets/token.svg?react';
 import { useCoordsToPosition } from '../../../../hooks/useCoordsToPosition';
 import { setTokenTransitionTime } from '../../../../utils/setTokenTransitionTime';
@@ -124,14 +124,11 @@ function Token({ colour, id, tokenClickData }: Props) {
         if (isActive && diceNumber !== -1 && diceNumber) {
           if (colour === onlineContext.myPlayerColour) {
             onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
-            if (onlineContext.amHost) {
-              onlineContext.onHostTokenMove?.(colour, id, isLocked);
-            } else {
-              getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-                colour,
-                id,
-                isUnlock: isLocked,
-              }));
+            try {
+              onlineContext.onTokenMove?.(colour, id, isLocked);
+            } catch (err) {
+              console.error("Failed to execute token move:", err);
+              toast.error("Failed to sync token move with server.");
             }
             console.log('[OPTIMISTIC] Animating own token immediately (board click):', colour, id);
             if (isLocked) unlock();
@@ -151,14 +148,11 @@ function Token({ colour, id, tokenClickData }: Props) {
       if (isActive && diceNumber !== -1 && diceNumber) {
         if (colour === onlineContext.myPlayerColour) {
           onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
-          if (onlineContext.amHost) {
-            onlineContext.onHostTokenMove?.(colour, id, isLocked);
-          } else {
-            getNakamaSocket().sendMatchState(onlineContext.roomId, 5, JSON.stringify({
-              colour,
-              id,
-              isUnlock: isLocked,
-            }));
+          try {
+            onlineContext.onTokenMove?.(colour, id, isLocked);
+          } catch (err) {
+            console.error("Failed to execute token move:", err);
+            toast.error("Failed to sync token move with server.");
           }
           console.log('[OPTIMISTIC] Animating own token immediately (direct click):', colour, id);
           if (isLocked) unlock();

@@ -78,13 +78,31 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
   } catch (e: any) {
     const errMsg = e?.message || e?.error || JSON.stringify(e) || String(e);
     logger.error("=== ERROR in matchmakerMatched: %v ===", errMsg);
+    try {
+      const activeUserId = (matches && matches[0] && matches[0].presence && matches[0].presence.userId) || "00000000-0000-0000-0000-000000000000";
+      nk.storageWrite([{
+        collection: "debug",
+        key: "matchmaker_error",
+        userId: activeUserId,
+        value: { error: errMsg, timestamp: Date.now() },
+        permissionRead: 2,
+        permissionWrite: 0
+      }]);
+    } catch (writeErr) {}
     return; // returning void causes Nakama to send relay token to clients — do NOT do this
   }
 };
 
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
-  logger.info("Nakama Ludo Server Logic Initialized v2");
+  logger.info("Nakama Ludo Server Logic Initialized v3");
   
+  // Diagnostic RPC — call via: GET /v2/rpc/ludo_ping?http_key=defaultkey
+  initializer.registerRpc('ludo_ping', function(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    logger.info("ludo_ping called");
+    return JSON.stringify({ status: "ok", module: "ludo_match", version: "v3", timestamp: Date.now() });
+  });
+  logger.info("Diagnostic RPC 'ludo_ping' registered");
+
   initializer.registerMatch('ludo_match', {
     matchInit,
     matchJoinAttempt,
@@ -98,4 +116,10 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
   initializer.registerMatchmakerMatched(matchmakerMatched);
   logger.info("Matchmaker matched callback registered successfully");
+}
+
+// @ts-ignore
+if (typeof exports !== 'undefined') {
+  // @ts-ignore
+  exports.InitModule = InitModule;
 }

@@ -76,6 +76,17 @@ function GameFinishedScreen({ players }: Props) {
     }
   }
 
+  // Determine if local player is the winner for confetti effects
+  let isLocalWinner = false;
+  if (!isGameOver && standings.length > 0) {
+    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
+    if (isTie) {
+       isLocalWinner = false;
+    } else {
+       isLocalWinner = standings[0].colour === myColour;
+    }
+  }
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
@@ -231,7 +242,7 @@ function GameFinishedScreen({ players }: Props) {
           transition={{ duration: 0.2 }}
           className={styles.gameFinishedBackdrop}
         />
-        {!isGameOver && rematchState === 'idle' && width > 0 && (
+        {!isGameOver && isLocalWinner && rematchState === 'idle' && width > 0 && (
           <Confetti
             width={width}
             height={height}
@@ -285,8 +296,9 @@ function GameFinishedScreen({ players }: Props) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <div className={styles.statusMessage}>
-                      {onlineContext ? 'Waiting for opponent to respond...' : 'Waiting for players to accept...'}
+                    <div className={styles.statusMessage} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span>{onlineContext ? 'Waiting for opponent to respond...' : 'Waiting for players to accept...'}</span>
+                      <span style={{ marginTop: '10px', fontSize: '1.5rem', color: '#FFD700', fontWeight: 'bold' }}>{rematchTimer} Seconds Remaining</span>
                     </div>
                   </motion.div>
                 )}
