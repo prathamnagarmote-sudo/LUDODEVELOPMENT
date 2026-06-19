@@ -28,6 +28,7 @@ EXPOSE 7349 7350 7351
 
 # At startup, copy the baked-in module to the runtime paths, run migrations, and start Nakama
 ENTRYPOINT mkdir -p /nakama/data/modules /nakama/modules && \
+           rm -rf /nakama/data/modules/* /nakama/modules/* && \
            cp /opt/ludo_module.js /nakama/data/modules/index.js && \
            cp /opt/ludo_module.js /nakama/modules/index.js && \
            if [ -n "$NAKAMA_DATABASE_ADDRESS" ]; then DB_ADDR="$NAKAMA_DATABASE_ADDRESS"; elif [ -n "$NAKAMA_DATABASE_URL" ]; then DB_ADDR="$NAKAMA_DATABASE_URL"; elif [ -n "$DATABASE_URL" ]; then DB_ADDR="$DATABASE_URL"; else DB_ADDR="root@localhost:5432/nakama"; fi && \
