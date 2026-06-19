@@ -407,8 +407,6 @@ function matchInit(
       botRollTick: null as number | null,
       botMoveTick: null as number | null,
       noMovableTokensTimer: null as number | null,
-      pendingTurnChangeTimer: null as number | null,
-      pendingTurnChangeData: null as any | null,
       rematchAccepted: [] as TPlayerColour[],
       terminateAfterTicks: null as number | null,
       lastStateSyncTick: 0  // track when we last broadcast periodic STATE_SYNC
@@ -416,7 +414,7 @@ function matchInit(
 
     return {
       state,
-      tickRate: 30,
+      tickRate: 60,
       label: ""
     };
   } catch (e: any) {
@@ -518,21 +516,21 @@ function matchLeave(
     for (let i = 0; i < s.players.length; i++) {
       const player = s.players[i];
       if (player.userId === presence.userId) {
-        s.botTakeoverTicks[presence.userId] = tick + 120; // 4 seconds at 30Hz
+        s.botTakeoverTicks[presence.userId] = tick + 240; // 4 seconds at 60Hz
       }
     }
   }
   return { state };
 }
 
-function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher) {
+function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
   const nextColour = state.playerSequence[state.currentTurnIndex];
   
   state.diceNumber = -1;
   state.hasRolled = false;
   state.consecutiveSixes = 0;
-  state.turnDeadlineMs = Date.now() + 15000;
+  state.turnDeadlineMs = Date.now() + 15000 + animDuration;
   state.botRollTick = null;
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
@@ -549,14 +547,15 @@ function resolvePostMoveTurnHandoff(
   colour: TPlayerColour,
   diceNumber: number,
   hasTokenReachedHome: boolean,
-  isCaptured: boolean
+  isCaptured: boolean,
+  animDuration: number = 0
 ) {
   const getsAnotherTurn = (diceNumber === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
   
   if (getsAnotherTurn) {
     state.diceNumber = -1;
     state.hasRolled = false;
-    state.turnDeadlineMs = Date.now() + 15000;
+    state.turnDeadlineMs = Date.now() + 15000 + animDuration;
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
@@ -567,7 +566,7 @@ function resolvePostMoveTurnHandoff(
     }));
   } else {
     state.consecutiveSixes = 0;
-    nextTurn(state, dispatcher);
+    nextTurn(state, dispatcher, animDuration);
   }
 }
 
@@ -622,9 +621,9 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
 
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
-    state.noMovableTokensTimer = Date.now() + 800;
+    state.noMovableTokensTimer = Date.now() + 1500;
   } else if (!hasMovableTokens) {
-    state.noMovableTokensTimer = Date.now() + 800;
+    state.noMovableTokensTimer = Date.now() + 1500;
   } else {
     state.turnDeadlineMs = Date.now() + 15000;
   }
@@ -1074,7 +1073,7 @@ function executeMove(
   if (hasPlayerWon) {
     state.status = 'ended';
     state.winnerColour = colour;
-    state.terminateAfterTicks = state.tickCount + 600; // 20 seconds at 30Hz
+    state.terminateAfterTicks = state.tickCount + 1200; // 20 seconds at 60Hz
     state.rematchAccepted = [];
     dispatcher.broadcastMessage(204, JSON.stringify({
       winnerColour: colour
@@ -1086,9 +1085,9 @@ function executeMove(
   let forwardDuration = 0;
   const isUnlock = wasLocked && roll === 6 && path.length === 1;
   if (isUnlock) {
-    forwardDuration = 150;
+    forwardDuration = 300;
   } else {
-    forwardDuration = path.length * 150;
+    forwardDuration = path.length * 300;
   }
 
   let captureDuration = 0;
@@ -1115,15 +1114,7 @@ function executeMove(
 
   const animDuration = forwardDuration + captureDuration + 200; // 200ms safety buffer
 
-  const getsAnotherTurn = (roll === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
-  state.pendingTurnChangeTimer = Date.now() + animDuration;
-  state.pendingTurnChangeData = {
-    colour: colour,
-    roll: roll,
-    hasTokenReachedHome: hasTokenReachedHome,
-    isCaptured: isCaptured,
-    getsAnotherTurn: getsAnotherTurn
-  };
+  resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
 }
 
 function matchLoop(
@@ -1138,9 +1129,9 @@ function matchLoop(
   const s = state as any;
   s.tickCount = tick;
 
-  // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (150 ticks @ 30Hz)
+  // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
   // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
-  if (tick - s.lastStateSyncTick >= 150) {
+  if (tick - s.lastStateSyncTick >= 300) {
     s.lastStateSyncTick = tick;
     dispatcher.broadcastMessage(200, JSON.stringify({
       roomId: s.roomId,
@@ -1296,34 +1287,7 @@ function matchLoop(
     return { state };
   }
 
-  // 2.1 Pending Turn Change Delay Handler (after a token move animation finishes)
-  if (s.pendingTurnChangeTimer !== null) {
-    if (Date.now() >= s.pendingTurnChangeTimer) {
-      const data = s.pendingTurnChangeData;
-      s.pendingTurnChangeTimer = null;
-      s.pendingTurnChangeData = null;
-      
-      if (data) {
-        if (data.getsAnotherTurn) {
-          s.diceNumber = -1;
-          s.hasRolled = false;
-          s.turnDeadlineMs = Date.now() + 15000;
-          s.botRollTick = null;
-          s.botMoveTick = null;
-          s.noMovableTokensTimer = null;
 
-          dispatcher.broadcastMessage(203, JSON.stringify({
-            nextTurnColour: data.colour,
-            deadlineMs: s.turnDeadlineMs
-          }));
-        } else {
-          s.consecutiveSixes = 0;
-          nextTurn(s, dispatcher);
-        }
-      }
-    }
-    return { state };
-  }
 
   // 3. Process turn deadlines (timeout)
   if (Date.now() >= s.turnDeadlineMs) {
@@ -1444,7 +1408,7 @@ function matchLoop(
           if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
             s.status = 'ended';
             s.winnerColour = winnerColour;
-            s.terminateAfterTicks = tick + 600;
+            s.terminateAfterTicks = tick + 1200;
             s.rematchAccepted = [];
             dispatcher.broadcastMessage(204, JSON.stringify({
               winnerColour: winnerColour
@@ -1569,14 +1533,14 @@ function matchLoop(
   if (currentPlayer && currentPlayer.isBot && s.noMovableTokensTimer === null) {
     if (!s.hasRolled) {
       if (!s.botRollTick) {
-        s.botRollTick = tick + 12; // 400ms think time at 30Hz
+        s.botRollTick = tick + 30; // 500ms think time at 60Hz
       } else if (tick >= s.botRollTick) {
         executeRoll(s, dispatcher, currentColour);
         s.botRollTick = null;
       }
     } else {
       if (!s.botMoveTick) {
-        s.botMoveTick = tick + 12;
+        s.botMoveTick = tick + 30; // 500ms think time at 60Hz
       } else if (tick >= s.botMoveTick) {
         const allTokens: TToken[] = [];
         for (let p = 0; p < s.players.length; p++) {
@@ -1613,7 +1577,7 @@ function matchLoop(
 
   if (isMatchEmpty) {
     s.emptyTicks++;
-    if (s.emptyTicks > 300) {
+    if (s.emptyTicks > 600) {
       return null;
     }
   } else {

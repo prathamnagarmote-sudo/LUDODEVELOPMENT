@@ -319,11 +319,11 @@ function Game({
       let remainingDelay = 0;
       if (colour === myPlayerColourRef.current) {
         const elapsed = Date.now() - diceRollStartTimestampRef.current;
-        remainingDelay = Math.max(0, 150 - elapsed);
+        remainingDelay = Math.max(0, 300 - elapsed);
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 150;
+        remainingDelay = 300;
       }
 
       setTimeout(() => {
