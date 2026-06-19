@@ -1448,11 +1448,11 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
     }
 };
 function InitModule(ctx, logger, nk, initializer) {
-    logger.info("Nakama Ludo Server Logic Initialized v3");
+    logger.info("Nakama Ludo Server Logic Initialized v4");
     // Diagnostic RPC — call via: GET /v2/rpc/ludo_ping?http_key=defaultkey
     initializer.registerRpc('ludo_ping', function (ctx, logger, nk, payload) {
         logger.info("ludo_ping called");
-        return JSON.stringify({ status: "ok", module: "ludo_match", version: "v3", timestamp: Date.now() });
+        return JSON.stringify({ status: "ok", module: "ludo_match", version: "v4", timestamp: Date.now() });
     });
     logger.info("Diagnostic RPC 'ludo_ping' registered");
     initializer.registerMatch('ludo_match', {
