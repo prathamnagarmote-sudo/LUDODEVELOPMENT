@@ -7,16 +7,19 @@ const PRODUCTION_NAKAMA_HOST = 'nakama-production-e5b8.up.railway.app';
 const PRODUCTION_NAKAMA_PORT = '443';
 
 const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-const isLocalhost = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isLocalNetwork = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || 
+   window.location.hostname === '127.0.0.1' || 
+   window.location.hostname.startsWith('192.168.') ||
+   window.location.hostname.startsWith('10.'));
 
-// On localhost: connect to local Nakama (or env var override).
+// On localhost/LAN: connect to local Nakama (or env var override).
 // On production (Vercel/HTTPS): connect to Railway Nakama.
 const resolvedHost = import.meta.env.VITE_NAKAMA_HOST ||
-  (isLocalhost ? '127.0.0.1' : PRODUCTION_NAKAMA_HOST);
+  (isLocalNetwork ? window.location.hostname : PRODUCTION_NAKAMA_HOST);
 
 const resolvedPort = import.meta.env.VITE_NAKAMA_PORT ||
-  (isLocalhost ? '7350' : PRODUCTION_NAKAMA_PORT);
+  (isLocalNetwork ? '7350' : PRODUCTION_NAKAMA_PORT);
 
 const useSSL = import.meta.env.VITE_NAKAMA_SSL === 'true' ||
                import.meta.env.VITE_NAKAMA_USE_SSL === 'true' ||

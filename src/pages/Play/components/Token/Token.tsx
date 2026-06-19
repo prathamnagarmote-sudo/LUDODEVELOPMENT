@@ -13,6 +13,7 @@ import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken
 import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTokens';
 import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
+import { TokenCelebration } from './TokenCelebration';
 import styles from './Token.module.css';
 import clsx from 'clsx';
 import { getTokenDOMId } from '../../../../game/tokens/logic';
@@ -45,7 +46,19 @@ function Token({ colour, id, tokenClickData }: Props) {
   const [isCurrentlyFocused, setIsCurrentlyFocused] = useState(false);
   const tokenElRef = useRef<HTMLButtonElement | null>(null);
 
-  const { coordinates, isActive, isLocked, tokenAlignmentData } = token;
+  const { coordinates, isActive, isLocked, tokenAlignmentData, hasTokenReachedHome } = token;
+
+  const [showCelebration, setShowCelebration] = useState(false);
+  const prevReachedHome = useRef(hasTokenReachedHome);
+
+  useEffect(() => {
+    if (hasTokenReachedHome && !prevReachedHome.current) {
+      setShowCelebration(true);
+      const timer = setTimeout(() => setShowCelebration(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    prevReachedHome.current = hasTokenReachedHome;
+  }, [hasTokenReachedHome]);
 
   const prevCoordsRef = useRef(coordinates);
   useEffect(() => {
@@ -56,7 +69,7 @@ function Token({ colour, id, tokenClickData }: Props) {
 
   const { scaleFactor } = tokenAlignmentData;
   const getPosition = useCoordsToPosition();
-  const { x, y } = getPosition(coordinates, tokenAlignmentData);
+  const { x, y } = getPosition(coordinates, tokenAlignmentData, hasTokenReachedHome, colour);
   const diceNumber = useSelector((state: RootState) =>
     state.dice.dice.find((d) => d.colour === colour)
   )?.diceNumber;
@@ -178,6 +191,7 @@ function Token({ colour, id, tokenClickData }: Props) {
         } as React.CSSProperties
       }
     >
+      <TokenCelebration show={showCelebration} />
       <span
         key={`${coordinates.x}-${coordinates.y}`}
         className={clsx(styles.bouncer, {

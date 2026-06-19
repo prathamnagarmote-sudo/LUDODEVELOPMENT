@@ -105,6 +105,17 @@ function Game({
   const [turnDeadlineMs, setTurnDeadlineMs] = useState<number>(Date.now() + 15000);
   const matchJoinedRef = useRef(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showFinishedScreen, setShowFinishedScreen] = useState(false);
+
+  useEffect(() => {
+    if (isGameEnded) {
+      const timer = setTimeout(() => setShowFinishedScreen(true), 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setShowFinishedScreen(false);
+    }
+  }, [isGameEnded]);
+
   const [music, setMusic] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('musicEnabled') !== 'false';
@@ -793,7 +804,7 @@ function Game({
             </div>
           </div>
         )}
-        {isGameEnded && <GameFinishedScreen players={players} />}
+        {showFinishedScreen && <GameFinishedScreen players={players} />}
       </div>
     </OnlineGameContext.Provider>
   );
