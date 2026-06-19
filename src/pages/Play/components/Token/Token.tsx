@@ -88,17 +88,6 @@ function Token({ colour, id, tokenClickData }: Props) {
     }
   }, [diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
 
-  // ONLINE NON-HOST ONLY: optimistic animation (fire-and-forget).
-  // Runs only the visual animation — no turn change, no game logic.
-  // Turn progression comes from OpCode 6 broadcast by the host.
-  const executeOptimisticAnimation = useCallback(async () => {
-    if (!isActive || diceNumber === -1 || !diceNumber) return;
-    // Fire-and-forget: animate the token move, but do NOT handle the result.
-    // The host will broadcast OpCode 9 (with authoritative isCaptured/hasPlayerWon)
-    // and OpCode 6 (turn change). We just show the animation instantly.
-    await moveAndCapture(token, diceNumber);
-  }, [diceNumber, isActive, moveAndCapture, token]);
-
   useEffect(() => {
     const prevClickData = tokenClickDataRef.current;
     const newTokenClickData = tokenClickData;
@@ -110,23 +99,32 @@ function Token({ colour, id, tokenClickData }: Props) {
       if (onlineContext?.isOnline) {
         if (isActive && diceNumber !== -1 && diceNumber) {
           if (colour === onlineContext.myPlayerColour) {
-            onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
+            dispatch(deactivateAllTokens(colour));
             try {
               onlineContext.onTokenMove?.(colour, id, isLocked);
+              const moveKey = `${colour}_${id}`;
+              onlineContext.optimisticTokenMovesRef?.current.add(moveKey);
+              if (isLocked) {
+                dispatch(setIsAnyTokenMoving(true));
+                setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
+                dispatch(unlockAndAlignTokens({ colour, id }));
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              } else {
+                moveAndCapture(token, diceNumber);
+              }
             } catch (err) {
               console.error("Failed to execute token move:", err);
               toast.error("Failed to sync token move with server.");
             }
-            console.log('[OPTIMISTIC] Animating own token immediately (board click):', colour, id);
-            if (isLocked) unlock();
-            else executeOptimisticAnimation();
           }
         }
       } else {
         executeTokenMoveOffline();
       }
     }
-  }, [colour, executeTokenMoveOffline, executeOptimisticAnimation, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber]);
+  }, [colour, executeTokenMoveOffline, id, tokenClickData, onlineContext, isLocked, isActive, diceNumber, dispatch, moveAndCapture, token]);
 
   const handleTokenClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     e.stopPropagation();
@@ -134,16 +132,25 @@ function Token({ colour, id, tokenClickData }: Props) {
     if (onlineContext?.isOnline) {
       if (isActive && diceNumber !== -1 && diceNumber) {
         if (colour === onlineContext.myPlayerColour) {
-          onlineContext.optimisticTokenMovesRef?.current.add(`${colour}-${id}`);
+          dispatch(deactivateAllTokens(colour));
           try {
             onlineContext.onTokenMove?.(colour, id, isLocked);
+            const moveKey = `${colour}_${id}`;
+            onlineContext.optimisticTokenMovesRef?.current.add(moveKey);
+            if (isLocked) {
+              dispatch(setIsAnyTokenMoving(true));
+              setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
+              dispatch(unlockAndAlignTokens({ colour, id }));
+              setTimeout(() => {
+                dispatch(setIsAnyTokenMoving(false));
+              }, FORWARD_TOKEN_TRANSITION_TIME);
+            } else {
+              moveAndCapture(token, diceNumber);
+            }
           } catch (err) {
             console.error("Failed to execute token move:", err);
             toast.error("Failed to sync token move with server.");
           }
-          console.log('[OPTIMISTIC] Animating own token immediately (direct click):', colour, id);
-          if (isLocked) unlock();
-          else executeOptimisticAnimation();
         }
       }
     } else {
