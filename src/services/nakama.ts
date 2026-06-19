@@ -1,18 +1,33 @@
 import { Client, Session } from '@heroiclabs/nakama-js';
 import type { Socket } from '@heroiclabs/nakama-js';
 
+// Production Railway Nakama server — used as fallback when env var is absent.
+// Never falls back to window.location.hostname since Vercel cannot run Nakama.
+const PRODUCTION_NAKAMA_HOST = 'nakama-production-e5b8.up.railway.app';
+const PRODUCTION_NAKAMA_PORT = '443';
+
 const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-const useSSL = import.meta.env.VITE_NAKAMA_SSL === 'true' || 
-               import.meta.env.VITE_NAKAMA_USE_SSL === 'true' || 
+const isLocalhost = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// On localhost: connect to local Nakama (or env var override).
+// On production (Vercel/HTTPS): connect to Railway Nakama.
+const resolvedHost = import.meta.env.VITE_NAKAMA_HOST ||
+  (isLocalhost ? '127.0.0.1' : PRODUCTION_NAKAMA_HOST);
+
+const resolvedPort = import.meta.env.VITE_NAKAMA_PORT ||
+  (isLocalhost ? '7350' : PRODUCTION_NAKAMA_PORT);
+
+const useSSL = import.meta.env.VITE_NAKAMA_SSL === 'true' ||
+               import.meta.env.VITE_NAKAMA_USE_SSL === 'true' ||
                isHttps;
 
-const defaultHost = typeof window !== 'undefined' ? window.location.hostname : "127.0.0.1";
-const defaultPort = isHttps ? "" : "7350";
+console.log('[Nakama] Connecting to', resolvedHost + ':' + resolvedPort, 'SSL:', useSSL);
 
 const client = new Client(
   import.meta.env.VITE_NAKAMA_KEY || import.meta.env.VITE_NAKAMA_SERVER_KEY || "defaultkey",
-  import.meta.env.VITE_NAKAMA_HOST || defaultHost,
-  import.meta.env.VITE_NAKAMA_PORT || defaultPort,
+  resolvedHost,
+  resolvedPort,
   useSSL
 );
 
