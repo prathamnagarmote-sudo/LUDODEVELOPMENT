@@ -42,7 +42,7 @@ describe('Test dice slice reducers', () => {
     });
   });
   describe('renewRollBag', () => {
-    it('should refill the roll bag with a fresh set of 36 dice numbers for the given player', () => {
+    it('should refill the roll bag with a fresh set of 6 dice numbers for the given player', () => {
       const previousState: TDiceState = {
         ...initialState,
         rollBag: {
