@@ -15,7 +15,8 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../game/tokens/constants';
 import { tokenPaths } from '../game/tokens/paths';
 import { getTokenDOMId } from '../game/tokens/logic';
 import type { TMoveTokenCompletionData } from '../types/tokens';
-import { playEngineSound } from '../utils/audio';
+import { playTokenSound, playHomeSound, playSafeZoneSound } from '../utils/audio';
+import { isCoordASafeSpot } from '../game/coords/logic';
 
 // ─── Global Cancellation Mechanism ────────────────────────────────────────────
 // Each call to moveTokenForward generates a unique animation ID.
@@ -108,7 +109,15 @@ export const useMoveTokenForward = () => {
               pendingTimeout = null;
               // Final cancelled check before resolving
               if (isCancelled || myAnimationId !== activeAnimationId) return;
-              playEngineSound();
+              
+              if (hasTokenReachedHome) {
+                playHomeSound();
+              } else if (isCoordASafeSpot(tokenPath[i], colour)) {
+                playSafeZoneSound();
+              } else {
+                playTokenSound();
+              }
+              
               const player = players.find((p) => p.colour === colour);
               if (!player) return;
               const hasPlayerWon =
@@ -129,7 +138,7 @@ export const useMoveTokenForward = () => {
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
               if (isCancelled || myAnimationId !== activeAnimationId) return;
-              playEngineSound();
+              playTokenSound();
               moveStep();
             }, FORWARD_TOKEN_TRANSITION_TIME);
           }

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
 import { authenticate, getNakamaSocket, getSession, disconnectSocket, ensureSocketConnected } from '../../services/nakama';
+import { playMatchmakingSound } from '../../utils/audio';
 import type { MatchmakerMatched } from '@heroiclabs/nakama-js';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -93,6 +94,12 @@ function PlayerSetup() {
     document.title = 'LOOSER LUDO - Player Setup';
     cleanup();
   }, [cleanup]);
+
+  useEffect(() => {
+    // Play matchmaking sound continuously while searching, unless a match is found
+    playMatchmakingSound(isSearching && !matchFound);
+    return () => playMatchmakingSound(false);
+  }, [isSearching, matchFound]);
 
 
 
