@@ -570,8 +570,8 @@ function resolvePostMoveTurnHandoff(
   }
 }
 
-function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour) {
-  const roll = Math.floor(Math.random() * 6) + 1;
+function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour, forcedRoll?: number) {
+  const roll = (forcedRoll !== undefined && forcedRoll >= 1 && forcedRoll <= 6) ? forcedRoll : Math.floor(Math.random() * 6) + 1;
   state.diceNumber = roll;
   state.hasRolled = true;
 
@@ -1472,7 +1472,11 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
-        executeRoll(s, dispatcher, currentColour);
+        let data: any = {};
+        try {
+          data = JSON.parse(nk.binaryToString(message.data));
+        } catch (e) {}
+        executeRoll(s, dispatcher, currentColour, data.forcedRoll);
       } 
       else if (opCode === 101) { // INPUT_MOVE_TOKEN
         if (!s.hasRolled) {
