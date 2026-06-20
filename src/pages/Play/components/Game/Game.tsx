@@ -318,6 +318,13 @@ function Game({
     const applyTurnTransition = (nextColour: TPlayerColour) => {
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
+
+      // Clear dice rolling states for all players on turn change
+      const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
+      colours.forEach((col) => {
+        dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
+      });
     };
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 201) ─────────────────────────────
@@ -505,6 +512,7 @@ function Game({
         if (playersRegisteredInitiallyRef.current) {
           initializeGame(parsed.players);
         } else {
+          const isMoving = store.getState().players.isAnyTokenMoving;
           parsed.players.forEach((p: any) => {
             if (p.isBot) {
               dispatch(convertPlayerToBot({ colour: p.colour }));
@@ -515,17 +523,21 @@ function Game({
                 dispatch(quitMatch(p.colour));
               }
             }
-            p.tokens.forEach((t: any) => {
-              dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
-              if (t.isLocked) {
-                try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
-              } else {
-                try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
-              }
-              if (t.hasTokenReachedHome) {
-                try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
-              }
-            });
+            // Skip snapping token details if a local or remote token animation is active.
+            // This prevents snapping and incorrect predictions during live gameplay.
+            if (!isMoving) {
+              p.tokens.forEach((t: any) => {
+                dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
+                if (t.isLocked) {
+                  try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                } else {
+                  try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                }
+                if (t.hasTokenReachedHome) {
+                  try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
+                }
+              });
+            }
           });
           dispatch(setPlayerSequenceDirect(parsed.playerSequence));
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
@@ -536,6 +548,15 @@ function Game({
         if (parsed.diceNumber !== -1) {
           dispatch(setDiceNumberDirect({ colour: parsed.currentTurnColour, diceNumber: parsed.diceNumber }));
         }
+
+        // Ensure dice animations are cleared on state sync if the roll has already occurred/resolved
+        const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
+        colours.forEach((col) => {
+          if (parsed.hasRolled || col !== myPlayerColourRef.current) {
+            dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
+            dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
+          }
+        });
 
       } else if (opCode === 201) {
         // DICE_ROLLED
@@ -561,6 +582,9 @@ function Game({
         // ACTION_REJECTED
         console.warn("[CLIENT] Action rejected by server:", parsed.reason);
         toast.error(`Invalid action: ${parsed.reason}`);
+        // Clear local rolling/placeholder state if our roll action was rejected
+        dispatch(setIsPlaceholderShowing({ colour: myPlayerColourRef.current, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour: myPlayerColourRef.current, isVisualRolling: false }));
       }
     };
 
