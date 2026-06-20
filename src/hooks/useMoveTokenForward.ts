@@ -15,7 +15,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../game/tokens/constants';
 import { tokenPaths } from '../game/tokens/paths';
 import { getTokenDOMId } from '../game/tokens/logic';
 import type { TMoveTokenCompletionData } from '../types/tokens';
-import { playTokenSound, playHomeSound, playSafeZoneSound } from '../utils/audio';
+import { playTokenSound, playHomeSound, playSafeZoneSound, stopDiceRollSound } from '../utils/audio';
 import { isCoordASafeSpot } from '../game/coords/logic';
 
 // ─── Global Cancellation Mechanism ────────────────────────────────────────────
@@ -145,6 +145,7 @@ export const useMoveTokenForward = () => {
         };
 
         // Kick off the first step
+        stopDiceRollSound();
         moveStep();
       });
     },

@@ -1,5 +1,6 @@
 import diceMp3 from '../sound animations/Dice.mp3';
 import matchFoundMp3 from '../sound animations/MatchFound 2.mp3';
+import scrollMp3 from '../sound animations/Scroll.mp3';
 import homeAnimationMp3 from '../sound animations/home animation.mp3';
 import safeZoneMp3 from '../sound animations/safezone sound.mp3';
 import tokenMp3 from '../sound animations/token.mp3';
@@ -73,6 +74,10 @@ export function playDiceRollSound() {
   triggerVibration(40);
 }
 
+export function stopDiceRollSound() {
+  stopSound(diceMp3);
+}
+
 export function playVictorySound() {
   playSound(homeAnimationMp3);
   triggerVibration([100, 50, 100, 50, 200]);
@@ -88,11 +93,16 @@ export function playSafeZoneSound() {
   triggerVibration([50, 50]);
 }
 
-export function playMatchmakingSound(start: boolean) {
+export function playMatchmakingScrollSound(start: boolean) {
   if (start) {
-    playSound(matchFoundMp3, true);
+    playSound(scrollMp3, true);
   } else {
-    stopSound(matchFoundMp3);
+    stopSound(scrollMp3);
   }
+}
+
+export function playMatchFoundSound() {
+  stopSound(scrollMp3); // Ensure scroll stops
+  playSound(matchFoundMp3);
 }
 

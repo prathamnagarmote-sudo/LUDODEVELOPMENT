@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
 import { authenticate, getNakamaSocket, getSession, disconnectSocket, ensureSocketConnected } from '../../services/nakama';
-import { playMatchmakingSound } from '../../utils/audio';
+import { playMatchmakingScrollSound, playMatchFoundSound } from '../../utils/audio';
 import type { MatchmakerMatched } from '@heroiclabs/nakama-js';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -96,10 +96,16 @@ function PlayerSetup() {
   }, [cleanup]);
 
   useEffect(() => {
-    // Play matchmaking sound continuously while searching, unless a match is found
-    playMatchmakingSound(isSearching && !matchFound);
-    return () => playMatchmakingSound(false);
+    // Play scrolling sound while searching
+    playMatchmakingScrollSound(isSearching && !matchFound);
+    return () => playMatchmakingScrollSound(false);
   }, [isSearching, matchFound]);
+
+  useEffect(() => {
+    if (matchFound) {
+      playMatchFoundSound();
+    }
+  }, [matchFound]);
 
 
 
