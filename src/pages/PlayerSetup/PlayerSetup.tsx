@@ -168,6 +168,13 @@ function PlayerSetup() {
 
           console.log("=== RESOLVED matchId:", resolvedMatchId, "===");
 
+          if (!matched.users || matched.users.length < 2) {
+            console.warn("[MATCHMAKER] Matched fewer than 2 players. Re-entering matchmaking queue...");
+            toast.info("Waiting for a real player... resuming search.");
+            startMatchmaking();
+            return;
+          }
+
           // Find the opponent presence in 2 player match
           const opponent = matched.users.find(
             (u) => u.presence.session_id !== matched.self.presence.session_id

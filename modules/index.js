@@ -1481,6 +1481,10 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
         // Always use the number of matched users as size (2 for 1v1)
         var size = 2;
         logger.info("Building player list from %v real players, target size: %v", matches.length, size);
+        if (matches.length < size) {
+            logger.warn("Matchmaker matched fewer than %v players (got %v). Rejecting match creation to avoid bots.", size, matches.length);
+            return; // Return void so Nakama does not build authoritative match with bots
+        }
         matches.forEach(function (m, idx) {
             var props = m.properties || {};
             // Log every field of the presence to debug userId issues
@@ -1495,20 +1499,6 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
                 level: 1
             });
         });
-        // Fill remaining slots with bots if needed
-        var botIndex = 0;
-        while (matchPlayers_1.length < size) {
-            var botProfile = REALISTIC_BOTS[botIndex % REALISTIC_BOTS.length];
-            botIndex++;
-            matchPlayers_1.push({
-                id: 'bot_' + Math.random().toString(36).substring(7),
-                isBot: true,
-                userId: 'bot_' + Math.random().toString(36).substring(7),
-                name: botProfile.name,
-                avatarUrl: botProfile.avatarUrl,
-                level: botProfile.level
-            });
-        }
         var colors_1 = ['blue', 'green', 'red', 'yellow'];
         var finalPlayers = matchPlayers_1.map(function (p, idx) {
             return {
