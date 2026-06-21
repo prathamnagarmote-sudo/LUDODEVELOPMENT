@@ -139,8 +139,13 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
       }
 
       if (!isNaN(num) && num >= 1 && num <= 6) {
-        forcedNumberRef.current = num;
-        toast.info(`Next roll forced to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+        if (!isDiceDisabled) {
+          forcedNumberRef.current = num;
+          toast.info(`Rolling: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1000 });
+          handleDiceClick();
+        } else {
+          toast.warn(`Cannot roll right now`, { toastId: 'cannot-roll-toast', autoClose: 1000 });
+        }
         return;
       }
 

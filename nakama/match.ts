@@ -887,8 +887,8 @@ function selectBestBotToken(player: TPlayer, roll: number, allTokens: TToken[]):
   
   const tokenScores: TokenScore[] = [];
 
-  for (let idx = 0; idx < botTokens.length; idx++) {
-    const token = botTokens[idx];
+  for (let idx = 0; idx < movableBotTokens.length; idx++) {
+    const token = movableBotTokens[idx];
     let feasibilityScore = 0;
     let finalCoord: TCoordinate | null = null;
 

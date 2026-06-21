@@ -425,6 +425,7 @@ function Game({
       const applyResult = () => {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
+        dispatch(setDiceNumberDirect({ colour, diceNumber: data.roll }));
 
         if (roll === 6) {
           dispatch(incrementNumberOfConsecutiveSix(colour));

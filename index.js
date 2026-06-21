@@ -763,8 +763,8 @@ function selectBestBotToken(player, roll, allTokens) {
         }
     }
     var tokenScores = [];
-    for (var idx = 0; idx < botTokens.length; idx++) {
-        var token = botTokens[idx];
+    for (var idx = 0; idx < movableBotTokens.length; idx++) {
+        var token = movableBotTokens[idx];
         var feasibilityScore = 0;
         var finalCoord = null;
         var isUnlockable = token.isLocked && !token.hasTokenReachedHome && roll === BOT_LOGIC_CONFIG.UNLOCK_DICE_VALUE;
