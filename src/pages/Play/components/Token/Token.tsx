@@ -14,6 +14,7 @@ import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTok
 import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
 import { TokenCelebration } from './TokenCelebration';
+import { setDiceNumberDirect } from '../../../../state/slices/diceSlice';
 import styles from './Token.module.css';
 import clsx from 'clsx';
 import { getTokenDOMId } from '../../../../game/tokens/logic';
@@ -82,6 +83,7 @@ function Token({ colour, id, tokenClickData }: Props) {
     setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
     dispatch(unlockAndAlignTokens({ colour, id }));
     dispatch(deactivateAllTokens(colour));
+    dispatch(setDiceNumberDirect({ colour, diceNumber: -1 }));
     setTimeout(() => {
       dispatch(setIsAnyTokenMoving(false));
     }, FORWARD_TOKEN_TRANSITION_TIME);
@@ -99,7 +101,8 @@ function Token({ colour, id, tokenClickData }: Props) {
     if ((diceNumber !== 6 || numberOfConsecutiveSix >= 3) && !isCaptured && !hasTokenReachedHome) {
       return dispatch(changeTurnThunk(moveAndCapture));
     }
-  }, [diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
+    dispatch(setDiceNumberDirect({ colour, diceNumber: -1 }));
+  }, [colour, diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
 
   useEffect(() => {
     const prevClickData = tokenClickDataRef.current;

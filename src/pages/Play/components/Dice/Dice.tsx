@@ -141,7 +141,8 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     !anyTokenActive &&
     !isAnyTokenMoving &&
     !isGameEnded &&
-    !isPlaceholderShowing;
+    !isPlaceholderShowing &&
+    (diceNumber === -1 || diceNumber === undefined);
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>

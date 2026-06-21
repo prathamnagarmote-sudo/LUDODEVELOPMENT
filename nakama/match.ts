@@ -585,7 +585,7 @@ function resolvePostMoveTurnHandoff(
   }
 }
 
-function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour) {
+function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour, forcedRoll?: number) {
   if (!state.rollBags) {
     state.rollBags = {
       blue: generateRollBag(),
@@ -598,10 +598,15 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
     state.rollBags[colour] = generateRollBag();
   }
 
-  const bag = state.rollBags[colour];
-  const index = Math.floor(Math.random() * bag.length);
-  const roll = bag[index];
-  state.rollBags[colour] = bag.filter(function(_: number, i: number) { return i !== index; });
+  let roll = 0;
+  if (typeof forcedRoll === 'number' && forcedRoll >= 1 && forcedRoll <= 6) {
+    roll = forcedRoll;
+  } else {
+    const bag = state.rollBags[colour];
+    const index = Math.floor(Math.random() * bag.length);
+    roll = bag[index];
+    state.rollBags[colour] = bag.filter(function(_: number, i: number) { return i !== index; });
+  }
 
   state.diceNumber = roll;
   state.hasRolled = true;
@@ -1546,7 +1551,15 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
-        executeRoll(s, dispatcher, currentColour);
+        let forcedRoll: number | undefined = undefined;
+        try {
+          const payload = JSON.parse(nk.binaryToString(message.data));
+          if (typeof payload.forcedRoll === 'number' && payload.forcedRoll >= 1 && payload.forcedRoll <= 6) {
+            forcedRoll = payload.forcedRoll;
+          }
+        } catch (e) {}
+
+        executeRoll(s, dispatcher, currentColour, forcedRoll);
       } 
       else if (opCode === 101) { // INPUT_MOVE_TOKEN
         if (!s.hasRolled) {

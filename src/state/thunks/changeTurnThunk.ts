@@ -7,6 +7,7 @@ import { changeTurn, deactivateAllTokens } from '../slices/playersSlice';
 import { handlePostDiceRollThunk } from './handlePostDiceRollThunk';
 import { rollDiceThunk } from './rollDiceThunk';
 import { unlockAndAlignTokens } from './unlockAndAlignTokens';
+import { setDiceNumberDirect } from '../slices/diceSlice';
 
 export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCaptureToken>) {
   return (dispatch: AppDispatch, getState: () => RootState) => {
@@ -14,6 +15,9 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
 
     dispatch(changeTurn());
     const { currentPlayerColour, players } = getState().players;
+    if (currentPlayerColour) {
+      dispatch(setDiceNumberDirect({ colour: currentPlayerColour, diceNumber: -1 }));
+    }
 
     const { colour, isBot } = players.find((p) => p.colour === currentPlayerColour) ?? {};
 

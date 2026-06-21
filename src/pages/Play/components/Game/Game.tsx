@@ -332,6 +332,7 @@ function Game({
       colours.forEach((col) => {
         dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
         dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
+        dispatch(setDiceNumberDirect({ colour: col, diceNumber: -1 }));
       });
     };
 
@@ -524,6 +525,7 @@ function Game({
           initializeGame(parsed.players);
         } else {
           const isMoving = store.getState().players.isAnyTokenMoving;
+          const isStableState = !isMoving && (!parsed.hasRolled || parsed.status === 'ended');
           parsed.players.forEach((p: any) => {
             if (p.isBot) {
               dispatch(convertPlayerToBot({ colour: p.colour }));
@@ -542,9 +544,10 @@ function Game({
                 dispatch(setPlayerMissedTurns({ colour: p.colour, missedTurns: p.missedTurns }));
               }
             }
-            // Skip snapping token details if a local or remote token animation is active.
+            // Skip snapping token details if a local or remote token animation is active
+            // or if the player has already rolled and is about to move.
             // This prevents snapping and incorrect predictions during live gameplay.
-            if (!isMoving) {
+            if (isStableState) {
               p.tokens.forEach((t: any) => {
                 if (t.hasTokenReachedHome) {
                   try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}

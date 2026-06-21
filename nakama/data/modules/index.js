@@ -479,7 +479,7 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         nextTurn(state, dispatcher, animDuration);
     }
 }
-function executeRoll(state, dispatcher, colour) {
+function executeRoll(state, dispatcher, colour, forcedRoll) {
     if (!state.rollBags) {
         state.rollBags = {
             blue: generateRollBag(),
@@ -491,10 +491,16 @@ function executeRoll(state, dispatcher, colour) {
     if (!state.rollBags[colour] || state.rollBags[colour].length === 0) {
         state.rollBags[colour] = generateRollBag();
     }
-    var bag = state.rollBags[colour];
-    var index = Math.floor(Math.random() * bag.length);
-    var roll = bag[index];
-    state.rollBags[colour] = bag.filter(function (_, i) { return i !== index; });
+    var roll = 0;
+    if (typeof forcedRoll === 'number' && forcedRoll >= 1 && forcedRoll <= 6) {
+        roll = forcedRoll;
+    }
+    else {
+        var bag = state.rollBags[colour];
+        var index_1 = Math.floor(Math.random() * bag.length);
+        roll = bag[index_1];
+        state.rollBags[colour] = bag.filter(function (_, i) { return i !== index_1; });
+    }
     state.diceNumber = roll;
     state.hasRolled = true;
     if (roll === 6) {
@@ -1351,7 +1357,15 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
                     return;
                 }
-                executeRoll(s, dispatcher, currentColour_2);
+                var forcedRoll = undefined;
+                try {
+                    var payload = JSON.parse(nk.binaryToString(message.data));
+                    if (typeof payload.forcedRoll === 'number' && payload.forcedRoll >= 1 && payload.forcedRoll <= 6) {
+                        forcedRoll = payload.forcedRoll;
+                    }
+                }
+                catch (e) { }
+                executeRoll(s, dispatcher, currentColour_2, forcedRoll);
             }
             else if (opCode === 101) { // INPUT_MOVE_TOKEN
                 if (!s.hasRolled) {
