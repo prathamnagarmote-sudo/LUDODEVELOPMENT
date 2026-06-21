@@ -17,6 +17,7 @@ import {
   markTokenAsReachedHome,
   convertPlayerToBot,
   quitMatch,
+  setPlayerMissedTurns,
 } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
@@ -533,6 +534,14 @@ function Game({
                 dispatch(quitMatch(p.colour));
               }
             }
+            // Sync missedTurns authoritatively from the server so lifeline dots
+            // reflect real missed turns. Without this, dots never decrease online.
+            if (typeof p.missedTurns === 'number') {
+              const localPlayer = store.getState().players.players.find(lp => lp.colour === p.colour);
+              if (localPlayer && localPlayer.missedTurns !== p.missedTurns) {
+                dispatch(setPlayerMissedTurns({ colour: p.colour, missedTurns: p.missedTurns }));
+              }
+            }
             // Skip snapping token details if a local or remote token animation is active.
             // This prevents snapping and incorrect predictions during live gameplay.
             if (!isMoving) {
@@ -593,8 +602,14 @@ function Game({
       } else if (opCode === 205) {
         // ACTION_REJECTED
         console.warn("[CLIENT] Action rejected by server:", parsed.reason);
-        toast.error(`Invalid action: ${parsed.reason}`);
-        // Clear local rolling/placeholder state if our roll action was rejected
+        // 'Not your turn' and 'Already rolled' are expected race conditions in the
+        // authoritative server model (e.g. bot took over just before player tapped).
+        // Showing a toast for these would be confusing noise — only surface truly
+        // unexpected rejections (e.g. 'Invalid move') as user-facing errors.
+        if (parsed.reason !== 'Not your turn' && parsed.reason !== 'Already rolled') {
+          toast.error(`Invalid action: ${parsed.reason}`);
+        }
+        // Always clear local rolling/placeholder state so the dice stops animating.
         dispatch(setIsPlaceholderShowing({ colour: myPlayerColourRef.current, isPlaceholderShowing: false }));
         dispatch(setIsVisualRolling({ colour: myPlayerColourRef.current, isVisualRolling: false }));
       }

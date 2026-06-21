@@ -181,6 +181,14 @@ const reducers = {
     // Automatically ending the game from this local reducer would cause race conditions.
   },
 
+  // Authoritatively set missedTurns from server STATE_SYNC (online play only).
+  // This ensures lifeline dots reflect the server's canonical value rather than
+  // local increments, which may drift during reconnections or bot takeovers.
+  setPlayerMissedTurns: (state: TPlayerState, action: PayloadAction<{ colour: TPlayerColour; missedTurns: number }>) => {
+    const player = getPlayer(state, action.payload.colour);
+    player.missedTurns = action.payload.missedTurns;
+  },
+
   resetGameState: (state: TPlayerState) => {
     state.isGameEnded = false;
     state.isGameOver = false;
@@ -314,6 +322,7 @@ export const {
   incrementNumberOfConsecutiveSix,
   resetNumberOfConsecutiveSix,
   incrementMissedTurns,
+  setPlayerMissedTurns,
   setIsAnyTokenMoving,
   resetGameState,
   markTokenAsReachedHome,

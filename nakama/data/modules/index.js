@@ -1180,18 +1180,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     player.name += ' (Bot)';
                 }
             }
-            // Always broadcast standard state sync with updated missedTurns
-            dispatcher.broadcastMessage(200, JSON.stringify({
-                roomId: s.roomId,
-                players: s.players,
-                playerSequence: s.playerSequence,
-                currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                diceNumber: s.diceNumber,
-                hasRolled: s.hasRolled,
-                consecutiveSixes: s.consecutiveSixes,
-                turnDeadlineMs: s.turnDeadlineMs,
-                status: s.status
-            }));
             var allTokens = [];
             for (var p = 0; p < s.players.length; p++) {
                 var pl = s.players[p];
@@ -1203,7 +1191,13 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             }
             if (!s.hasRolled) {
                 executeRoll(s, dispatcher, currentColour_1);
-                if (s.noMovableTokensTimer === null) {
+                // CRITICAL FIX: Only attempt a bot move if executeRoll left us waiting for one.
+                // When executeRoll internally auto-moves (only one movable token), it calls
+                // executeMove -> nextTurn which resets hasRolled=false and noMovableTokensTimer=null.
+                // Without the s.hasRolled guard below, the outer block would also call nextTurn,
+                // skipping another player's turn and creating an infinite dice-spinning loop when
+                // the player is a bot.
+                if (s.hasRolled && s.noMovableTokensTimer === null) {
                     var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
                     if (bestToken) {
                         executeMove(s, dispatcher, currentColour_1, bestToken.id);
@@ -1222,6 +1216,20 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     nextTurn(s, dispatcher);
                 }
             }
+            // Broadcast STATE_SYNC *after* all roll/move/nextTurn actions so clients
+            // receive updated missedTurns, bot status, and the new turnDeadlineMs/
+            // currentTurnColour in one consistent snapshot rather than stale expired values.
+            dispatcher.broadcastMessage(200, JSON.stringify({
+                roomId: s.roomId,
+                players: s.players,
+                playerSequence: s.playerSequence,
+                currentTurnColour: s.playerSequence[s.currentTurnIndex],
+                diceNumber: s.diceNumber,
+                hasRolled: s.hasRolled,
+                consecutiveSixes: s.consecutiveSixes,
+                turnDeadlineMs: s.turnDeadlineMs,
+                status: s.status
+            }));
         }
         else {
             nextTurn(s, dispatcher);
