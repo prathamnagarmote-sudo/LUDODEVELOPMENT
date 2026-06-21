@@ -75,6 +75,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
 
   const forcedNumberRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    if (!isCurrentPlayer) {
+      forcedNumberRef.current = null;
+    }
+  }, [isCurrentPlayer]);
+
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
@@ -112,20 +118,39 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      // Keys 1-6 force a specific dice number (works in all environments for testing)
-      const num = parseInt(e.key, 10);
+
+      const canControlThisDice = onlineContext?.isOnline 
+        ? (colour === onlineContext.myPlayerColour && isCurrentPlayer)
+        : isCurrentPlayer;
+
+      if (!canControlThisDice) return;
+
+      // Support Digit1-6 and Numpad1-6, plus fallback to e.key check
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
       if (!isNaN(num) && num >= 1 && num <= 6) {
         forcedNumberRef.current = num;
-        if (!isDiceDisabled) handleDiceClick();
+        toast.info(`Next roll forced to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
         return;
       }
+
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDiceClick, isDiceDisabled]);
+  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer]);
 
   const missedTurns = playerObj?.missedTurns ?? 0;
   const avatarUrl = playerObj?.avatarUrl;

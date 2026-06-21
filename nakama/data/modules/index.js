@@ -361,7 +361,8 @@ function matchInit(ctx, logger, nk, params) {
             noMovableTokensTimer: null,
             rematchAccepted: [],
             terminateAfterTicks: null,
-            lastStateSyncTick: 0 // track when we last broadcast periodic STATE_SYNC
+            lastStateSyncTick: 0,
+            matchInitTime: Date.now()
         };
         return {
             state: state,
@@ -432,16 +433,70 @@ function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
 }
 function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
-    for (var p = 0; p < presences.length; p++) {
+    var _loop_1 = function (p) {
         var presence = presences[p];
+        var leaveColour = null;
         for (var i = 0; i < s.players.length; i++) {
             var player = s.players[i];
             if (player.userId === presence.userId) {
-                s.botTakeoverTicks[presence.userId] = tick + 240; // 4 seconds at 60Hz
+                player.hasQuit = true;
+                leaveColour = player.colour;
+                break;
             }
         }
+        if (leaveColour) {
+            // Remove from playerSequence
+            s.playerSequence = s.playerSequence.filter(function (col) { return col !== leaveColour; });
+            // Adjust currentTurnIndex if needed
+            if (s.playerSequence.length > 0) {
+                s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+            }
+            // Check if match should end
+            var activeHumanCount = 0;
+            var winnerColour = s.playerSequence[0];
+            for (var i = 0; i < s.players.length; i++) {
+                if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                    activeHumanCount++;
+                    winnerColour = s.players[i].colour;
+                }
+            }
+            if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+                s.status = 'ended';
+                s.winnerColour = winnerColour;
+                s.terminateAfterTicks = tick + 1200;
+                s.rematchAccepted = [];
+                dispatcher.broadcastMessage(204, JSON.stringify({
+                    winnerColour: winnerColour
+                }));
+                return { value: { state: s } };
+            }
+            else {
+                // If it was the leaving player's turn, transition turn
+                var turnColour = s.playerSequence[s.currentTurnIndex];
+                if (turnColour === leaveColour) {
+                    nextTurn(s, dispatcher);
+                }
+                // Broadcast state sync to notify others of the quit
+                dispatcher.broadcastMessage(200, JSON.stringify({
+                    roomId: s.roomId,
+                    players: s.players,
+                    playerSequence: s.playerSequence,
+                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
+                    diceNumber: s.diceNumber,
+                    hasRolled: s.hasRolled,
+                    consecutiveSixes: s.consecutiveSixes,
+                    turnDeadlineMs: s.turnDeadlineMs,
+                    status: s.status
+                }));
+            }
+        }
+    };
+    for (var p = 0; p < presences.length; p++) {
+        var state_1 = _loop_1(p);
+        if (typeof state_1 === "object")
+            return state_1.value;
     }
-    return { state: state };
+    return { state: s };
 }
 function nextTurn(state, dispatcher, animDuration) {
     if (animDuration === void 0) { animDuration = 0; }
@@ -1125,37 +1180,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: s };
     }
-    // 1. Bot takeover transition countdown
-    for (var userId in s.botTakeoverTicks) {
-        if (tick >= s.botTakeoverTicks[userId]) {
-            var player = null;
-            for (var i = 0; i < s.players.length; i++) {
-                if (s.players[i].userId === userId) {
-                    player = s.players[i];
-                    break;
-                }
-            }
-            if (player) {
-                player.isBot = true;
-                if (player.name.indexOf(' (Bot)') === -1) {
-                    player.name += ' (Bot)';
-                }
-                // Broadcast standard state sync with new bot state
-                dispatcher.broadcastMessage(200, JSON.stringify({
-                    roomId: s.roomId,
-                    players: s.players,
-                    playerSequence: s.playerSequence,
-                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                    diceNumber: s.diceNumber,
-                    hasRolled: s.hasRolled,
-                    consecutiveSixes: s.consecutiveSixes,
-                    turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status
-                }));
-            }
-            delete s.botTakeoverTicks[userId];
-        }
-    }
     // 2. Turn Change Delay Handler (e.g. rolled a number with no moves)
     if (s.noMovableTokensTimer !== null) {
         if (Date.now() >= s.noMovableTokensTimer) {
@@ -1165,9 +1189,45 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         return { state: state };
     }
     // 3. Process turn deadlines (timeout)
-    var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === ""; });
+    var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
     if (anyHumanNotJoined) {
-        s.turnDeadlineMs = Date.now() + 15000;
+        if (Date.now() - s.matchInitTime < 10000) {
+            s.turnDeadlineMs = Date.now() + 15000;
+        }
+        else {
+            var _loop_2 = function (i) {
+                var p = s.players[i];
+                if (!p.isBot && p.id === "" && !p.hasQuit) {
+                    p.hasQuit = true;
+                    s.playerSequence = s.playerSequence.filter(function (col) { return col !== p.colour; });
+                }
+            };
+            // Eliminate human players who failed to join initially
+            for (var i = 0; i < s.players.length; i++) {
+                _loop_2(i);
+            }
+            if (s.playerSequence.length > 0) {
+                s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+            }
+            var activeHumanCount = 0;
+            var winnerColour = s.playerSequence[0];
+            for (var i = 0; i < s.players.length; i++) {
+                if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                    activeHumanCount++;
+                    winnerColour = s.players[i].colour;
+                }
+            }
+            if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+                s.status = 'ended';
+                s.winnerColour = winnerColour;
+                s.terminateAfterTicks = tick + 1200;
+                s.rematchAccepted = [];
+                dispatcher.broadcastMessage(204, JSON.stringify({
+                    winnerColour: winnerColour
+                }));
+                return { state: s };
+            }
+        }
     }
     else if (Date.now() >= s.turnDeadlineMs) {
         var currentColour_1 = s.playerSequence[s.currentTurnIndex];
@@ -1181,9 +1241,48 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         if (player) {
             player.missedTurns = (player.missedTurns || 0) + 1;
             if (player.missedTurns >= 3) {
-                player.isBot = true;
-                if (player.name.indexOf(' (Bot)') === -1) {
-                    player.name += ' (Bot)';
+                player.hasQuit = true;
+                // Remove from playerSequence
+                s.playerSequence = s.playerSequence.filter(function (col) { return col !== currentColour_1; });
+                // Adjust currentTurnIndex if needed
+                if (s.playerSequence.length > 0) {
+                    s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+                }
+                // Check if match should end
+                var activeHumanCount = 0;
+                var winnerColour = s.playerSequence[0];
+                for (var i = 0; i < s.players.length; i++) {
+                    if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                        activeHumanCount++;
+                        winnerColour = s.players[i].colour;
+                    }
+                }
+                if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+                    s.status = 'ended';
+                    s.winnerColour = winnerColour;
+                    s.terminateAfterTicks = tick + 1200;
+                    s.rematchAccepted = [];
+                    dispatcher.broadcastMessage(204, JSON.stringify({
+                        winnerColour: winnerColour
+                    }));
+                    return { state: s };
+                }
+                else {
+                    // Transition next turn
+                    nextTurn(s, dispatcher);
+                    // Broadcast state sync
+                    dispatcher.broadcastMessage(200, JSON.stringify({
+                        roomId: s.roomId,
+                        players: s.players,
+                        playerSequence: s.playerSequence,
+                        currentTurnColour: s.playerSequence[s.currentTurnIndex],
+                        diceNumber: s.diceNumber,
+                        hasRolled: s.hasRolled,
+                        consecutiveSixes: s.consecutiveSixes,
+                        turnDeadlineMs: s.turnDeadlineMs,
+                        status: s.status
+                    }));
+                    return { state: s };
                 }
             }
             var allTokens = [];
@@ -1197,12 +1296,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             }
             if (!s.hasRolled) {
                 executeRoll(s, dispatcher, currentColour_1);
-                // CRITICAL FIX: Only attempt a bot move if executeRoll left us waiting for one.
-                // When executeRoll internally auto-moves (only one movable token), it calls
-                // executeMove -> nextTurn which resets hasRolled=false and noMovableTokensTimer=null.
-                // Without the s.hasRolled guard below, the outer block would also call nextTurn,
-                // skipping another player's turn and creating an infinite dice-spinning loop when
-                // the player is a bot.
                 if (s.hasRolled && s.noMovableTokensTimer === null) {
                     var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
                     if (bestToken) {

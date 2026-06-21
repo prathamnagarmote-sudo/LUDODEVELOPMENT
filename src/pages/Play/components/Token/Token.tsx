@@ -124,11 +124,20 @@ function Token({ colour, id, tokenClickData }: Props) {
                 dispatch(setIsAnyTokenMoving(true));
                 setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
                 dispatch(unlockAndAlignTokens({ colour, id }));
-                setTimeout(() => {
-                  dispatch(setIsAnyTokenMoving(false));
-                }, FORWARD_TOKEN_TRANSITION_TIME);
+                const animPromise = new Promise<void>((resolve) => {
+                  setTimeout(() => {
+                    dispatch(setIsAnyTokenMoving(false));
+                    resolve();
+                  }, FORWARD_TOKEN_TRANSITION_TIME);
+                });
+                if (onlineContext.activeTokenAnimationPromiseRef) {
+                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                }
               } else {
-                moveAndCapture(token, diceNumber);
+                const animPromise = moveAndCapture(token, diceNumber);
+                if (onlineContext.activeTokenAnimationPromiseRef) {
+                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                }
               }
             } catch (err) {
               console.error("Failed to execute token move:", err);
@@ -157,11 +166,20 @@ function Token({ colour, id, tokenClickData }: Props) {
               dispatch(setIsAnyTokenMoving(true));
               setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
               dispatch(unlockAndAlignTokens({ colour, id }));
-              setTimeout(() => {
-                dispatch(setIsAnyTokenMoving(false));
-              }, FORWARD_TOKEN_TRANSITION_TIME);
+              const animPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve();
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              });
+              if (onlineContext.activeTokenAnimationPromiseRef) {
+                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+              }
             } else {
-              moveAndCapture(token, diceNumber);
+              const animPromise = moveAndCapture(token, diceNumber);
+              if (onlineContext.activeTokenAnimationPromiseRef) {
+                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+              }
             }
           } catch (err) {
             console.error("Failed to execute token move:", err);

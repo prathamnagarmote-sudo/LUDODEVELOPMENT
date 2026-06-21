@@ -60,6 +60,7 @@ export const OnlineGameContext = createContext<{
   onTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
   diceRollStartTimestampRef?: React.MutableRefObject<number>;
   turnDeadlineMs?: number;
+  activeTokenAnimationPromiseRef?: React.MutableRefObject<Promise<any> | null>;
 } | null>(null);
 
 type Props = {
@@ -223,6 +224,7 @@ function Game({
   }, [isOnline, isMatchJoined, navigate]);
 
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
+  const activeTokenAnimationPromiseRef = useRef<Promise<any> | null>(null);
   const diceRollStartTimestampRef = useRef<number>(0);
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef<boolean>(false);
@@ -421,11 +423,16 @@ function Game({
               dispatch(setIsAnyTokenMoving(true));
               setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, targetToken);
               dispatch(unlockAndAlignTokens({ colour, id: targetToken.id }));
-              setTimeout(() => {
-                dispatch(setIsAnyTokenMoving(false));
-              }, FORWARD_TOKEN_TRANSITION_TIME);
+              const animPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve();
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              });
+              activeTokenAnimationPromiseRef.current = animPromise;
             } else {
-              moveAndCapture(targetToken, roll);
+              const animPromise = moveAndCapture(targetToken, roll);
+              activeTokenAnimationPromiseRef.current = animPromise;
             }
           }
           onComplete?.();
@@ -474,6 +481,11 @@ function Game({
       if (isOptimistic) {
         optimisticTokenMovesRef.current.delete(moveKey);
         console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
+        if (activeTokenAnimationPromiseRef.current) {
+          console.log('[OPTIMISTIC] Awaiting active optimistic animation before resolving...');
+          await activeTokenAnimationPromiseRef.current;
+          activeTokenAnimationPromiseRef.current = null;
+        }
       } else {
         if (data.isUnlock) {
           dispatch(setIsAnyTokenMoving(true));
@@ -776,6 +788,7 @@ function Game({
       onTokenMove,
       diceRollStartTimestampRef,
       turnDeadlineMs,
+      activeTokenAnimationPromiseRef,
     };
   }, [isOnline, roomId, myPlayerColour, amHostValue, onTokenMove, turnDeadlineMs]);
 
