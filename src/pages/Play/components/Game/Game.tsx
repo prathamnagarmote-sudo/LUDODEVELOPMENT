@@ -103,7 +103,8 @@ function Game({
   const [roomId, setRoomId] = useState<string>('');
   const [myPlayerColour, setMyPlayerColour] = useState<TPlayerColour>(canonicalColour || 'blue');
   const [isMatchJoined, setIsMatchJoined] = useState(!isOnline);
-  usePageLeaveBlocker(isMatchJoined && !isGameEnded && import.meta.env.PROD);
+  const [bypassLeaveBlocker, setBypassLeaveBlocker] = useState(false);
+  usePageLeaveBlocker(isMatchJoined && !isGameEnded && !bypassLeaveBlocker && import.meta.env.PROD);
   const [localSessionId, setLocalSessionId] = useState<string>('');
   const [turnDeadlineMs, setTurnDeadlineMs] = useState<number>(Date.now() + 15000);
   const matchJoinedRef = useRef(false);
@@ -265,14 +266,16 @@ function Game({
     socket.ondisconnect = (evt) => {
       console.warn('[ONLINE] Nakama socket disconnected:', evt);
       toast.error('Game server connection lost.');
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
       if (originalOnDisconnect) originalOnDisconnect(evt);
     };
 
     socket.onerror = (err) => {
       console.error('[ONLINE] Nakama socket error:', err);
       toast.error('Game server connection error.');
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
       if (originalOnError) originalOnError(err);
     };
 
@@ -609,7 +612,11 @@ function Game({
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
         }
 
-        setTurnDeadlineMs(parsed.turnDeadlineMs);
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.turnDeadlineMs);
+        }
 
         // Authoritatively sync dice numbers:
         // Set current turn color's diceNumber to parsed.diceNumber (which is -1 if not rolled, or 1-6 if rolled).
@@ -643,7 +650,11 @@ function Game({
 
       } else if (opCode === 203) {
         // TURN_CHANGE
-        setTurnDeadlineMs(parsed.deadlineMs);
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.deadlineMs);
+        }
         applyTurnTransition(parsed.nextTurnColour);
 
       } else if (opCode === 204) {
@@ -803,7 +814,8 @@ function Game({
     // 4-Player mode: The quitting player navigates to Home immediately and skips the leaderboard
     // 2-Player mode: The match ends and the Leaderboard appears instantly
     if (players.length > 2) {
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
     }
   };
 
@@ -812,6 +824,11 @@ function Game({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
       if (isGameEnded) return;
+
+      // Ignore keydown if user is typing in input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
 
       let num = NaN;
       if (e.code && e.code.startsWith('Digit')) {
@@ -828,11 +845,22 @@ function Game({
       if (!isNaN(num) && num >= 1 && num <= 6) {
         dispatch(setForcedRoll(num));
         toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+
+        // Trigger immediate roll if it is the active player's turn
+        const activeColour = isOnline ? myPlayerColour : currentPlayerColour;
+        if (activeColour) {
+          setTimeout(() => {
+            const btn = document.getElementById(`dice-btn-${activeColour}`) as HTMLButtonElement | null;
+            if (btn && !btn.disabled) {
+              btn.click();
+            }
+          }, 50);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, isGameEnded]);
+  }, [dispatch, isGameEnded, isOnline, myPlayerColour, currentPlayerColour]);
 
   // Determine if the local player is the host (lowest session_id alphabetically)
   const amHostValue = useMemo(() => {

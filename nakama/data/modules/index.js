@@ -391,6 +391,7 @@ function matchJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, me
     return { state: state, accept: false, rejectMessage: "Not part of this match" };
 }
 function sendStateSync(dispatcher, state, presence) {
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
     dispatcher.broadcastMessage(200, JSON.stringify({
         roomId: state.roomId,
         players: state.players,
@@ -400,8 +401,24 @@ function sendStateSync(dispatcher, state, presence) {
         hasRolled: state.hasRolled,
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs,
         status: state.status
     }), [presence]);
+}
+function broadcastStateSync(dispatcher, state) {
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
+    dispatcher.broadcastMessage(200, JSON.stringify({
+        roomId: state.roomId,
+        players: state.players,
+        playerSequence: state.playerSequence,
+        currentTurnColour: state.playerSequence[state.currentTurnIndex],
+        diceNumber: state.diceNumber,
+        hasRolled: state.hasRolled,
+        consecutiveSixes: state.consecutiveSixes,
+        turnDeadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs,
+        status: state.status
+    }));
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
@@ -450,9 +467,11 @@ function nextTurn(state, dispatcher, animDuration) {
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
     dispatcher.broadcastMessage(203, JSON.stringify({
         nextTurnColour: nextColour,
-        deadlineMs: state.turnDeadlineMs
+        deadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs
     }));
 }
 function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTokenReachedHome, isCaptured, animDuration) {
@@ -465,9 +484,11 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         state.botRollTick = null;
         state.botMoveTick = null;
         state.noMovableTokensTimer = null;
+        var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
         dispatcher.broadcastMessage(203, JSON.stringify({
             nextTurnColour: colour,
-            deadlineMs: state.turnDeadlineMs
+            deadlineMs: state.turnDeadlineMs,
+            turnRemainingMs: turnRemainingMs
         }));
     }
     else {
@@ -1018,17 +1039,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
     if (tick - s.lastStateSyncTick >= 300) {
         s.lastStateSyncTick = tick;
-        dispatcher.broadcastMessage(200, JSON.stringify({
-            roomId: s.roomId,
-            players: s.players,
-            playerSequence: s.playerSequence,
-            currentTurnColour: s.playerSequence[s.currentTurnIndex],
-            diceNumber: s.diceNumber,
-            hasRolled: s.hasRolled,
-            consecutiveSixes: s.consecutiveSixes,
-            turnDeadlineMs: s.turnDeadlineMs,
-            status: s.status
-        }));
+        broadcastStateSync(dispatcher, s);
     }
     if (s.status === 'ended') {
         // Process rematch messages
@@ -1096,17 +1107,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                                 s.players[i].tokens = genInitialTokens(s.players[i].colour);
                             }
                             // Broadcast STATE_SYNC (OpCode 200) to reset all clients
-                            dispatcher.broadcastMessage(200, JSON.stringify({
-                                roomId: s.roomId,
-                                players: s.players,
-                                playerSequence: s.playerSequence,
-                                currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                                diceNumber: s.diceNumber,
-                                hasRolled: s.hasRolled,
-                                consecutiveSixes: s.consecutiveSixes,
-                                turnDeadlineMs: s.turnDeadlineMs,
-                                status: s.status
-                            }));
+                            broadcastStateSync(dispatcher, s);
                         }
                     }
                     else if (opCode === 103) {
@@ -1212,17 +1213,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     // Transition next turn
                     nextTurn(s, dispatcher);
                     // Broadcast state sync
-                    dispatcher.broadcastMessage(200, JSON.stringify({
-                        roomId: s.roomId,
-                        players: s.players,
-                        playerSequence: s.playerSequence,
-                        currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                        diceNumber: s.diceNumber,
-                        hasRolled: s.hasRolled,
-                        consecutiveSixes: s.consecutiveSixes,
-                        turnDeadlineMs: s.turnDeadlineMs,
-                        status: s.status
-                    }));
+                    broadcastStateSync(dispatcher, s);
                     return { state: s };
                 }
             }
@@ -1231,17 +1222,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             nextTurn(s, dispatcher);
             // Broadcast STATE_SYNC *after* skip turn transition so clients receive
             // the updated missedTurns and the new turnDeadlineMs/currentTurnColour.
-            dispatcher.broadcastMessage(200, JSON.stringify({
-                roomId: s.roomId,
-                players: s.players,
-                playerSequence: s.playerSequence,
-                currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                diceNumber: s.diceNumber,
-                hasRolled: s.hasRolled,
-                consecutiveSixes: s.consecutiveSixes,
-                turnDeadlineMs: s.turnDeadlineMs,
-                status: s.status
-            }));
+            broadcastStateSync(dispatcher, s);
             return { state: s };
         }
         else {
@@ -1304,17 +1285,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     }
                     else {
                         // Broadcast state sync to notify others
-                        dispatcher.broadcastMessage(200, JSON.stringify({
-                            roomId: s.roomId,
-                            players: s.players,
-                            playerSequence: s.playerSequence,
-                            currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                            diceNumber: s.diceNumber,
-                            hasRolled: s.hasRolled,
-                            consecutiveSixes: s.consecutiveSixes,
-                            turnDeadlineMs: s.turnDeadlineMs,
-                            status: s.status
-                        }));
+                        broadcastStateSync(dispatcher, s);
                         // If it was the quitting player's turn, change turn
                         var turnColour = s.playerSequence[s.currentTurnIndex];
                         if (turnColour === senderColour) {
