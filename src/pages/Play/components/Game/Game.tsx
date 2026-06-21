@@ -319,6 +319,10 @@ function Game({
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
 
+      if (diceRollStartTimestampRef.current) {
+        diceRollStartTimestampRef.current = 0;
+      }
+
       // Clear dice rolling states for all players on turn change
       const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
       colours.forEach((col) => {
@@ -335,9 +339,12 @@ function Game({
       dispatch(setDiceNumberDirect({ colour, diceNumber: roll }));
 
       let remainingDelay = 0;
-      if (colour === myPlayerColourRef.current) {
+      const wasStartedOptimistically = colour === myPlayerColourRef.current && diceRollStartTimestampRef.current > 0;
+
+      if (wasStartedOptimistically) {
         const elapsed = Date.now() - diceRollStartTimestampRef.current;
         remainingDelay = Math.max(0, 300 - elapsed);
+        diceRollStartTimestampRef.current = 0;
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
@@ -527,14 +534,16 @@ function Game({
             // This prevents snapping and incorrect predictions during live gameplay.
             if (!isMoving) {
               p.tokens.forEach((t: any) => {
-                dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
-                if (t.isLocked) {
-                  try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
-                } else {
-                  try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
-                }
                 if (t.hasTokenReachedHome) {
                   try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
+                  dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
+                } else {
+                  dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
+                  if (t.isLocked) {
+                    try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                  } else {
+                    try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                  }
                 }
               });
             }
@@ -552,7 +561,7 @@ function Game({
         // Ensure dice animations are cleared on state sync if the roll has already occurred/resolved
         const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
         colours.forEach((col) => {
-          if (parsed.hasRolled || col !== myPlayerColourRef.current) {
+          if (parsed.hasRolled || col !== myPlayerColourRef.current || parsed.currentTurnColour !== myPlayerColourRef.current) {
             dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
             dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
           }

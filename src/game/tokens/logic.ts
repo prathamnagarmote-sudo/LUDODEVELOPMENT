@@ -19,8 +19,12 @@ export function getAvailableSteps({ colour, coordinates }: TToken): number {
 }
 
 export function isTokenMovable(token: TToken, diceNumber?: number, allTokens?: TToken[]): boolean {
-  if (!diceNumber) return !token.isLocked && !token.hasTokenReachedHome;
-  if (token.isLocked || token.hasTokenReachedHome || getAvailableSteps(token) < diceNumber) {
+  if (token.hasTokenReachedHome) return false;
+  if (!diceNumber) return !token.isLocked;
+  if (token.isLocked) {
+    return diceNumber === 6;
+  }
+  if (getAvailableSteps(token) < diceNumber) {
     return false;
   }
 

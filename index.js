@@ -57,14 +57,21 @@ var TOKEN_SAFE_COORDINATES = [
     { x: 12, y: 6 }
 ];
 var TOKEN_LOCKED_COORDINATES = {
-    blue: [{ x: 1.45, y: 10.55 }, { x: 3.55, y: 10.55 }, { x: 1.45, y: 12.65 }, { x: 3.55, y: 12.65 }],
-    red: [{ x: 1.45, y: 1.5 }, { x: 3.55, y: 1.5 }, { x: 1.45, y: 3.6 }, { x: 3.55, y: 3.6 }],
-    green: [{ x: 10.5, y: 1.5 }, { x: 12.6, y: 1.5 }, { x: 10.5, y: 3.6 }, { x: 12.6, y: 3.6 }],
-    yellow: [{ x: 10.5, y: 10.55 }, { x: 12.6, y: 10.55 }, { x: 10.5, y: 12.65 }, { x: 12.6, y: 12.65 }]
+    blue: [{ x: 1.45, y: 10.50 }, { x: 3.55, y: 10.50 }, { x: 1.45, y: 12.60 }, { x: 3.55, y: 12.60 }],
+    red: [{ x: 1.45, y: 1.45 }, { x: 3.55, y: 1.45 }, { x: 1.45, y: 3.55 }, { x: 3.55, y: 3.55 }],
+    green: [{ x: 10.5, y: 1.45 }, { x: 12.6, y: 1.45 }, { x: 10.5, y: 3.55 }, { x: 12.6, y: 3.55 }],
+    yellow: [{ x: 10.5, y: 10.50 }, { x: 12.6, y: 10.50 }, { x: 10.5, y: 12.60 }, { x: 12.6, y: 12.60 }]
 };
 // ─── ES5 ARRAY / OBJECT HELPERS ───────────────────────────────────────────────
 function areCoordsEqual(c1, c2) {
     return c1.x === c2.x && c1.y === c2.y;
+}
+function generateRollBag() {
+    var diceNumbers = [];
+    for (var i = 0; i < 36; i++) {
+        diceNumbers.push((i % 6) + 1);
+    }
+    return diceNumbers;
 }
 function findCoordIndex(arr, coord) {
     for (var i = 0; i < arr.length; i++) {
@@ -184,12 +191,14 @@ function countTokensAtCoord(allTokens, coord, colour) {
     return count;
 }
 function isTokenMovable(token, diceNumber, allTokens) {
+    if (token.hasTokenReachedHome)
+        return false;
     if (!diceNumber)
-        return !token.isLocked && !token.hasTokenReachedHome;
+        return !token.isLocked;
     if (token.isLocked) {
         return diceNumber === 6;
     }
-    if (token.hasTokenReachedHome || getAvailableSteps(token) < diceNumber) {
+    if (getAvailableSteps(token) < diceNumber) {
         return false;
     }
     if (allTokens) {
@@ -266,7 +275,7 @@ function computeMoveResult(token, diceNumber, players) {
     var hasPlayerWon = hasTokenReachedHome && !token.hasTokenReachedHome && homeCount === 3;
     // Capture check
     var isCaptured = false;
-    var isSafe = isCoordASafeSpot(lastTokenCoord);
+    var isSafe = isCoordASafeSpot(lastTokenCoord, colour);
     if (!isSafe) {
         // Find if there is any opponent token on this cell
         for (var p = 0; p < players.length; p++) {
@@ -338,6 +347,12 @@ function matchInit(ctx, logger, nk, params) {
             consecutiveSixes: 0,
             turnDeadlineMs: Date.now() + 15000,
             status: 'playing',
+            rollBags: {
+                blue: generateRollBag(),
+                red: generateRollBag(),
+                green: generateRollBag(),
+                yellow: generateRollBag()
+            },
             tickCount: 0,
             emptyTicks: 0,
             botTakeoverTicks: {},
@@ -465,7 +480,21 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
     }
 }
 function executeRoll(state, dispatcher, colour) {
-    var roll = Math.floor(Math.random() * 6) + 1;
+    if (!state.rollBags) {
+        state.rollBags = {
+            blue: generateRollBag(),
+            red: generateRollBag(),
+            green: generateRollBag(),
+            yellow: generateRollBag()
+        };
+    }
+    if (!state.rollBags[colour] || state.rollBags[colour].length === 0) {
+        state.rollBags[colour] = generateRollBag();
+    }
+    var bag = state.rollBags[colour];
+    var index = Math.floor(Math.random() * bag.length);
+    var roll = bag[index];
+    state.rollBags[colour] = bag.filter(function (_, i) { return i !== index; });
     state.diceNumber = roll;
     state.hasRolled = true;
     if (roll === 6) {
@@ -491,6 +520,7 @@ function executeRoll(state, dispatcher, colour) {
         }
     }
     var hasMovableTokens = false;
+    var movableTokens = [];
     if (player && player.tokens) {
         if (state.consecutiveSixes === 3) {
             hasMovableTokens = false;
@@ -499,7 +529,7 @@ function executeRoll(state, dispatcher, colour) {
             for (var t = 0; t < player.tokens.length; t++) {
                 if (isTokenMovable(player.tokens[t], roll, allTokens)) {
                     hasMovableTokens = true;
-                    break;
+                    movableTokens.push(player.tokens[t]);
                 }
             }
         }
@@ -509,12 +539,27 @@ function executeRoll(state, dispatcher, colour) {
         colour: colour,
         hasMovableTokens: hasMovableTokens
     }));
+    var shouldAutoMove = false;
+    var autoMoveToken = null;
+    if (hasMovableTokens && player) {
+        var areUnlockableTokensPresent = roll === 6 && player.tokens.some(function (t) { return areCoordsEqual(t.coordinates, t.initialCoords); });
+        var areAllTokensInSameCoord = movableTokens.length === 0
+            ? false
+            : movableTokens.every(function (t) { return areCoordsEqual(movableTokens[0].coordinates, t.coordinates); });
+        if (areAllTokensInSameCoord && !areUnlockableTokensPresent) {
+            shouldAutoMove = true;
+            autoMoveToken = movableTokens[0];
+        }
+    }
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
         state.noMovableTokensTimer = Date.now() + 1500;
     }
     else if (!hasMovableTokens) {
         state.noMovableTokensTimer = Date.now() + 1500;
+    }
+    else if (shouldAutoMove && autoMoveToken) {
+        executeMove(state, dispatcher, colour, autoMoveToken.id);
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -891,6 +936,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
     }
     if (hasTokenReachedHome) {
         token.hasTokenReachedHome = true;
+        token.isLocked = true;
         token.coordinates = getHomeCoordForColour(colour);
     }
     var capturedTokenColour = undefined;
@@ -1113,7 +1159,11 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         return { state: state };
     }
     // 3. Process turn deadlines (timeout)
-    if (Date.now() >= s.turnDeadlineMs) {
+    var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === ""; });
+    if (anyHumanNotJoined) {
+        s.turnDeadlineMs = Date.now() + 15000;
+    }
+    else if (Date.now() >= s.turnDeadlineMs) {
         var currentColour_1 = s.playerSequence[s.currentTurnIndex];
         var player = null;
         for (var i = 0; i < s.players.length; i++) {
@@ -1253,6 +1303,11 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 }
                 return;
             }
+            // 1. Handle heartbeat ping at the very top (allow from any connected player)
+            if (opCode === 102) { // INPUT_PING / HEARTBEAT
+                dispatcher.broadcastMessage(102, "", [message.sender]);
+                return;
+            }
             var currentColour_2 = s.playerSequence[s.currentTurnIndex];
             var currentPlayer_1 = null;
             for (var i = 0; i < s.players.length; i++) {
@@ -1277,6 +1332,10 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 return;
             }
             if (!currentPlayer_1 || currentPlayer_1.id !== message.sender.sessionId) {
+                // Reject out-of-turn actions to clear visual placeholder/rolling states on the client
+                if (opCode === 100) {
+                    dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Not your turn" }), [message.sender]);
+                }
                 return;
             }
             if (opCode === 100) { // INPUT_ROLL_DICE
@@ -1288,7 +1347,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             }
             else if (opCode === 101) { // INPUT_MOVE_TOKEN
                 if (!s.hasRolled) {
-                    dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Roll first" }), [message.sender]);
                     return;
                 }
                 var data = {};
@@ -1320,9 +1378,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     return;
                 }
                 executeMove(s, dispatcher, currentColour_2, tokenId);
-            }
-            else if (opCode === 102) { // INPUT_PING / HEARTBEAT
-                dispatcher.broadcastMessage(102, "", [message.sender]);
             }
         }
         catch (e) {
