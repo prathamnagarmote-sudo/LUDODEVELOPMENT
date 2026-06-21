@@ -456,6 +456,7 @@
 }
 
 .rollingCube {
+  transition: none !important;
   animation: spinCube 0.25s infinite linear;
 }
 

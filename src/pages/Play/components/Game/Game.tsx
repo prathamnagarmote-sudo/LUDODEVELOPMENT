@@ -284,13 +284,40 @@ function Game({
       if (!playersRegisteredInitiallyRef.current) return;
       console.log('[ONLINE] Initializing game locally with player list:', playersList);
 
+      const storedUser = localStorage.getItem('ludo_user');
+      let localUserName = '';
+      let localUserId = '';
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          localUserName = parsed.userName;
+          localUserId = parsed.userId;
+        } catch (e) {}
+      }
+
       const mappedSequence = playersList.map((p: any) => p.colour || p.color);
       const effectivePlayerId = getEffectivePlayerId();
-      const myMatchPlayer = playersList.find((p: any) => p.id === effectivePlayerId) || playersList.find((p: any) => p.userId === myUserId);
+      
+      const myMatchPlayer = playersList.find((p: any) => {
+        if (p.id && effectivePlayerId && p.id === effectivePlayerId) return true;
+        if (p.userId && (p.userId === myUserId || p.userId === localUserId || p.userId === `usr_${localUserId}`)) return true;
+        if (p.name && (p.name === localUserName || p.name === currentUser?.userName)) return true;
+        return false;
+      });
+
       if (myMatchPlayer) {
         const col = myMatchPlayer.colour || myMatchPlayer.color;
+        console.log('[ONLINE] Found my match player in state sync. Color:', col, myMatchPlayer);
         setMyPlayerColour(col);
         myPlayerColourRef.current = col;
+      } else {
+        console.warn('[ONLINE] Could not find local player in playersList by sessionId/userId/name!', {
+          effectivePlayerId,
+          myUserId,
+          localUserName,
+          localUserId,
+          playersList
+        });
       }
 
       dispatch(setPlayerSequenceDirect(mappedSequence));

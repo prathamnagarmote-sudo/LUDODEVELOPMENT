@@ -162,7 +162,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
   const showRollArrow =
     isCurrentPlayer &&
-    (!onlineContext?.isOnline || colour === onlineContext.myPlayerColour) &&
     !anyTokenActive &&
     !isAnyTokenMoving &&
     !isGameEnded &&
