@@ -301,7 +301,7 @@ function Game({
       const myMatchPlayer = playersList.find((p: any) => {
         if (p.id && effectivePlayerId && p.id === effectivePlayerId) return true;
         if (p.userId && (p.userId === myUserId || p.userId === localUserId || p.userId === `usr_${localUserId}`)) return true;
-        if (p.name && (p.name === localUserName || p.name === currentUser?.userName)) return true;
+        if (p.name && p.name === localUserName) return true;
         return false;
       });
 
