@@ -45,6 +45,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
+import { cancelActiveTokenAnimation } from '../../../../hooks/useMoveTokenForward';
 
 
 export const EXIT_MESSAGE = 'Are you sure you want to exit? Any progress made will be lost.';
@@ -316,6 +317,8 @@ function Game({
 
     // ─── Helper: apply turn transition on every client ─────────────────────────
     const applyTurnTransition = (nextColour: TPlayerColour) => {
+      cancelActiveTokenAnimation();
+      dispatch(setIsAnyTokenMoving(false));
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
 

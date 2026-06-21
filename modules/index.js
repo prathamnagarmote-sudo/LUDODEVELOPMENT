@@ -1179,19 +1179,19 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 if (player.name.indexOf(' (Bot)') === -1) {
                     player.name += ' (Bot)';
                 }
-                // Broadcast standard state sync with new bot state
-                dispatcher.broadcastMessage(200, JSON.stringify({
-                    roomId: s.roomId,
-                    players: s.players,
-                    playerSequence: s.playerSequence,
-                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                    diceNumber: s.diceNumber,
-                    hasRolled: s.hasRolled,
-                    consecutiveSixes: s.consecutiveSixes,
-                    turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status
-                }));
             }
+            // Always broadcast standard state sync with updated missedTurns
+            dispatcher.broadcastMessage(200, JSON.stringify({
+                roomId: s.roomId,
+                players: s.players,
+                playerSequence: s.playerSequence,
+                currentTurnColour: s.playerSequence[s.currentTurnIndex],
+                diceNumber: s.diceNumber,
+                hasRolled: s.hasRolled,
+                consecutiveSixes: s.consecutiveSixes,
+                turnDeadlineMs: s.turnDeadlineMs,
+                status: s.status
+            }));
             var allTokens = [];
             for (var p = 0; p < s.players.length; p++) {
                 var pl = s.players[p];
