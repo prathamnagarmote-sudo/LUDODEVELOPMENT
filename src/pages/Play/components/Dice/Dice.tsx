@@ -11,7 +11,7 @@ import { OnlineGameContext } from '../Game/Game';
 import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
-import { setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
+import { setIsPlaceholderShowing, setIsVisualRolling, setForcedRoll } from '../../../../state/slices/diceSlice';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
@@ -73,22 +73,15 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isDiceRollAllowed = !anyTokenActive && !isAnyTokenMoving && !isPlaceholderShowing;
   const { phase, isCritical, shouldShowTimer } = useTurnTimer(colour, isDiceRollAllowed, timerPathRef);
 
-  const forcedNumberRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!isCurrentPlayer) {
-      forcedNumberRef.current = null;
-    }
-  }, [isCurrentPlayer]);
+  const forcedRoll = useSelector((state: RootState) => state.dice.forcedRoll);
 
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
 
-    let forcedNumber: number | null = null;
-    if (forcedNumberRef.current !== null) {
-      forcedNumber = forcedNumberRef.current;
-      forcedNumberRef.current = null;
+    let rollVal = forcedRoll;
+    if (rollVal !== null) {
+      dispatch(setForcedRoll(null));
     }
 
     if (onlineContext?.isOnline) {
@@ -102,7 +95,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
       try {
         // Send roll request input to Nakama (OpCode 100)
         // forcedRoll is a dev/test hint — the server ignores it in production
-        const payload = forcedNumber !== null ? JSON.stringify({ forcedRoll: forcedNumber }) : JSON.stringify({});
+        const payload = rollVal !== null ? JSON.stringify({ forcedRoll: rollVal }) : JSON.stringify({});
         getNakamaSocket().sendMatchState(onlineContext.roomId, 100, payload);
       } catch (err) {
         console.error("Failed to send dice roll input:", err);
@@ -111,9 +104,9 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
         toast.error("Failed to sync dice roll with server.");
       }
     } else {
-      dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), forcedNumber !== null ? forcedNumber : undefined));
+      dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), rollVal !== null ? rollVal : undefined));
     }
-  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext]);
+  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext, forcedRoll]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,30 +117,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
         : isCurrentPlayer;
 
       if (!canControlThisDice) return;
-
-      // Support Digit1-6 and Numpad1-6, plus fallback to e.key check
-      let num = NaN;
-      if (e.code && e.code.startsWith('Digit')) {
-        num = parseInt(e.code.substring(5), 10);
-      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
-        num = parseInt(e.code.substring(6), 10);
-      } else {
-        const parsed = parseInt(e.key, 10);
-        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
-          num = parsed;
-        }
-      }
-
-      if (!isNaN(num) && num >= 1 && num <= 6) {
-        if (!isDiceDisabled) {
-          forcedNumberRef.current = num;
-          toast.info(`Rolling: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1000 });
-          handleDiceClick();
-        } else {
-          toast.warn(`Cannot roll right now`, { toastId: 'cannot-roll-toast', autoClose: 1000 });
-        }
-        return;
-      }
 
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();

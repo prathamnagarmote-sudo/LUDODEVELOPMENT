@@ -23,7 +23,7 @@ import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { AppDispatch, RootState } from '../../../../state/store';
-import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
+import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling, setForcedRoll } from '../../../../state/slices/diceSlice';
 import { handlePostDiceRollThunk } from '../../../../state/thunks/handlePostDiceRollThunk';
 import GameFinishedScreen from '../GameFinishedScreen/GameFinishedScreen';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
@@ -553,9 +553,11 @@ function Game({
     const handleSingleSocketMessage = async (opCode: number, parsed: any, _result: MatchData) => {
       console.log(`[SOCKET QUEUE] Processing OpCode ${opCode}`, parsed);
 
-      // Handle rematch events after game has ended
-      if (isGameEnded && opCode >= 101 && opCode <= 103) {
-        document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
+      // Handle rematch events after game has ended, ignore all other match events
+      if (isGameEnded) {
+        if (opCode >= 101 && opCode <= 103) {
+          document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
+        }
         return;
       }
 
@@ -609,12 +611,19 @@ function Game({
 
         setTurnDeadlineMs(parsed.turnDeadlineMs);
 
-        if (parsed.diceNumber !== -1) {
-          dispatch(setDiceNumberDirect({ colour: parsed.currentTurnColour, diceNumber: parsed.diceNumber }));
-        }
+        // Authoritatively sync dice numbers:
+        // Set current turn color's diceNumber to parsed.diceNumber (which is -1 if not rolled, or 1-6 if rolled).
+        // Set all other colors to -1.
+        const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
+        colours.forEach((col) => {
+          if (col === parsed.currentTurnColour) {
+            dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
+          } else {
+            dispatch(setDiceNumberDirect({ colour: col, diceNumber: -1 }));
+          }
+        });
 
         // Ensure dice animations are cleared on state sync if the roll has already occurred/resolved
-        const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
         colours.forEach((col) => {
           if (parsed.hasRolled || col !== myPlayerColourRef.current || parsed.currentTurnColour !== myPlayerColourRef.current) {
             dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
@@ -797,6 +806,33 @@ function Game({
       navigate('/setup');
     }
   };
+
+  // Global keypad event listener to preset forcedRoll for testing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (isGameEnded) return;
+
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        dispatch(setForcedRoll(num));
+        toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dispatch, isGameEnded]);
 
   // Determine if the local player is the host (lowest session_id alphabetically)
   const amHostValue = useMemo(() => {

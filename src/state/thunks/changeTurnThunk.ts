@@ -7,7 +7,7 @@ import { changeTurn, deactivateAllTokens } from '../slices/playersSlice';
 import { handlePostDiceRollThunk } from './handlePostDiceRollThunk';
 import { rollDiceThunk } from './rollDiceThunk';
 import { unlockAndAlignTokens } from './unlockAndAlignTokens';
-import { setDiceNumberDirect } from '../slices/diceSlice';
+import { setDiceNumberDirect, setForcedRoll } from '../slices/diceSlice';
 
 export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCaptureToken>) {
   return (dispatch: AppDispatch, getState: () => RootState) => {
@@ -22,6 +22,12 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
     const { colour, isBot } = players.find((p) => p.colour === currentPlayerColour) ?? {};
 
     if (!isBot || !colour) return;
+
+    // Read and clear preset forcedRoll for the bot
+    const forcedRoll = getState().dice.forcedRoll;
+    if (forcedRoll !== null) {
+      dispatch(setForcedRoll(null));
+    }
 
     const handleDiceRoll = async (diceNumber: number) => {
       const { shouldContinue, moveData: autoMoveData } =
@@ -60,6 +66,6 @@ export function changeTurnThunk(moveAndCapture: ReturnType<typeof useMoveAndCapt
         return setTimeout(() => dispatch(rollDiceThunk(colour, handleDiceRoll)), 500);
       }
     };
-    dispatch(rollDiceThunk(colour, handleDiceRoll));
+    dispatch(rollDiceThunk(colour, handleDiceRoll, forcedRoll !== null ? forcedRoll : undefined));
   };
 }

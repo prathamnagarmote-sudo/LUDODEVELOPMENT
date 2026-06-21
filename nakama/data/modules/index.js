@@ -433,68 +433,9 @@ function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
 }
 function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
-    var _loop_1 = function (p) {
-        var presence = presences[p];
-        var leaveColour = null;
-        for (var i = 0; i < s.players.length; i++) {
-            var player = s.players[i];
-            if (player.userId === presence.userId) {
-                player.hasQuit = true;
-                leaveColour = player.colour;
-                break;
-            }
-        }
-        if (leaveColour) {
-            // Remove from playerSequence
-            s.playerSequence = s.playerSequence.filter(function (col) { return col !== leaveColour; });
-            // Adjust currentTurnIndex if needed
-            if (s.playerSequence.length > 0) {
-                s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
-            }
-            // Check if match should end
-            var activeHumanCount = 0;
-            var winnerColour = s.playerSequence[0];
-            for (var i = 0; i < s.players.length; i++) {
-                if (!s.players[i].isBot && !s.players[i].hasQuit) {
-                    activeHumanCount++;
-                    winnerColour = s.players[i].colour;
-                }
-            }
-            if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
-                s.status = 'ended';
-                s.winnerColour = winnerColour;
-                s.terminateAfterTicks = tick + 1200;
-                s.rematchAccepted = [];
-                dispatcher.broadcastMessage(204, JSON.stringify({
-                    winnerColour: winnerColour
-                }));
-                return { value: { state: s } };
-            }
-            else {
-                // If it was the leaving player's turn, transition turn
-                var turnColour = s.playerSequence[s.currentTurnIndex];
-                if (turnColour === leaveColour) {
-                    nextTurn(s, dispatcher);
-                }
-                // Broadcast state sync to notify others of the quit
-                dispatcher.broadcastMessage(200, JSON.stringify({
-                    roomId: s.roomId,
-                    players: s.players,
-                    playerSequence: s.playerSequence,
-                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                    diceNumber: s.diceNumber,
-                    hasRolled: s.hasRolled,
-                    consecutiveSixes: s.consecutiveSixes,
-                    turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status
-                }));
-            }
-        }
-    };
     for (var p = 0; p < presences.length; p++) {
-        var state_1 = _loop_1(p);
-        if (typeof state_1 === "object")
-            return state_1.value;
+        var presence = presences[p];
+        logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
     }
     return { state: s };
 }
@@ -1195,7 +1136,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             s.turnDeadlineMs = Date.now() + 15000;
         }
         else {
-            var _loop_2 = function (i) {
+            var _loop_1 = function (i) {
                 var p = s.players[i];
                 if (!p.isBot && p.id === "" && !p.hasQuit) {
                     p.hasQuit = true;
@@ -1204,7 +1145,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             };
             // Eliminate human players who failed to join initially
             for (var i = 0; i < s.players.length; i++) {
-                _loop_2(i);
+                _loop_1(i);
             }
             if (s.playerSequence.length > 0) {
                 s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
@@ -1285,39 +1226,11 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     return { state: s };
                 }
             }
-            var allTokens = [];
-            for (var p = 0; p < s.players.length; p++) {
-                var pl = s.players[p];
-                if (pl.tokens) {
-                    for (var t = 0; t < pl.tokens.length; t++) {
-                        allTokens.push(pl.tokens[t]);
-                    }
-                }
-            }
-            if (!s.hasRolled) {
-                executeRoll(s, dispatcher, currentColour_1);
-                if (s.hasRolled && s.noMovableTokensTimer === null) {
-                    var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-                    if (bestToken) {
-                        executeMove(s, dispatcher, currentColour_1, bestToken.id);
-                    }
-                    else {
-                        nextTurn(s, dispatcher);
-                    }
-                }
-            }
-            else {
-                var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-                if (bestToken) {
-                    executeMove(s, dispatcher, currentColour_1, bestToken.id);
-                }
-                else {
-                    nextTurn(s, dispatcher);
-                }
-            }
-            // Broadcast STATE_SYNC *after* all roll/move/nextTurn actions so clients
-            // receive updated missedTurns, bot status, and the new turnDeadlineMs/
-            // currentTurnColour in one consistent snapshot rather than stale expired values.
+            // Skip their turn cleanly: increment missedTurns, do NOT play as a bot,
+            // and transition immediately to the next player's turn.
+            nextTurn(s, dispatcher);
+            // Broadcast STATE_SYNC *after* skip turn transition so clients receive
+            // the updated missedTurns and the new turnDeadlineMs/currentTurnColour.
             dispatcher.broadcastMessage(200, JSON.stringify({
                 roomId: s.roomId,
                 players: s.players,
@@ -1329,11 +1242,12 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 turnDeadlineMs: s.turnDeadlineMs,
                 status: s.status
             }));
+            return { state: s };
         }
         else {
             nextTurn(s, dispatcher);
         }
-        return { state: state };
+        return { state: s };
     }
     // 4. Client Inputs
     messages.forEach(function (message) {

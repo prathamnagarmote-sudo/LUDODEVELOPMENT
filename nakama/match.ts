@@ -529,65 +529,7 @@ function matchLeave(
   const s = state as any;
   for (let p = 0; p < presences.length; p++) {
     const presence = presences[p];
-    let leaveColour: TPlayerColour | null = null;
-    for (let i = 0; i < s.players.length; i++) {
-      const player = s.players[i];
-      if (player.userId === presence.userId) {
-        player.hasQuit = true;
-        leaveColour = player.colour;
-        break;
-      }
-    }
-
-    if (leaveColour) {
-      // Remove from playerSequence
-      s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== leaveColour; });
-
-      // Adjust currentTurnIndex if needed
-      if (s.playerSequence.length > 0) {
-        s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
-      }
-
-      // Check if match should end
-      let activeHumanCount = 0;
-      let winnerColour: TPlayerColour = s.playerSequence[0];
-      for (let i = 0; i < s.players.length; i++) {
-        if (!s.players[i].isBot && !s.players[i].hasQuit) {
-          activeHumanCount++;
-          winnerColour = s.players[i].colour;
-        }
-      }
-
-      if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
-        s.status = 'ended';
-        s.winnerColour = winnerColour;
-        s.terminateAfterTicks = tick + 1200;
-        s.rematchAccepted = [];
-        dispatcher.broadcastMessage(204, JSON.stringify({
-          winnerColour: winnerColour
-        }));
-        return { state: s };
-      } else {
-        // If it was the leaving player's turn, transition turn
-        const turnColour = s.playerSequence[s.currentTurnIndex];
-        if (turnColour === leaveColour) {
-          nextTurn(s, dispatcher);
-        }
-        
-        // Broadcast state sync to notify others of the quit
-        dispatcher.broadcastMessage(200, JSON.stringify({
-          roomId: s.roomId,
-          players: s.players,
-          playerSequence: s.playerSequence,
-          currentTurnColour: s.playerSequence[s.currentTurnIndex],
-          diceNumber: s.diceNumber,
-          hasRolled: s.hasRolled,
-          consecutiveSixes: s.consecutiveSixes,
-          turnDeadlineMs: s.turnDeadlineMs,
-          status: s.status
-        }));
-      }
-    }
+    logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
   }
   return { state: s };
 }
@@ -1467,39 +1409,13 @@ function matchLoop(
           return { state: s };
         }
       }
-      
-      const allTokens: TToken[] = [];
-      for (let p = 0; p < s.players.length; p++) {
-        const pl = s.players[p];
-        if (pl.tokens) {
-          for (let t = 0; t < pl.tokens.length; t++) {
-            allTokens.push(pl.tokens[t]);
-          }
-        }
-      }
 
-      if (!s.hasRolled) {
-        executeRoll(s, dispatcher, currentColour);
-        if (s.hasRolled && s.noMovableTokensTimer === null) {
-          const bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-          if (bestToken) {
-            executeMove(s, dispatcher, currentColour, bestToken.id);
-          } else {
-            nextTurn(s, dispatcher);
-          }
-        }
-      } else {
-        const bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-        if (bestToken) {
-          executeMove(s, dispatcher, currentColour, bestToken.id);
-        } else {
-          nextTurn(s, dispatcher);
-        }
-      }
+      // Skip their turn cleanly: increment missedTurns, do NOT play as a bot,
+      // and transition immediately to the next player's turn.
+      nextTurn(s, dispatcher);
 
-      // Broadcast STATE_SYNC *after* all roll/move/nextTurn actions so clients
-      // receive updated missedTurns, bot status, and the new turnDeadlineMs/
-      // currentTurnColour in one consistent snapshot rather than stale expired values.
+      // Broadcast STATE_SYNC *after* skip turn transition so clients receive
+      // the updated missedTurns and the new turnDeadlineMs/currentTurnColour.
       dispatcher.broadcastMessage(200, JSON.stringify({
         roomId: s.roomId,
         players: s.players,
@@ -1511,10 +1427,11 @@ function matchLoop(
         turnDeadlineMs: s.turnDeadlineMs,
         status: s.status
       }));
+      return { state: s };
     } else {
       nextTurn(s, dispatcher);
     }
-    return { state };
+    return { state: s };
   }
 
   // 4. Client Inputs
