@@ -1549,7 +1549,16 @@ function matchLoop(
 
       // 1. Handle heartbeat ping at the very top (allow from any connected player)
       if (opCode === 102) { // INPUT_PING / HEARTBEAT
-        dispatcher.broadcastMessage(102, "", [message.sender]);
+        try {
+          const content = nk.binaryToString(message.data);
+          const payload = JSON.parse(content);
+          dispatcher.broadcastMessage(102, JSON.stringify({
+            clientTime: payload.clientTime || 0,
+            serverTime: Date.now()
+          }), [message.sender]);
+        } catch (e) {
+          dispatcher.broadcastMessage(102, "", [message.sender]);
+        }
         return;
       }
 

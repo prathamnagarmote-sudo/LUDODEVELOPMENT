@@ -1346,7 +1346,17 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             }
             // 1. Handle heartbeat ping at the very top (allow from any connected player)
             if (opCode === 102) { // INPUT_PING / HEARTBEAT
-                dispatcher.broadcastMessage(102, "", [message.sender]);
+                try {
+                    var content = nk.binaryToString(message.data);
+                    var payload = JSON.parse(content);
+                    dispatcher.broadcastMessage(102, JSON.stringify({
+                        clientTime: payload.clientTime || 0,
+                        serverTime: Date.now()
+                    }), [message.sender]);
+                }
+                catch (e) {
+                    dispatcher.broadcastMessage(102, "", [message.sender]);
+                }
                 return;
             }
             var currentColour_2 = s.playerSequence[s.currentTurnIndex];

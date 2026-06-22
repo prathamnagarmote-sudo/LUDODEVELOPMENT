@@ -60,6 +60,7 @@ export const OnlineGameContext = createContext<{
   diceRollStartTimestampRef?: React.MutableRefObject<number>;
   turnDeadlineMs?: number;
   activeTokenAnimationPromiseRef?: React.MutableRefObject<Promise<any> | null>;
+  clockOffsetRef?: React.MutableRefObject<number>;
 } | null>(null);
 
 type Props = {
@@ -226,6 +227,7 @@ function Game({
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
   const activeTokenAnimationPromiseRef = useRef<Promise<any> | null>(null);
   const diceRollStartTimestampRef = useRef<number>(0);
+  const clockOffsetRef = useRef<number>(0);
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef<boolean>(false);
 
@@ -620,10 +622,13 @@ function Game({
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
         }
 
-        if (typeof parsed.turnRemainingMs === 'number') {
-          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
-        } else {
+        if (typeof parsed.turnDeadlineMs === 'number') {
           setTurnDeadlineMs(parsed.turnDeadlineMs);
+        } else if (typeof parsed.deadlineMs === 'number') {
+          setTurnDeadlineMs(parsed.deadlineMs);
+        } else if (typeof parsed.turnRemainingMs === 'number') {
+          const clockOffset = clockOffsetRef.current || 0;
+          setTurnDeadlineMs(Date.now() + clockOffset + parsed.turnRemainingMs);
         }
 
         // Authoritatively sync dice numbers from STATE_SYNC.
@@ -665,10 +670,13 @@ function Game({
       } else if (opCode === 203) {
         // TURN_CHANGE — processed sequentially so the turn arrow and timer only
         // update AFTER the token animation completes.
-        if (typeof parsed.turnRemainingMs === 'number') {
-          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
-        } else {
+        if (typeof parsed.deadlineMs === 'number') {
           setTurnDeadlineMs(parsed.deadlineMs);
+        } else if (typeof parsed.turnDeadlineMs === 'number') {
+          setTurnDeadlineMs(parsed.turnDeadlineMs);
+        } else if (typeof parsed.turnRemainingMs === 'number') {
+          const clockOffset = clockOffsetRef.current || 0;
+          setTurnDeadlineMs(Date.now() + clockOffset + parsed.turnRemainingMs);
         }
         applyTurnTransition(parsed.nextTurnColour);
 
@@ -720,6 +728,20 @@ function Game({
 
       const opCode = result.op_code;
       console.log(`[SOCKET] Received OpCode ${opCode}`, parsed);
+
+      // Fast-path OpCode 102 (heartbeat/ping payload) to compute RTT and clock offset immediately
+      if (opCode === 102) {
+        const localRecvTime = Date.now();
+        const clientTime = parsed.clientTime || 0;
+        const serverTime = parsed.serverTime || 0;
+        if (clientTime > 0 && serverTime > 0) {
+          const rtt = localRecvTime - clientTime;
+          const calculatedOffset = serverTime - (localRecvTime + clientTime) / 2;
+          clockOffsetRef.current = calculatedOffset;
+          console.log(`[CLOCK SYNC] RTT: ${rtt}ms, Calculated Offset: ${calculatedOffset}ms`);
+        }
+        return;
+      }
 
       // All OpCodes go through the sequential queue to prevent out-of-order execution
       // and overlapping animation conflicts.
@@ -783,7 +805,7 @@ function Game({
         // Periodically ping host to maintain connection
         requestInterval = setInterval(() => {
           try {
-            getNakamaSocket().sendMatchState(joinedMatchId, 102, '{}');
+            getNakamaSocket().sendMatchState(joinedMatchId, 102, JSON.stringify({ clientTime: Date.now() }));
           } catch (e) {}
         }, 4000);
       } catch (e: any) {
@@ -859,6 +881,7 @@ function Game({
       diceRollStartTimestampRef,
       turnDeadlineMs,
       activeTokenAnimationPromiseRef,
+      clockOffsetRef,
     };
   }, [isOnline, roomId, myPlayerColour, amHostValue, onTokenMove, turnDeadlineMs]);
 
