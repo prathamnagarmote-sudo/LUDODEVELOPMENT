@@ -624,20 +624,17 @@ function Game({
           setTurnDeadlineMs(parsed.turnDeadlineMs);
         }
 
-        // Authoritatively sync dice numbers:
-        // Only sync if not currently rolling/animating to avoid clobbering animation state.
-        // IMPORTANT: Do NOT reset dice to -1 on STATE_SYNC — only TURN_CHANGE (203) resets dice.
-        // Resetting to -1 here makes the cube visually snap to face-1 between turns.
+        // Authoritatively sync dice numbers from STATE_SYNC.
+        // RULE: Only apply when parsed.diceNumber is a real rolled value (>= 1).
+        // NEVER set to -1 from STATE_SYNC — that is exclusively TURN_CHANGE's (OpCode 203) job.
+        // Setting to -1 here would snap the cube to face-1 between turns, causing the visual glitch.
         const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
         const freshDiceState = store.getState().dice;
         const isCurrentlyRolling = freshDiceState.dice.some(d => d.isVisualRolling || d.isPlaceholderShowing);
-        if (!isCurrentlyRolling) {
+        if (!isCurrentlyRolling && typeof parsed.diceNumber === 'number' && parsed.diceNumber >= 1) {
           colours.forEach((col) => {
             if (col === parsed.currentTurnColour) {
-              // Only update if the server dice number is valid (>=1) OR if we haven't rolled yet
-              if (parsed.diceNumber >= 1 || !parsed.hasRolled) {
-                dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
-              }
+              dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
             }
             // Don't touch other colours' dice numbers to preserve their last-shown value
           });
@@ -857,24 +854,67 @@ function Game({
       }
 
       if (!isNaN(num) && num >= 1 && num <= 6) {
-        dispatch(setForcedRoll(num));
-        toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+        if (isOnline) {
+          // ─── ONLINE MODE: bypass the HTML button entirely ─────────────────────
+          // HTML-disabled buttons silently swallow programmatic .click() calls,
+          // which is why the previous btn.click() approach never worked in Live Match.
+          // Instead, we read stable refs to avoid stale closures and send OpCode 100
+          // directly to Nakama with the forcedRoll payload if it is our turn.
+          const currentRoomId = roomIdRef.current;
+          const myColour = myPlayerColourRef.current;
+          const freshState = store.getState();
+          const isMyTurn = freshState.players.currentPlayerColour === myColour;
+          const alreadyRolling = freshState.dice.dice.some(
+            (d) => d.isPlaceholderShowing || d.isVisualRolling
+          );
+          const hasAlreadyRolled = freshState.dice.dice.find(
+            (d) => d.colour === myColour
+          )?.diceNumber ?? -1;
 
-        // Trigger immediate roll if it is the active player's turn
-        const activeColour = isOnline ? myPlayerColour : currentPlayerColour;
-        if (activeColour) {
-          setTimeout(() => {
-            const btn = document.getElementById(`dice-btn-${activeColour}`) as HTMLButtonElement | null;
-            if (btn && !btn.disabled) {
-              btn.click();
+          // Only trigger if it is genuinely our turn and we haven't rolled yet
+          if (isMyTurn && !alreadyRolling && hasAlreadyRolled === -1 && currentRoomId) {
+            toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+
+            // Show the rolling animation optimistically
+            dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: true }));
+            dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: true }));
+            if (diceRollStartTimestampRef.current === 0) {
+              diceRollStartTimestampRef.current = Date.now();
             }
-          }, 50);
+
+            try {
+              getNakamaSocket().sendMatchState(currentRoomId, 100, JSON.stringify({ forcedRoll: num }));
+            } catch (err) {
+              console.error('[KEYBOARD OVERRIDE] Failed to send forced roll:', err);
+              dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: false }));
+              dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: false }));
+              diceRollStartTimestampRef.current = 0;
+            }
+          }
+        } else {
+          // ─── OFFLINE MODE: use Redux forcedRoll + btn.click() ────────────────
+          dispatch(setForcedRoll(num));
+          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+
+          // In offline mode the button is never HTML-disabled when it's your turn,
+          // so btn.click() works correctly here.
+          const activeColour = currentPlayerColour;
+          if (activeColour) {
+            setTimeout(() => {
+              const btn = document.getElementById(`dice-btn-${activeColour}`) as HTMLButtonElement | null;
+              if (btn && !btn.disabled) {
+                btn.click();
+              }
+            }, 50);
+          }
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, isGameEnded, isOnline, myPlayerColour, currentPlayerColour]);
+  // Use stable refs for roomId and myPlayerColour to avoid stale closure bugs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, isGameEnded, isOnline, currentPlayerColour, store]);
 
   // Determine if the local player is the host (lowest session_id alphabetically)
   const amHostValue = useMemo(() => {
