@@ -764,9 +764,9 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
 
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
-    state.noMovableTokensTimer = Date.now() + 1500;
+    state.noMovableTokensTimer = Date.now() + 800;
   } else if (!hasMovableTokens) {
-    state.noMovableTokensTimer = Date.now() + 1500;
+    state.noMovableTokensTimer = Date.now() + 800;
   } else if (shouldAutoMove && autoMoveToken) {
     executeMove(state, dispatcher, colour, autoMoveToken.id);
   } else {
@@ -1231,9 +1231,9 @@ function executeMove(
   let forwardDuration = 0;
   const isUnlock = wasLocked && roll === 6 && path.length === 1;
   if (isUnlock) {
-    forwardDuration = 200;
+    forwardDuration = 300;
   } else {
-    forwardDuration = path.length * 200;
+    forwardDuration = path.length * 300;
   }
 
   let captureDuration = 0;
@@ -1258,7 +1258,7 @@ function executeMove(
     }
   }
 
-  const animDuration = forwardDuration + captureDuration + 200; // 200ms safety buffer
+  const animDuration = forwardDuration + captureDuration + 100; // 100ms safety buffer
 
   resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
 }

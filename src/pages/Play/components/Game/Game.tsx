@@ -387,7 +387,7 @@ function Game({
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 100;
+        remainingDelay = 300;
       }
 
       // Prefetch auto-move decision and send to server early to overlap with dice roll animation
@@ -649,10 +649,12 @@ function Game({
         });
 
       } else if (opCode === 201) {
-        // DICE_ROLLED
-        await new Promise<void>((resolve) => {
-          allClientsApplyDiceResult(parsed, resolve);
-        });
+        // DICE_ROLLED — fire-and-forget; don't block the message queue.
+        // The dice rolling animation runs concurrently while the queue
+        // immediately processes the next message (e.g. OpCode 202 token move).
+        // This eliminates ~300ms of artificial queue-blocking latency for
+        // remote players without changing any animation speeds or visuals.
+        allClientsApplyDiceResult(parsed);
 
       } else if (opCode === 202) {
         // TOKEN_MOVED
