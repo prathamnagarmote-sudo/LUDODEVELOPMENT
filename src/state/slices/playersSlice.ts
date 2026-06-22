@@ -280,6 +280,32 @@ const reducers = {
 
     state.isGameEnded = true;
   },
+  declareWinner: (
+    state: TPlayerState,
+    action: PayloadAction<{ winnerColour: TPlayerColour }>
+  ) => {
+    if (state.isGameEnded) return;
+
+    const winnerPlayer = state.players.find((p) => p.colour === action.payload.winnerColour);
+    if (!winnerPlayer) return;
+
+    // Filter out the winner and avoid duplicates
+    const losers = state.players.filter(
+      (p) => p.colour !== action.payload.winnerColour && !state.playerFinishOrder.some((f) => f.colour === p.colour)
+    );
+
+    // Push the winner to finish order if not already present
+    if (!state.playerFinishOrder.some((f) => f.colour === action.payload.winnerColour)) {
+      state.playerFinishOrder.push({ name: winnerPlayer.name, colour: action.payload.winnerColour });
+    }
+
+    // Push the remaining players (losers)
+    losers.forEach((p) => {
+      state.playerFinishOrder.push({ name: p.name, colour: p.colour });
+    });
+
+    state.isGameEnded = true;
+  },
   endGameDueToTimeout: (state: TPlayerState) => {
     state.isGameEnded = true;
     // Note: We don't populate playerFinishOrder here because the UI will instead use 
@@ -331,6 +357,7 @@ export const {
   convertPlayerToBot,
   setCurrentPlayerColour,
   declareForfeit,
+  declareWinner,
   endGameDueToTimeout,
   quitMatch,
   forceEndGameAsQuit,

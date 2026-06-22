@@ -4,7 +4,7 @@ import dice3 from '../../../../assets/dice/3.svg';
 import dice4 from '../../../../assets/dice/4.svg';
 import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
-import { useCallback, useEffect, useContext, useRef } from 'react';
+import { useCallback, useEffect, useContext, useRef, useState } from 'react';
 import { type TPlayerColour } from '../../../../types';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
@@ -133,14 +133,44 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
-  const showRollArrow =
-    isCurrentPlayer &&
-    isMyTurn &&
-    !anyTokenActive &&
-    !isAnyTokenMoving &&
-    !isGameEnded &&
-    !isPlaceholderShowing &&
-    (diceNumber === -1 || diceNumber === undefined);
+  const lastRolledDiceNumberRef = useRef<number>(1);
+  if (diceNumber !== undefined && diceNumber !== -1) {
+    lastRolledDiceNumberRef.current = diceNumber;
+  }
+
+  const displayDiceNumber = (diceNumber === -1 || diceNumber === undefined)
+    ? lastRolledDiceNumberRef.current
+    : diceNumber;
+
+  const [canShowArrow, setCanShowArrow] = useState(false);
+
+  useEffect(() => {
+    const rawShow =
+      isCurrentPlayer &&
+      isMyTurn &&
+      !anyTokenActive &&
+      !isAnyTokenMoving &&
+      !isGameEnded &&
+      !isPlaceholderShowing &&
+      (diceNumber === -1 || diceNumber === undefined);
+
+    if (rawShow) {
+      const timer = setTimeout(() => {
+        setCanShowArrow(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setCanShowArrow(false);
+    }
+  }, [
+    isCurrentPlayer,
+    isMyTurn,
+    anyTokenActive,
+    isAnyTokenMoving,
+    isGameEnded,
+    isPlaceholderShowing,
+    diceNumber
+  ]);
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>
@@ -235,12 +265,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             <div
               className={clsx(styles.cube, {
                 [styles.rollingCube]: isPlaceholderShowing,
-                [styles.show1]: !isPlaceholderShowing && diceNumber === 1,
-                [styles.show2]: !isPlaceholderShowing && diceNumber === 2,
-                [styles.show3]: !isPlaceholderShowing && diceNumber === 3,
-                [styles.show4]: !isPlaceholderShowing && diceNumber === 4,
-                [styles.show5]: !isPlaceholderShowing && diceNumber === 5,
-                [styles.show6]: !isPlaceholderShowing && diceNumber === 6,
+                [styles.show1]: !isPlaceholderShowing && displayDiceNumber === 1,
+                [styles.show2]: !isPlaceholderShowing && displayDiceNumber === 2,
+                [styles.show3]: !isPlaceholderShowing && displayDiceNumber === 3,
+                [styles.show4]: !isPlaceholderShowing && displayDiceNumber === 4,
+                [styles.show5]: !isPlaceholderShowing && displayDiceNumber === 5,
+                [styles.show6]: !isPlaceholderShowing && displayDiceNumber === 6,
               })}
             >
               <div className={clsx(styles.face, styles.front)}>
@@ -328,7 +358,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           </div>
         </>
       )}
-      {showRollArrow && (
+      {canShowArrow && (
         <div className={styles.woodenArrowWrapper}>
           <svg
             className={styles.woodenArrow}

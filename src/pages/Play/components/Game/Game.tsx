@@ -9,6 +9,7 @@ import {
   deactivateTokensOfAllPlayers,
   setIsAnyTokenMoving,
   declareForfeit,
+  declareWinner,
   incrementNumberOfConsecutiveSix,
   resetNumberOfConsecutiveSix,
   lockToken,
@@ -376,8 +377,6 @@ function Game({
       const colour = data.colour;
       const roll = data.roll;
 
-      dispatch(setDiceNumberDirect({ colour, diceNumber: roll }));
-
       let remainingDelay = 0;
       const wasStartedOptimistically = colour === myPlayerColourRef.current && diceRollStartTimestampRef.current > 0;
 
@@ -671,7 +670,7 @@ function Game({
       } else if (opCode === 204) {
         // MATCH_END
         toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
-        dispatch(declareForfeit({ losingColour: parsed.winnerColour === 'blue' ? 'green' : 'blue' }));
+        dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
 
       } else if (opCode === 205) {
         // ACTION_REJECTED

@@ -425,7 +425,17 @@ function matchInit(
       rematchAccepted: [] as TPlayerColour[],
       terminateAfterTicks: null as number | null,
       lastStateSyncTick: 0,  // track when we last broadcast periodic STATE_SYNC
-      matchInitTime: Date.now()
+      matchInitTime: Date.now(),
+      // Pending turn-change: the server schedules OpCode 203 to be broadcast
+      // AFTER the token animation duration so clients receive it once the
+      // animation is visually complete. This eliminates the latency desync
+      // where one client sees the next turn arrow before the opponent's
+      // token has finished moving.
+      pendingTurnChange: null as {
+        nextTurnColour: TPlayerColour;
+        broadcastAtMs: number;
+        newDeadlineMs: number;
+      } | null
     };
 
     return {
@@ -552,24 +562,37 @@ function matchLeave(
   return { state: s };
 }
 
-function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
-  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
-  const nextColour = state.playerSequence[state.currentTurnIndex];
-  
+// Schedule a turn-change broadcast to fire after the animation window.
+// Instead of broadcasting OpCode 203 immediately, we store the intent and
+// the matchLoop will broadcast it at the correct time.
+function scheduleTurnChange(
+  state: any,
+  nextColour: TPlayerColour,
+  animDuration: number = 0
+) {
+  const newDeadlineMs = Date.now() + 15000 + animDuration;
+  state.turnDeadlineMs = newDeadlineMs;
   state.diceNumber = -1;
   state.hasRolled = false;
   state.consecutiveSixes = 0;
-  state.turnDeadlineMs = Date.now() + 15000 + animDuration;
   state.botRollTick = null;
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
 
-  const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
-  dispatcher.broadcastMessage(203, JSON.stringify({
+  // Schedule the broadcast to happen after animDuration has elapsed.
+  // A minimum of 200ms buffer ensures the broadcast isn't early.
+  const broadcastAtMs = Date.now() + Math.max(animDuration, 0);
+  state.pendingTurnChange = {
     nextTurnColour: nextColour,
-    deadlineMs: state.turnDeadlineMs,
-    turnRemainingMs: turnRemainingMs
-  }));
+    broadcastAtMs: broadcastAtMs,
+    newDeadlineMs: newDeadlineMs
+  };
+}
+
+function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
+  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
+  const nextColour = state.playerSequence[state.currentTurnIndex];
+  scheduleTurnChange(state, nextColour, animDuration);
 }
 
 function resolvePostMoveTurnHandoff(
@@ -584,19 +607,9 @@ function resolvePostMoveTurnHandoff(
   const getsAnotherTurn = (diceNumber === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
   
   if (getsAnotherTurn) {
-    state.diceNumber = -1;
-    state.hasRolled = false;
-    state.turnDeadlineMs = Date.now() + 15000 + animDuration;
-    state.botRollTick = null;
-    state.botMoveTick = null;
-    state.noMovableTokensTimer = null;
-
-    const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
-    dispatcher.broadcastMessage(203, JSON.stringify({
-      nextTurnColour: colour,
-      deadlineMs: state.turnDeadlineMs,
-      turnRemainingMs: turnRemainingMs
-    }));
+    // Same player gets another turn — schedule turn change back to themselves
+    // after the animation window so the arrow appears only after the token lands.
+    scheduleTurnChange(state, colour, animDuration);
   } else {
     state.consecutiveSixes = 0;
     nextTurn(state, dispatcher, animDuration);
@@ -1274,6 +1287,7 @@ function matchLoop(
               s.botRollTick = null;
               s.botMoveTick = null;
               s.noMovableTokensTimer = null;
+              s.pendingTurnChange = null;
               s.rematchAccepted = [];
               s.terminateAfterTicks = null;
 
@@ -1310,7 +1324,20 @@ function matchLoop(
     return { state };
   }
 
+  // 2b. Process pending turn change (delayed OpCode 203)
+  if (s.pendingTurnChange !== null) {
+    if (Date.now() >= s.pendingTurnChange.broadcastAtMs) {
+      const turnChange = s.pendingTurnChange;
+      s.pendingTurnChange = null;
 
+      const turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
+      dispatcher.broadcastMessage(203, JSON.stringify({
+        nextTurnColour: turnChange.nextTurnColour,
+        deadlineMs: turnChange.newDeadlineMs,
+        turnRemainingMs: turnRemainingMs
+      }));
+    }
+  }
 
   // 3. Process turn deadlines (timeout)
   const anyHumanNotJoined = s.players.some((p: any) => !p.isBot && p.id === "" && !p.hasQuit);
