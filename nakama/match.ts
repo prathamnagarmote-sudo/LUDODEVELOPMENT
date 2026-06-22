@@ -1652,6 +1652,18 @@ function matchLoop(
           return;
         }
 
+        // ─── TOKEN_MOVE_START (OpCode 207) ────────────────────────────────────────
+        // Broadcast BEFORE executing the move so observer devices can begin the
+        // token animation at the EXACT same moment the roller sees it move.
+        // This eliminates the full network RTT gap that existed before OpCode 202
+        // arrived on the observer's device — mirroring what OpCode 206 does for dice.
+        dispatcher.broadcastMessage(207, JSON.stringify({
+          colour: currentColour,
+          tokenId: tokenId,
+          diceNumber: s.diceNumber,
+          isUnlock: token.isLocked && s.diceNumber === 6
+        }));
+
         executeMove(s, dispatcher, currentColour, tokenId);
       }
     } catch (e) {
