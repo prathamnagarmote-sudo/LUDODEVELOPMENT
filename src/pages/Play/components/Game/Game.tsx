@@ -385,7 +385,7 @@ function Game({
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 300;
+        remainingDelay = 150;
       }
 
       // Prefetch auto-move decision and send to server early to overlap with dice roll animation

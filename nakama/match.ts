@@ -620,15 +620,16 @@ function matchLeave(
   return { state: s };
 }
 
-// Schedule a turn-change broadcast to fire after the animation window.
-// Instead of broadcasting OpCode 203 immediately, we store the intent and
-// the matchLoop will broadcast it at the correct time.
-function scheduleTurnChange(
+// Broadcast turn-change (OpCode 203) IMMEDIATELY when the turn changes.
+// The client handles visual overlap correctly — non-blocking remote animations
+// continue playing while the next player's turn arrow appears and they can roll.
+// This eliminates 50-1500ms+ of server-side holding time per turn.
+function broadcastTurnChange(
   state: any,
-  nextColour: TPlayerColour,
-  animDuration: number = 0
+  dispatcher: nkruntime.MatchDispatcher,
+  nextColour: TPlayerColour
 ) {
-  const newDeadlineMs = Date.now() + 15000 + animDuration;
+  const newDeadlineMs = Date.now() + 15000;
   state.turnDeadlineMs = newDeadlineMs;
   state.diceNumber = -1;
   state.hasRolled = false;
@@ -636,21 +637,20 @@ function scheduleTurnChange(
   state.botRollTick = null;
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
+  state.pendingTurnChange = null;
 
-  // Schedule the broadcast to happen after animDuration has elapsed.
-  // A minimum of 200ms buffer ensures the broadcast isn't early.
-  const broadcastAtMs = Date.now() + Math.max(animDuration, 0);
-  state.pendingTurnChange = {
+  const turnRemainingMs = 15000;
+  dispatcher.broadcastMessage(203, JSON.stringify({
     nextTurnColour: nextColour,
-    broadcastAtMs: broadcastAtMs,
-    newDeadlineMs: newDeadlineMs
-  };
+    deadlineMs: newDeadlineMs,
+    turnRemainingMs: turnRemainingMs
+  }));
 }
 
-function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
+function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher) {
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
   const nextColour = state.playerSequence[state.currentTurnIndex];
-  scheduleTurnChange(state, nextColour, animDuration);
+  broadcastTurnChange(state, dispatcher, nextColour);
 }
 
 function resolvePostMoveTurnHandoff(
@@ -659,18 +659,16 @@ function resolvePostMoveTurnHandoff(
   colour: TPlayerColour,
   diceNumber: number,
   hasTokenReachedHome: boolean,
-  isCaptured: boolean,
-  animDuration: number = 0
+  isCaptured: boolean
 ) {
   const getsAnotherTurn = (diceNumber === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
   
   if (getsAnotherTurn) {
-    // Same player gets another turn — schedule turn change back to themselves
-    // after the animation window so the arrow appears only after the token lands.
-    scheduleTurnChange(state, colour, animDuration);
+    // Same player gets another turn — broadcast immediately
+    broadcastTurnChange(state, dispatcher, colour);
   } else {
     state.consecutiveSixes = 0;
-    nextTurn(state, dispatcher, animDuration);
+    nextTurn(state, dispatcher);
   }
 }
 
@@ -764,9 +762,9 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
 
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
-    state.noMovableTokensTimer = Date.now() + 600;
+    state.noMovableTokensTimer = Date.now() + 400;
   } else if (!hasMovableTokens) {
-    state.noMovableTokensTimer = Date.now() + 600;
+    state.noMovableTokensTimer = Date.now() + 400;
   } else if (shouldAutoMove && autoMoveToken) {
     executeMove(state, dispatcher, colour, autoMoveToken.id);
   } else {
@@ -1227,43 +1225,9 @@ function executeMove(
     return;
   }
 
-  // Calculate animation duration
-  let forwardDuration = 0;
-  const isUnlock = wasLocked && roll === 6 && path.length === 1;
-  if (isUnlock) {
-    forwardDuration = 300;
-  } else {
-    forwardDuration = path.length * 300;
-  }
-
-  let captureDuration = 0;
-  if (isCaptured && capturedTokenColour && typeof capturedTokenId === 'number') {
-    const dest = token.coordinates;
-    for (let k = 0; k < allTokens.length; k++) {
-      const oppToken = allTokens[k];
-      if (oppToken.colour === capturedTokenColour && oppToken.id === capturedTokenId) {
-        const oppPath = tokenPaths[oppToken.colour as TPlayerColour];
-        let oppIndex = -1;
-        for (let i = 0; i < oppPath.length; i++) {
-          if (areCoordsEqual(oppPath[i], dest)) {
-            oppIndex = i;
-            break;
-          }
-        }
-        if (oppIndex !== -1) {
-          captureDuration = oppIndex * 100;
-        }
-        break;
-      }
-    }
-  }
-
-  // Overlap the next player's turn transition with the tail end of the token animation.
-  // By transitioning the turn early by 250ms, the next player can roll their dice (which takes 300ms)
-  // while the current player's token finishes its last step, eliminating idle waiting time.
-  const animDuration = Math.max(0, forwardDuration + captureDuration - 250);
-
-  resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
+  // Broadcast turn change immediately — no animation delay needed.
+  // The client handles visual overlap correctly via non-blocking animations.
+  resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 
 function matchLoop(
@@ -1385,19 +1349,18 @@ function matchLoop(
     return { state };
   }
 
-  // 2b. Process pending turn change (delayed OpCode 203)
+  // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
+  // Kept as a safety net: if any code path accidentally sets pendingTurnChange,
+  // broadcast it immediately rather than holding it.
   if (s.pendingTurnChange !== null) {
-    if (Date.now() >= s.pendingTurnChange.broadcastAtMs) {
-      const turnChange = s.pendingTurnChange;
-      s.pendingTurnChange = null;
-
-      const turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
-      dispatcher.broadcastMessage(203, JSON.stringify({
-        nextTurnColour: turnChange.nextTurnColour,
-        deadlineMs: turnChange.newDeadlineMs,
-        turnRemainingMs: turnRemainingMs
-      }));
-    }
+    const turnChange = s.pendingTurnChange;
+    s.pendingTurnChange = null;
+    const turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
+    dispatcher.broadcastMessage(203, JSON.stringify({
+      nextTurnColour: turnChange.nextTurnColour,
+      deadlineMs: turnChange.newDeadlineMs,
+      turnRemainingMs: turnRemainingMs
+    }));
   }
 
   // 3. Process turn deadlines (timeout)
