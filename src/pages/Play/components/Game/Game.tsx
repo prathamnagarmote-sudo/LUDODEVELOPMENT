@@ -378,10 +378,11 @@ function Game({
       const roll = data.roll;
 
       let remainingDelay = 0;
-      const wasStartedOptimistically = colour === myPlayerColourRef.current && diceRollStartTimestampRef.current > 0;
+      const startTimestamp = diceRollStartTimestampRef.current;
+      const wasStartedEarly = startTimestamp > 0;
 
-      if (wasStartedOptimistically) {
-        const elapsed = Date.now() - diceRollStartTimestampRef.current;
+      if (wasStartedEarly) {
+        const elapsed = Date.now() - startTimestamp;
         remainingDelay = Math.max(0, 300 - elapsed);
         diceRollStartTimestampRef.current = 0;
       } else {
@@ -739,6 +740,18 @@ function Game({
           const calculatedOffset = serverTime - (localRecvTime + clientTime) / 2;
           clockOffsetRef.current = calculatedOffset;
           console.log(`[CLOCK SYNC] RTT: ${rtt}ms, Calculated Offset: ${calculatedOffset}ms`);
+        }
+        return;
+      }
+
+      // Fast-path OpCode 206 (DICE_ROLL_START) to start the rolling animation immediately on other screens
+      if (opCode === 206) {
+        const rollingColour = parsed.colour;
+        if (rollingColour && rollingColour !== myPlayerColourRef.current) {
+          dispatch(setIsPlaceholderShowing({ colour: rollingColour, isPlaceholderShowing: true }));
+          dispatch(setIsVisualRolling({ colour: rollingColour, isVisualRolling: true }));
+          diceRollStartTimestampRef.current = Date.now();
+          console.log(`[DICE ROLL START] Started rolling animation early for ${rollingColour}`);
         }
         return;
       }

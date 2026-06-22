@@ -1394,6 +1394,10 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
                     return;
                 }
+                // Broadcast DICE_ROLL_START immediately to sync start times on all devices
+                dispatcher.broadcastMessage(206, JSON.stringify({
+                    colour: currentColour_2
+                }));
                 var forcedRoll = undefined;
                 try {
                     var payload = JSON.parse(nk.binaryToString(message.data));
