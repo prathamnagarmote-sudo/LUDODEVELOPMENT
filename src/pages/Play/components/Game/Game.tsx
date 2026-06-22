@@ -359,13 +359,16 @@ function Game({
         diceRollStartTimestampRef.current = 0;
       }
 
-      // Clear dice rolling states for all players on turn change
+      // Clear dice rolling/placeholder states for ALL players on turn change.
+      // Keep last diceNumber visible (don't reset to -1) so the face stays on
+      // the last rolled value and doesn't snap to face-1 between turns.
       const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
       colours.forEach((col) => {
         dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
         dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
-        dispatch(setDiceNumberDirect({ colour: col, diceNumber: -1 }));
       });
+      // Reset ONLY the next colour's dice to -1 (awaiting roll)
+      dispatch(setDiceNumberDirect({ colour: nextColour, diceNumber: -1 }));
     };
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 201) ─────────────────────────────
@@ -556,8 +559,11 @@ function Game({
     const handleSingleSocketMessage = async (opCode: number, parsed: any, _result: MatchData) => {
       console.log(`[SOCKET QUEUE] Processing OpCode ${opCode}`, parsed);
 
+      // Use store.getState() to read isGameEnded to avoid stale closure
+      const currentIsGameEnded = store.getState().players.isGameEnded;
+
       // Handle rematch events after game has ended, ignore all other match events
-      if (isGameEnded) {
+      if (currentIsGameEnded) {
         if (opCode >= 101 && opCode <= 103) {
           document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
         }
@@ -619,20 +625,28 @@ function Game({
         }
 
         // Authoritatively sync dice numbers:
-        // Set current turn color's diceNumber to parsed.diceNumber (which is -1 if not rolled, or 1-6 if rolled).
-        // Set all other colors to -1.
+        // Only sync if not currently rolling/animating to avoid clobbering animation state.
+        // IMPORTANT: Do NOT reset dice to -1 on STATE_SYNC — only TURN_CHANGE (203) resets dice.
+        // Resetting to -1 here makes the cube visually snap to face-1 between turns.
         const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
-        colours.forEach((col) => {
-          if (col === parsed.currentTurnColour) {
-            dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
-          } else {
-            dispatch(setDiceNumberDirect({ colour: col, diceNumber: -1 }));
-          }
-        });
+        const freshDiceState = store.getState().dice;
+        const isCurrentlyRolling = freshDiceState.dice.some(d => d.isVisualRolling || d.isPlaceholderShowing);
+        if (!isCurrentlyRolling) {
+          colours.forEach((col) => {
+            if (col === parsed.currentTurnColour) {
+              // Only update if the server dice number is valid (>=1) OR if we haven't rolled yet
+              if (parsed.diceNumber >= 1 || !parsed.hasRolled) {
+                dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
+              }
+            }
+            // Don't touch other colours' dice numbers to preserve their last-shown value
+          });
+        }
 
         // Ensure dice animations are cleared on state sync if the roll has already occurred/resolved
         colours.forEach((col) => {
-          if (parsed.hasRolled || col !== myPlayerColourRef.current || parsed.currentTurnColour !== myPlayerColourRef.current) {
+          // Only clear animation state for non-active players, or if match hasn't rolled yet
+          if (col !== parsed.currentTurnColour || parsed.hasRolled) {
             dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
             dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
           }

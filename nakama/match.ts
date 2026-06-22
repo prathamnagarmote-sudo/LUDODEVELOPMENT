@@ -1148,7 +1148,7 @@ function executeMove(
   if (hasPlayerWon) {
     state.status = 'ended';
     state.winnerColour = colour;
-    state.terminateAfterTicks = state.tickCount + 1200; // 20 seconds at 60Hz
+    state.terminateAfterTicks = state.tickCount + 3600; // 60 seconds at 60Hz for rematch window
     state.rematchAccepted = [];
     dispatcher.broadcastMessage(204, JSON.stringify({
       winnerColour: colour
@@ -1206,7 +1206,8 @@ function matchLoop(
 
   // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
   // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
-  if (tick - s.lastStateSyncTick >= 300) {
+  // Only broadcast during active play (not after match ends) to prevent score inflation.
+  if (s.status === 'playing' && tick - s.lastStateSyncTick >= 300) {
     s.lastStateSyncTick = tick;
     broadcastStateSync(dispatcher, s);
   }
@@ -1341,7 +1342,7 @@ function matchLoop(
       if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
         s.status = 'ended';
         s.winnerColour = winnerColour;
-        s.terminateAfterTicks = tick + 1200;
+        s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
         s.rematchAccepted = [];
         dispatcher.broadcastMessage(204, JSON.stringify({
           winnerColour: winnerColour
@@ -1386,7 +1387,7 @@ function matchLoop(
         if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
           s.status = 'ended';
           s.winnerColour = winnerColour;
-          s.terminateAfterTicks = tick + 1200;
+          s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
           s.rematchAccepted = [];
           dispatcher.broadcastMessage(204, JSON.stringify({
             winnerColour: winnerColour
@@ -1468,7 +1469,7 @@ function matchLoop(
           if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
             s.status = 'ended';
             s.winnerColour = winnerColour;
-            s.terminateAfterTicks = tick + 1200;
+            s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
             s.rematchAccepted = [];
             dispatcher.broadcastMessage(204, JSON.stringify({
               winnerColour: winnerColour
