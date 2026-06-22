@@ -456,18 +456,70 @@ function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
 }
 function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
+    if (s.status === 'ended') {
+        return { state: s };
+    }
     for (var p = 0; p < presences.length; p++) {
         var presence = presences[p];
         logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
+        var _loop_1 = function (i) {
+            if (s.players[i].userId === presence.userId) {
+                s.players[i].hasQuit = true;
+                s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
+            }
+        };
+        for (var i = 0; i < s.players.length; i++) {
+            _loop_1(i);
+        }
+    }
+    if (s.playerSequence.length > 0) {
+        s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+    }
+    var activeHumanCount = 0;
+    var winnerColour = s.playerSequence[0];
+    for (var i = 0; i < s.players.length; i++) {
+        if (!s.players[i].isBot && !s.players[i].hasQuit) {
+            activeHumanCount++;
+            winnerColour = s.players[i].colour;
+        }
+    }
+    if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+        s.status = 'ended';
+        s.winnerColour = winnerColour;
+        s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
+        s.rematchAccepted = [];
+        var quitterColour = void 0;
+        if (presences.length > 0) {
+            var leftPlayer = s.players.find(function (pl) { return pl.userId === presences[0].userId; });
+            if (leftPlayer) {
+                quitterColour = leftPlayer.colour;
+            }
+        }
+        dispatcher.broadcastMessage(204, JSON.stringify({
+            winnerColour: winnerColour,
+            quitterColour: quitterColour
+        }));
+    }
+    else {
+        // If turn changed because active player left, change turn
+        var turnColour = s.playerSequence[s.currentTurnIndex];
+        var leftColours = presences.map(function (pres) {
+            var pl = s.players.find(function (p) { return p.userId === pres.userId; });
+            return pl ? pl.colour : null;
+        }).filter(Boolean);
+        if (leftColours.indexOf(turnColour) !== -1) {
+            nextTurn(s, dispatcher);
+        }
+        broadcastStateSync(dispatcher, s);
     }
     return { state: s };
 }
-// Schedule a turn-change broadcast to fire after the animation window.
-// Instead of broadcasting OpCode 203 immediately, we store the intent and
-// the matchLoop will broadcast it at the correct time.
-function scheduleTurnChange(state, nextColour, animDuration) {
-    if (animDuration === void 0) { animDuration = 0; }
-    var newDeadlineMs = Date.now() + 15000 + animDuration;
+// Broadcast turn-change (OpCode 203) IMMEDIATELY when the turn changes.
+// The client handles visual overlap correctly — non-blocking remote animations
+// continue playing while the next player's turn arrow appears and they can roll.
+// This eliminates 50-1500ms+ of server-side holding time per turn.
+function broadcastTurnChange(state, dispatcher, nextColour) {
+    var newDeadlineMs = Date.now() + 15000;
     state.turnDeadlineMs = newDeadlineMs;
     state.diceNumber = -1;
     state.hasRolled = false;
@@ -475,32 +527,28 @@ function scheduleTurnChange(state, nextColour, animDuration) {
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
-    // Schedule the broadcast to happen after animDuration has elapsed.
-    // A minimum of 200ms buffer ensures the broadcast isn't early.
-    var broadcastAtMs = Date.now() + Math.max(animDuration, 0);
-    state.pendingTurnChange = {
+    state.pendingTurnChange = null;
+    var turnRemainingMs = 15000;
+    dispatcher.broadcastMessage(203, JSON.stringify({
         nextTurnColour: nextColour,
-        broadcastAtMs: broadcastAtMs,
-        newDeadlineMs: newDeadlineMs
-    };
+        deadlineMs: newDeadlineMs,
+        turnRemainingMs: turnRemainingMs
+    }));
 }
-function nextTurn(state, dispatcher, animDuration) {
-    if (animDuration === void 0) { animDuration = 0; }
+function nextTurn(state, dispatcher) {
     state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
     var nextColour = state.playerSequence[state.currentTurnIndex];
-    scheduleTurnChange(state, nextColour, animDuration);
+    broadcastTurnChange(state, dispatcher, nextColour);
 }
-function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTokenReachedHome, isCaptured, animDuration) {
-    if (animDuration === void 0) { animDuration = 0; }
+function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTokenReachedHome, isCaptured) {
     var getsAnotherTurn = (diceNumber === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
     if (getsAnotherTurn) {
-        // Same player gets another turn — schedule turn change back to themselves
-        // after the animation window so the arrow appears only after the token lands.
-        scheduleTurnChange(state, colour, animDuration);
+        // Same player gets another turn — broadcast immediately
+        broadcastTurnChange(state, dispatcher, colour);
     }
     else {
         state.consecutiveSixes = 0;
-        nextTurn(state, dispatcher, animDuration);
+        nextTurn(state, dispatcher);
     }
 }
 function executeRoll(state, dispatcher, colour, forcedRoll) {
@@ -583,10 +631,10 @@ function executeRoll(state, dispatcher, colour, forcedRoll) {
     }
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
-        state.noMovableTokensTimer = Date.now() + 1500;
+        state.noMovableTokensTimer = Date.now() + 400;
     }
     else if (!hasMovableTokens) {
-        state.noMovableTokensTimer = Date.now() + 1500;
+        state.noMovableTokensTimer = Date.now() + 400;
     }
     else if (shouldAutoMove && autoMoveToken) {
         executeMove(state, dispatcher, colour, autoMoveToken.id);
@@ -1006,38 +1054,9 @@ function executeMove(state, dispatcher, colour, tokenId) {
         }));
         return;
     }
-    // Calculate animation duration
-    var forwardDuration = 0;
-    var isUnlock = wasLocked && roll === 6 && path.length === 1;
-    if (isUnlock) {
-        forwardDuration = 300;
-    }
-    else {
-        forwardDuration = path.length * 300;
-    }
-    var captureDuration = 0;
-    if (isCaptured && capturedTokenColour && typeof capturedTokenId === 'number') {
-        var dest = token.coordinates;
-        for (var k = 0; k < allTokens.length; k++) {
-            var oppToken = allTokens[k];
-            if (oppToken.colour === capturedTokenColour && oppToken.id === capturedTokenId) {
-                var oppPath = tokenPaths[oppToken.colour];
-                var oppIndex = -1;
-                for (var i = 0; i < oppPath.length; i++) {
-                    if (areCoordsEqual(oppPath[i], dest)) {
-                        oppIndex = i;
-                        break;
-                    }
-                }
-                if (oppIndex !== -1) {
-                    captureDuration = oppIndex * 100;
-                }
-                break;
-            }
-        }
-    }
-    var animDuration = forwardDuration + captureDuration + 200; // 200ms safety buffer
-    resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
+    // Broadcast turn change immediately — no animation delay needed.
+    // The client handles visual overlap correctly via non-blocking animations.
+    resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var s = state;
@@ -1139,18 +1158,18 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: state };
     }
-    // 2b. Process pending turn change (delayed OpCode 203)
+    // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
+    // Kept as a safety net: if any code path accidentally sets pendingTurnChange,
+    // broadcast it immediately rather than holding it.
     if (s.pendingTurnChange !== null) {
-        if (Date.now() >= s.pendingTurnChange.broadcastAtMs) {
-            var turnChange = s.pendingTurnChange;
-            s.pendingTurnChange = null;
-            var turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
-            dispatcher.broadcastMessage(203, JSON.stringify({
-                nextTurnColour: turnChange.nextTurnColour,
-                deadlineMs: turnChange.newDeadlineMs,
-                turnRemainingMs: turnRemainingMs
-            }));
-        }
+        var turnChange = s.pendingTurnChange;
+        s.pendingTurnChange = null;
+        var turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
+        dispatcher.broadcastMessage(203, JSON.stringify({
+            nextTurnColour: turnChange.nextTurnColour,
+            deadlineMs: turnChange.newDeadlineMs,
+            turnRemainingMs: turnRemainingMs
+        }));
     }
     // 3. Process turn deadlines (timeout)
     var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
@@ -1159,7 +1178,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             s.turnDeadlineMs = Date.now() + 15000;
         }
         else {
-            var _loop_1 = function (i) {
+            var _loop_2 = function (i) {
                 var p = s.players[i];
                 if (!p.isBot && p.id === "" && !p.hasQuit) {
                     p.hasQuit = true;
@@ -1168,7 +1187,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             };
             // Eliminate human players who failed to join initially
             for (var i = 0; i < s.players.length; i++) {
-                _loop_1(i);
+                _loop_2(i);
             }
             if (s.playerSequence.length > 0) {
                 s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
@@ -1186,8 +1205,14 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 s.winnerColour = winnerColour;
                 s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
                 s.rematchAccepted = [];
+                var quitterColour = void 0;
+                var failedPlayer = s.players.find(function (p) { return !p.isBot && p.id === "" && p.hasQuit; });
+                if (failedPlayer) {
+                    quitterColour = failedPlayer.colour;
+                }
                 dispatcher.broadcastMessage(204, JSON.stringify({
-                    winnerColour: winnerColour
+                    winnerColour: winnerColour,
+                    quitterColour: quitterColour
                 }));
                 return { state: s };
             }
@@ -1227,7 +1252,8 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
                     s.rematchAccepted = [];
                     dispatcher.broadcastMessage(204, JSON.stringify({
-                        winnerColour: winnerColour
+                        winnerColour: winnerColour,
+                        quitterColour: currentColour_1
                     }));
                     return { state: s };
                 }
@@ -1302,7 +1328,8 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                         s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
                         s.rematchAccepted = [];
                         dispatcher.broadcastMessage(204, JSON.stringify({
-                            winnerColour: winnerColour
+                            winnerColour: winnerColour,
+                            quitterColour: senderColour
                         }));
                     }
                     else {
