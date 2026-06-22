@@ -13,6 +13,7 @@ import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken
 import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTokens';
 import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
+import { setDiceNumberDirect } from '../../../../state/slices/diceSlice';
 import { TokenCelebration } from './TokenCelebration';
 
 import styles from './Token.module.css';
