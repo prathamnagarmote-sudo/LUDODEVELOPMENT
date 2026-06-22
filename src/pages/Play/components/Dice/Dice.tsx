@@ -6,7 +6,7 @@ import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
 import { useCallback, useEffect, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
 import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
@@ -38,6 +38,7 @@ type Props = {
 
 function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const dispatch = useDispatch<AppDispatch>();
+  const store = useStore<RootState>();
   const onlineContext = useContext(OnlineGameContext);
   const isAnyTokenMoving = useSelector((state: RootState) => state.players.isAnyTokenMoving);
   const isGameEnded = useSelector((state: RootState) => state.players.isGameEnded);
@@ -73,13 +74,11 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isDiceRollAllowed = !anyTokenActive && !isAnyTokenMoving && !isPlaceholderShowing;
   const { phase, isCritical, shouldShowTimer } = useTurnTimer(colour, isDiceRollAllowed, timerPathRef);
 
-  const forcedRoll = useSelector((state: RootState) => state.dice.forcedRoll);
-
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
 
-    let rollVal = forcedRoll;
+    const rollVal = store.getState().dice.forcedRoll;
     if (rollVal !== null) {
       dispatch(setForcedRoll(null));
     }
@@ -106,7 +105,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     } else {
       dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), rollVal !== null ? rollVal : undefined));
     }
-  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext, forcedRoll]);
+  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext, store]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
