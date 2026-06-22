@@ -46,7 +46,6 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
-import { cancelActiveTokenAnimation } from '../../../../hooks/useMoveTokenForward';
 
 
 export const EXIT_MESSAGE = 'Are you sure you want to exit? Any progress made will be lost.';
@@ -351,7 +350,6 @@ function Game({
     // ─── Helper: apply turn transition on every client ─────────────────────────
     const applyTurnTransition = (nextColour: TPlayerColour) => {
       console.log(`[CLIENT TURN TRANSITION] Transitioning turn to ${nextColour}`);
-      cancelActiveTokenAnimation();
       dispatch(setIsAnyTokenMoving(false));
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
@@ -511,7 +509,22 @@ function Game({
       const moveKey = `${colour}_${data.id}`;
       const isOptimistic = optimisticTokenMovesRef.current.has(moveKey);
 
+      // Helper to apply authoritative reconciliation after animation
+      const reconcileAfterAnimation = () => {
+        if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
+          try {
+            dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
+          } catch (e) {}
+        }
+        if (data.hasTokenReachedHome) {
+          try {
+            dispatch(markTokenAsReachedHome({ colour, id: data.id }));
+          } catch (e) {}
+        }
+      };
+
       if (isOptimistic) {
+        // LOCAL player auto-move: already animating — await completion then reconcile
         optimisticTokenMovesRef.current.delete(moveKey);
         console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
         if (activeTokenAnimationPromiseRef.current) {
@@ -519,36 +532,31 @@ function Game({
           await activeTokenAnimationPromiseRef.current;
           activeTokenAnimationPromiseRef.current = null;
         }
+        reconcileAfterAnimation();
       } else {
+        // REMOTE player move: fire animation in the background, don't block the
+        // queue. This lets OpCode 203 (TURN_CHANGE) process immediately so the
+        // next player can start their turn while the animation plays out visually.
+        // applyTurnTransition() calls cancelActiveTokenAnimation() and
+        // setIsAnyTokenMoving(false), which safely cleans up any running animation.
         if (data.isUnlock) {
           dispatch(setIsAnyTokenMoving(true));
           setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
           dispatch(unlockAndAlignTokens({ colour, id: data.id }));
           dispatch(deactivateAllTokens(colour));
-          await new Promise<void>((resolve) => {
-            setTimeout(() => {
-              dispatch(setIsAnyTokenMoving(false));
-              resolve();
-            }, FORWARD_TOKEN_TRANSITION_TIME);
-          });
+          setTimeout(() => {
+            dispatch(setIsAnyTokenMoving(false));
+            reconcileAfterAnimation();
+          }, FORWARD_TOKEN_TRANSITION_TIME);
         } else {
           const stepCount = data.path.length;
-          await moveAndCapture(token, stepCount);
+          // Fire-and-forget: animation runs concurrently, reconcile when done
+          moveAndCapture(token, stepCount).then(() => {
+            reconcileAfterAnimation();
+          });
         }
-      }
-
-      // Authoritative reconciliation for captures
-      if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
-        try {
-          dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
-        } catch (e) {}
-      }
-
-      // Authoritative reconciliation for reaching home
-      if (data.hasTokenReachedHome) {
-        try {
-          dispatch(markTokenAsReachedHome({ colour, id: data.id }));
-        } catch (e) {}
+        // Don't await — let the queue continue immediately
+        return;
       }
     };
 
@@ -660,23 +668,6 @@ function Game({
         // TOKEN_MOVED
         await allClientsApplyTokenMove(parsed);
 
-      } else if (opCode === 203) {
-        // TURN_CHANGE
-        if (typeof parsed.turnRemainingMs === 'number') {
-          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
-        } else {
-          setTurnDeadlineMs(parsed.deadlineMs);
-        }
-        applyTurnTransition(parsed.nextTurnColour);
-
-      } else if (opCode === 204) {
-        // MATCH_END
-        toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
-        if (parsed.quitterColour) {
-          dispatch(quitMatch(parsed.quitterColour));
-        }
-        dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
-
       } else if (opCode === 205) {
         // ACTION_REJECTED
         console.warn("[CLIENT] Action rejected by server:", parsed.reason);
@@ -716,8 +707,32 @@ function Game({
       try { parsed = JSON.parse(data); } catch(e) { return; }
 
       const opCode = result.op_code;
-      console.log(`[SOCKET] Enqueueing OpCode ${opCode}`, parsed);
+      console.log(`[SOCKET] Received OpCode ${opCode}`, parsed);
 
+      // ── Fast-path: process high-priority control messages immediately ──
+      // OpCode 203 (TURN_CHANGE) and 204 (MATCH_END) bypass the queue entirely.
+      // This eliminates queueing delay so the next player can roll immediately
+      // when their turn arrives, even if a previous animation is still playing.
+      const currentIsGameEnded = store.getState().players.isGameEnded;
+      if (!currentIsGameEnded && opCode === 203) {
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.deadlineMs);
+        }
+        applyTurnTransition(parsed.nextTurnColour);
+        return;
+      }
+      if (!currentIsGameEnded && opCode === 204) {
+        toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
+        if (parsed.quitterColour) {
+          dispatch(quitMatch(parsed.quitterColour));
+        }
+        dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
+        return;
+      }
+
+      // All other OpCodes go through the sequential queue
       messageQueueRef.current.push({ opCode, parsed, result });
       processMessageQueue();
     };

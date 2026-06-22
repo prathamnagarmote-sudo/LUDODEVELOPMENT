@@ -764,9 +764,9 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
 
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
-    state.noMovableTokensTimer = Date.now() + 800;
+    state.noMovableTokensTimer = Date.now() + 600;
   } else if (!hasMovableTokens) {
-    state.noMovableTokensTimer = Date.now() + 800;
+    state.noMovableTokensTimer = Date.now() + 600;
   } else if (shouldAutoMove && autoMoveToken) {
     executeMove(state, dispatcher, colour, autoMoveToken.id);
   } else {
@@ -1258,7 +1258,10 @@ function executeMove(
     }
   }
 
-  const animDuration = forwardDuration + captureDuration + 100; // 100ms safety buffer
+  // Overlap the next player's turn transition with the tail end of the token animation.
+  // By transitioning the turn early by 250ms, the next player can roll their dice (which takes 300ms)
+  // while the current player's token finishes its last step, eliminating idle waiting time.
+  const animDuration = Math.max(0, forwardDuration + captureDuration - 250);
 
   resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
 }
