@@ -102,21 +102,24 @@ export const useMoveTokenForward = () => {
           dispatch(updateTokenPositionAndAlignmentThunk({ colour, id, newCoords: tokenPath[i] }));
 
           const hasTokenReachedHome = areCoordsEqual(tokenPath[i], tokenPath[tokenPath.length - 1]);
+          const isFinalStep = count >= diceNumber || hasTokenReachedHome;
 
-          if (count >= diceNumber || hasTokenReachedHome) {
+          // Play sound instantly as the token begins its visual movement
+          playTokenSound();
+          if (isFinalStep) {
+            if (hasTokenReachedHome) {
+              setTimeout(playHomeSound, 100);
+            } else if (isCoordASafeSpot(tokenPath[i])) {
+              setTimeout(playSafeZoneSound, 100);
+            }
+          }
+
+          if (isFinalStep) {
             // Last step — wait for its CSS transition to finish then resolve
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
               // Final cancelled check before resolving
               if (isCancelled || myAnimationId !== activeAnimationId) return;
-              
-              if (hasTokenReachedHome) {
-                playHomeSound();
-              } else if (isCoordASafeSpot(tokenPath[i], colour)) {
-                playSafeZoneSound();
-              } else {
-                playTokenSound();
-              }
               
               const player = players.find((p) => p.colour === colour);
               if (!player) return;
@@ -138,7 +141,6 @@ export const useMoveTokenForward = () => {
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
               if (isCancelled || myAnimationId !== activeAnimationId) return;
-              playTokenSound();
               moveStep();
             }, FORWARD_TOKEN_TRANSITION_TIME);
           }

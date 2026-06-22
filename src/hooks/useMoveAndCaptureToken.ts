@@ -6,7 +6,7 @@ import { useMoveTokenForward } from './useMoveTokenForward';
 import type { TMoveData } from '../types/tokens';
 import { getAvailableSteps } from '../game/tokens/logic';
 import { useCallback } from 'react';
-import { playCrashSound, playVictorySound } from '../utils/audio';
+import { playCrashSound } from '../utils/audio';
 
 export function useMoveAndCaptureToken() {
   const moveToken = useMoveTokenForward();
@@ -28,8 +28,6 @@ export function useMoveAndCaptureToken() {
       
       if (isCaptured) {
         playCrashSound();
-      } else if (hasTokenReachedHome || hasPlayerWon) {
-        playVictorySound();
       }
 
       return { isCaptured, hasTokenReachedHome, hasPlayerWon };

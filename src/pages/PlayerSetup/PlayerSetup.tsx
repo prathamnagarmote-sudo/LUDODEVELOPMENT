@@ -279,6 +279,7 @@ function PlayerSetup() {
     // Start search
     setOpponentName('Searching...');
     setMatchFound(false);
+    playMatchmakingScrollSound(true); // Instant audio start on click
     setIsSearching(true);
   };
 

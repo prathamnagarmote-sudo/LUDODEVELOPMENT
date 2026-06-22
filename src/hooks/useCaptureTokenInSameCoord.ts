@@ -23,6 +23,7 @@ import { getTokenDOMId, tokensWithCoord } from '../game/tokens/logic';
 import { tokenPaths } from '../game/tokens/paths';
 import { sleep } from '../utils/sleep';
 import { registerCaptureCancelFn } from './useMoveTokenForward';
+import { playReverseSound, stopReverseSound } from '../utils/audio';
 
 export function useCaptureTokenInSameCoord() {
   const dispatch = useDispatch();
@@ -85,6 +86,7 @@ export function useCaptureTokenInSameCoord() {
               if (captureCancelled) {
                 tokenEl.removeEventListener('transitionend', handleTransitionEnd);
                 dispatch(setIsAnyTokenMoving(false));
+                stopReverseSound();
                 return;
               }
               index--;
@@ -93,6 +95,7 @@ export function useCaptureTokenInSameCoord() {
                 setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, t);
                 dispatch(lockToken({ colour, id }));
                 tokenEl.removeEventListener('transitionend', handleTransitionEnd);
+                stopReverseSound();
                 tokensSuccessfullyCaptured++;
                 if (tokensSuccessfullyCaptured === capturableTokens.length) resolve(true);
                 return;
@@ -103,6 +106,11 @@ export function useCaptureTokenInSameCoord() {
             // Trigger the first transition
             if (isFirstCapture) isFirstCapture = false;
             else await sleep(250);
+            
+            // Play reverse sound stretched to the exact duration of the return trip
+            const totalDurationMs = initialCoordinateIndex * BACKWARD_TOKEN_TRANSITION_TIME;
+            if (totalDurationMs > 0) playReverseSound(totalDurationMs);
+            
             index--;
             const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
             tokenEl.style.transform = `translate(${x}, ${y})`;
