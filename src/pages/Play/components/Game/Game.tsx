@@ -534,29 +534,24 @@ function Game({
         }
         reconcileAfterAnimation();
       } else {
-        // REMOTE player move: fire animation in the background, don't block the
-        // queue. This lets OpCode 203 (TURN_CHANGE) process immediately so the
-        // next player can start their turn while the animation plays out visually.
-        // applyTurnTransition() calls cancelActiveTokenAnimation() and
-        // setIsAnyTokenMoving(false), which safely cleans up any running animation.
+        // REMOTE player move: await visual animation to maintain sequence and prevent concurrency glitches
         if (data.isUnlock) {
           dispatch(setIsAnyTokenMoving(true));
           setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
           dispatch(unlockAndAlignTokens({ colour, id: data.id }));
           dispatch(deactivateAllTokens(colour));
-          setTimeout(() => {
-            dispatch(setIsAnyTokenMoving(false));
-            reconcileAfterAnimation();
-          }, FORWARD_TOKEN_TRANSITION_TIME);
+          await new Promise<void>((resolve) => {
+            setTimeout(() => {
+              dispatch(setIsAnyTokenMoving(false));
+              reconcileAfterAnimation();
+              resolve();
+            }, FORWARD_TOKEN_TRANSITION_TIME);
+          });
         } else {
           const stepCount = data.path.length;
-          // Fire-and-forget: animation runs concurrently, reconcile when done
-          moveAndCapture(token, stepCount).then(() => {
-            reconcileAfterAnimation();
-          });
+          await moveAndCapture(token, stepCount);
+          reconcileAfterAnimation();
         }
-        // Don't await — let the queue continue immediately
-        return;
       }
     };
 
@@ -657,16 +652,33 @@ function Game({
         });
 
       } else if (opCode === 201) {
-        // DICE_ROLLED — fire-and-forget; don't block the message queue.
-        // The dice rolling animation runs concurrently while the queue
-        // immediately processes the next message (e.g. OpCode 202 token move).
-        // This eliminates ~300ms of artificial queue-blocking latency for
-        // remote players without changing any animation speeds or visuals.
-        allClientsApplyDiceResult(parsed);
+        // DICE_ROLLED — await the dice rolling animation so that the queue
+        // doesn't process subsequent TOKEN_MOVED messages until the dice settles.
+        await new Promise<void>((resolve) => {
+          allClientsApplyDiceResult(parsed, resolve);
+        });
 
       } else if (opCode === 202) {
         // TOKEN_MOVED
         await allClientsApplyTokenMove(parsed);
+
+      } else if (opCode === 203) {
+        // TURN_CHANGE — processed sequentially so the turn arrow and timer only
+        // update AFTER the token animation completes.
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.deadlineMs);
+        }
+        applyTurnTransition(parsed.nextTurnColour);
+
+      } else if (opCode === 204) {
+        // MATCH_END — processed sequentially after final winning token animation settles.
+        toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
+        if (parsed.quitterColour) {
+          dispatch(quitMatch(parsed.quitterColour));
+        }
+        dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
 
       } else if (opCode === 205) {
         // ACTION_REJECTED
@@ -709,30 +721,8 @@ function Game({
       const opCode = result.op_code;
       console.log(`[SOCKET] Received OpCode ${opCode}`, parsed);
 
-      // ── Fast-path: process high-priority control messages immediately ──
-      // OpCode 203 (TURN_CHANGE) and 204 (MATCH_END) bypass the queue entirely.
-      // This eliminates queueing delay so the next player can roll immediately
-      // when their turn arrives, even if a previous animation is still playing.
-      const currentIsGameEnded = store.getState().players.isGameEnded;
-      if (!currentIsGameEnded && opCode === 203) {
-        if (typeof parsed.turnRemainingMs === 'number') {
-          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
-        } else {
-          setTurnDeadlineMs(parsed.deadlineMs);
-        }
-        applyTurnTransition(parsed.nextTurnColour);
-        return;
-      }
-      if (!currentIsGameEnded && opCode === 204) {
-        toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
-        if (parsed.quitterColour) {
-          dispatch(quitMatch(parsed.quitterColour));
-        }
-        dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
-        return;
-      }
-
-      // All other OpCodes go through the sequential queue
+      // All OpCodes go through the sequential queue to prevent out-of-order execution
+      // and overlapping animation conflicts.
       messageQueueRef.current.push({ opCode, parsed, result });
       processMessageQueue();
     };
