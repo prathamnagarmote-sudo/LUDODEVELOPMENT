@@ -555,10 +555,68 @@ function matchLeave(
   presences: nkruntime.Presence[]
 ): {state: nkruntime.MatchState} | null {
   const s = state as any;
+  if (s.status === 'ended') {
+    return { state: s };
+  }
+
   for (let p = 0; p < presences.length; p++) {
     const presence = presences[p];
     logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
+    
+    for (let i = 0; i < s.players.length; i++) {
+      if (s.players[i].userId === presence.userId) {
+        s.players[i].hasQuit = true;
+        s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== s.players[i].colour; });
+      }
+    }
   }
+
+  if (s.playerSequence.length > 0) {
+    s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+  }
+
+  let activeHumanCount = 0;
+  let winnerColour: TPlayerColour = s.playerSequence[0];
+  for (let i = 0; i < s.players.length; i++) {
+    if (!s.players[i].isBot && !s.players[i].hasQuit) {
+      activeHumanCount++;
+      winnerColour = s.players[i].colour;
+    }
+  }
+
+  if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+    s.status = 'ended';
+    s.winnerColour = winnerColour;
+    s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
+    s.rematchAccepted = [];
+    
+    let quitterColour: TPlayerColour | undefined;
+    if (presences.length > 0) {
+      const leftPlayer = s.players.find(function(pl: any) { return pl.userId === presences[0].userId; });
+      if (leftPlayer) {
+        quitterColour = leftPlayer.colour;
+      }
+    }
+
+    dispatcher.broadcastMessage(204, JSON.stringify({
+      winnerColour: winnerColour,
+      quitterColour: quitterColour
+    }));
+  } else {
+    // If turn changed because active player left, change turn
+    const turnColour = s.playerSequence[s.currentTurnIndex];
+    const leftColours = presences.map(function(pres) {
+      const pl = s.players.find(function(p: any) { return p.userId === pres.userId; });
+      return pl ? pl.colour : null;
+    }).filter(Boolean);
+    
+    if (leftColours.indexOf(turnColour) !== -1) {
+      nextTurn(s, dispatcher);
+    }
+    
+    broadcastStateSync(dispatcher, s);
+  }
+
   return { state: s };
 }
 
@@ -1173,9 +1231,9 @@ function executeMove(
   let forwardDuration = 0;
   const isUnlock = wasLocked && roll === 6 && path.length === 1;
   if (isUnlock) {
-    forwardDuration = 300;
+    forwardDuration = 200;
   } else {
-    forwardDuration = path.length * 300;
+    forwardDuration = path.length * 200;
   }
 
   let captureDuration = 0;
@@ -1371,8 +1429,14 @@ function matchLoop(
         s.winnerColour = winnerColour;
         s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
         s.rematchAccepted = [];
+        let quitterColour: TPlayerColour | undefined;
+        const failedPlayer = s.players.find(function(p: any) { return !p.isBot && p.id === "" && p.hasQuit; });
+        if (failedPlayer) {
+          quitterColour = failedPlayer.colour;
+        }
         dispatcher.broadcastMessage(204, JSON.stringify({
-          winnerColour: winnerColour
+          winnerColour: winnerColour,
+          quitterColour: quitterColour
         }));
         return { state: s };
       }
@@ -1417,7 +1481,8 @@ function matchLoop(
           s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
           s.rematchAccepted = [];
           dispatcher.broadcastMessage(204, JSON.stringify({
-            winnerColour: winnerColour
+            winnerColour: winnerColour,
+            quitterColour: currentColour
           }));
           return { state: s };
         } else {
@@ -1499,7 +1564,8 @@ function matchLoop(
             s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
             s.rematchAccepted = [];
             dispatcher.broadcastMessage(204, JSON.stringify({
-              winnerColour: winnerColour
+              winnerColour: winnerColour,
+              quitterColour: senderColour
             }));
           } else {
             // Broadcast state sync to notify others

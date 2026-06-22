@@ -92,6 +92,7 @@ function PlayerSetup() {
   useEffect(() => {
     document.title = 'LOOSER LUDO - Player Setup';
     cleanup();
+    toast.dismiss();
   }, [cleanup]);
 
 

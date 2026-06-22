@@ -387,7 +387,7 @@ function Game({
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 300;
+        remainingDelay = 100;
       }
 
       // Prefetch auto-move decision and send to server early to overlap with dice roll animation
@@ -670,6 +670,9 @@ function Game({
       } else if (opCode === 204) {
         // MATCH_END
         toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
+        if (parsed.quitterColour) {
+          dispatch(quitMatch(parsed.quitterColour));
+        }
         dispatch(declareWinner({ winnerColour: parsed.winnerColour }));
 
       } else if (opCode === 205) {
@@ -795,6 +798,7 @@ function Game({
       socket.sendMatchState = originalSendMatchState; // Restore original sendMatchState
       if (requestInterval) clearInterval(requestInterval);
       if (stateSyncRetryInterval) clearInterval(stateSyncRetryInterval);
+      toast.dismiss();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, matchedToken, matchId, myPlayerId, myUserId]);
