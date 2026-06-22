@@ -175,8 +175,19 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     !anyTokenActive &&
     !isAnyTokenMoving &&
     !isGameEnded &&
-    !isPlaceholderShowing &&
-    (diceNumber === -1 || diceNumber === undefined);
+    !isPlaceholderShowing;
+
+  if (isCurrentPlayer && isMyTurn) {
+    console.log(`[DICE ARROW DEBUG] colour=${colour} canShowArrow=${canShowArrow} conditions:`, {
+      isCurrentPlayer,
+      isMyTurn,
+      anyTokenActive,
+      isAnyTokenMoving,
+      isGameEnded,
+      isPlaceholderShowing,
+      diceNumber
+    });
+  }
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>

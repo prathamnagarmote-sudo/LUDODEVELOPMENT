@@ -106,8 +106,8 @@ function Token({ colour, id, tokenClickData }: Props) {
       return dispatch(changeTurnThunk(moveAndCapture));
     }
     // Same player gets another roll (rolled 6, captured, or reached home).
-    // Do NOT reset dice here — the new roll's placeholder animation will replace it.
-    // Resetting to -1 caused the snap-to-face-1 visual glitch.
+    // Reset dice to -1 so the turn arrow reappears.
+    dispatch(setDiceNumberDirect({ colour, diceNumber: -1 }));
   }, [colour, diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
 
   useEffect(() => {
