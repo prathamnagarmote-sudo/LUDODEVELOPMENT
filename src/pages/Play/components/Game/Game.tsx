@@ -8,7 +8,6 @@ import {
   deactivateAllTokens,
   deactivateTokensOfAllPlayers,
   setIsAnyTokenMoving,
-  declareForfeit,
   declareWinner,
   incrementNumberOfConsecutiveSix,
   resetNumberOfConsecutiveSix,
