@@ -4,7 +4,7 @@ import dice3 from '../../../../assets/dice/3.svg';
 import dice4 from '../../../../assets/dice/4.svg';
 import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
-import { useCallback, useEffect, useContext, useRef, useState } from 'react';
+import { useCallback, useEffect, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
@@ -169,36 +169,14 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     ? lastRolledDiceNumberRef.current
     : diceNumber;
 
-  const [canShowArrow, setCanShowArrow] = useState(false);
-
-  useEffect(() => {
-    const rawShow =
-      isCurrentPlayer &&
-      isMyTurn &&
-      !anyTokenActive &&
-      !isAnyTokenMoving &&
-      !isGameEnded &&
-      !isPlaceholderShowing &&
-      (diceNumber === -1 || diceNumber === undefined);
-
-    if (rawShow) {
-      const timer = setTimeout(() => {
-        setCanShowArrow(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      setCanShowArrow(false);
-    }
-  }, [
-    colour,
-    isCurrentPlayer,
-    isMyTurn,
-    anyTokenActive,
-    isAnyTokenMoving,
-    isGameEnded,
-    isPlaceholderShowing,
-    diceNumber
-  ]);
+  const canShowArrow =
+    isCurrentPlayer &&
+    isMyTurn &&
+    !anyTokenActive &&
+    !isAnyTokenMoving &&
+    !isGameEnded &&
+    !isPlaceholderShowing &&
+    (diceNumber === -1 || diceNumber === undefined);
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>

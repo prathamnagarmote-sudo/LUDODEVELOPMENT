@@ -350,6 +350,7 @@ function Game({
 
     // ─── Helper: apply turn transition on every client ─────────────────────────
     const applyTurnTransition = (nextColour: TPlayerColour) => {
+      console.log(`[CLIENT TURN TRANSITION] Transitioning turn to ${nextColour}`);
       cancelActiveTokenAnimation();
       dispatch(setIsAnyTokenMoving(false));
       dispatch(deactivateTokensOfAllPlayers());
