@@ -514,6 +514,14 @@ function Game({
 
       // Helper to apply authoritative reconciliation after animation
       const reconcileAfterAnimation = () => {
+        // Sync final authoritative position from server to prevent any drift
+        // caused by the optimistic (early-start) animation computing a slightly
+        // different destination than the server. This is a safety net — in the
+        // vast majority of cases the positions will already match.
+        if (!data.isUnlock && data.path && data.path.length > 0) {
+          const finalCoord = data.path[data.path.length - 1];
+          dispatch(changeCoordsOfToken({ colour, id: data.id, newCoords: finalCoord }));
+        }
         if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
           try {
             dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
@@ -752,6 +760,53 @@ function Game({
           dispatch(setIsVisualRolling({ colour: rollingColour, isVisualRolling: true }));
           diceRollStartTimestampRef.current = Date.now();
           console.log(`[DICE ROLL START] Started rolling animation early for ${rollingColour}`);
+        }
+        return;
+      }
+
+      // ─── Fast-path OpCode 207 (TOKEN_MOVE_START) ─────────────────────────────
+      // When another player's token begins moving, start the animation on THIS
+      // device IMMEDIATELY without waiting for the authoritative OpCode 202.
+      // This eliminates the full RTT gap on observer devices — the same pattern
+      // OpCode 206 uses for dice rolls. When OpCode 202 later arrives in the
+      // sequential queue it detects the optimisticTokenMovesRef entry, awaits
+      // the in-progress animation, then only reconciles final state.
+      if (opCode === 207) {
+        const movingColour = parsed.colour as TPlayerColour | undefined;
+        const earlyTokenId: number = parsed.tokenId;
+        const earlyDiceNumber: number = parsed.diceNumber;
+        const earlyIsUnlock: boolean = parsed.isUnlock ?? false;
+
+        // Only fast-path for OTHER players' tokens.
+        // Own tokens are already animated optimistically on click (Token.tsx).
+        if (movingColour && movingColour !== myPlayerColourRef.current) {
+          const freshState = store.getState();
+          const movingPlayer = freshState.players.players.find((p) => p.colour === movingColour);
+          const movingToken = movingPlayer?.tokens.find((t) => t.id === earlyTokenId);
+
+          if (movingToken) {
+            const moveKey = `${movingColour}_${earlyTokenId}`;
+            optimisticTokenMovesRef.current.add(moveKey);
+            console.log(`[TOKEN MOVE START] Fast-path early animation: ${movingColour} token ${earlyTokenId} (isUnlock=${earlyIsUnlock})`);
+
+            if (earlyIsUnlock) {
+              dispatch(setIsAnyTokenMoving(true));
+              setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, movingToken);
+              dispatch(unlockAndAlignTokens({ colour: movingColour, id: earlyTokenId }));
+              dispatch(deactivateAllTokens(movingColour));
+              const animPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve();
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              });
+              activeTokenAnimationPromiseRef.current = animPromise;
+            } else {
+              // Use the dice number from the 207 payload (server-authoritative)
+              const animPromise = moveAndCapture(movingToken, earlyDiceNumber);
+              activeTokenAnimationPromiseRef.current = animPromise;
+            }
+          }
         }
         return;
       }
