@@ -19,7 +19,7 @@ describe('Test dice slice reducers', () => {
       expect(newState.dice).toHaveLength(1);
       expect(newState.dice[0]).toEqual({
         colour: 'blue',
-        diceNumber: 1,
+        diceNumber: -1,
         isPlaceholderShowing: false,
         isVisualRolling: false,
       } as TDice);
@@ -67,6 +67,7 @@ describe('Test dice slice reducers', () => {
           green: [5, 4, 2, 4, 6, 4, 2],
           yellow: [1, 2, 1, 3, 4, 3],
         },
+        forcedRoll: null,
       };
 
       expect(diceReducer(initState, clearDiceState())).toEqual(initialState);
@@ -83,6 +84,7 @@ describe('Test dice helpers', () => {
           { colour: 'green', diceNumber: 1, isPlaceholderShowing: false, isVisualRolling: false },
         ],
         rollBag: { blue: [], red: [], green: [], yellow: [] },
+        forcedRoll: null,
       };
 
       expect(getDice(state, 'blue')).toEqual(state.dice[0]);
@@ -94,6 +96,7 @@ describe('Test dice helpers', () => {
           { colour: 'green', diceNumber: 1, isPlaceholderShowing: false, isVisualRolling: false },
         ],
         rollBag: { blue: [], red: [], green: [], yellow: [] },
+        forcedRoll: null,
       };
       expect(() => getDice(state, 'white' as never)).toThrowError();
     });
@@ -103,7 +106,7 @@ describe('Test dice helpers', () => {
   });
 
   describe('generateRollBag', () => {
-    it('should generate a bag of 6 numbers with equal distribution of 1-6', () => {
+    it('should generate a bag of 36 numbers with equal distribution of 1-6', () => {
       const bag = generateRollBag();
       const freqMap = bag.reduce(
         (acc, curr) => {
@@ -114,7 +117,7 @@ describe('Test dice helpers', () => {
       );
       const expectedDistribution: Record<number, number> = {};
       for (let i = 1; i <= 6; i++) {
-        expectedDistribution[i] = 1;
+        expectedDistribution[i] = 6;
       }
       expect(freqMap).toEqual(expectedDistribution);
     });

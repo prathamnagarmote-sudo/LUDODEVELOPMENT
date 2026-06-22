@@ -10,6 +10,7 @@ export function rollDiceThunk(colour: TPlayerColour, onDiceRoll: (diceNumber: nu
     dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
     dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
     setTimeout(() => {
+      if (getState().players.isGameEnded) return;
       const diceState = getState().dice;
       const dice = diceState.dice.find((d) => d.colour === colour);
       if (diceState.rollBag[colour].length === 0) dispatch(renewRollBag(colour));

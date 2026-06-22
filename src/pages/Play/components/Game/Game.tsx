@@ -17,12 +17,13 @@ import {
   markTokenAsReachedHome,
   convertPlayerToBot,
   quitMatch,
+  setPlayerMissedTurns,
 } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { AppDispatch, RootState } from '../../../../state/store';
-import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
+import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling, setForcedRoll } from '../../../../state/slices/diceSlice';
 import { handlePostDiceRollThunk } from '../../../../state/thunks/handlePostDiceRollThunk';
 import GameFinishedScreen from '../GameFinishedScreen/GameFinishedScreen';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
@@ -45,6 +46,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
+import { cancelActiveTokenAnimation } from '../../../../hooks/useMoveTokenForward';
 
 
 export const EXIT_MESSAGE = 'Are you sure you want to exit? Any progress made will be lost.';
@@ -58,6 +60,7 @@ export const OnlineGameContext = createContext<{
   onTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
   diceRollStartTimestampRef?: React.MutableRefObject<number>;
   turnDeadlineMs?: number;
+  activeTokenAnimationPromiseRef?: React.MutableRefObject<Promise<any> | null>;
 } | null>(null);
 
 type Props = {
@@ -100,7 +103,8 @@ function Game({
   const [roomId, setRoomId] = useState<string>('');
   const [myPlayerColour, setMyPlayerColour] = useState<TPlayerColour>(canonicalColour || 'blue');
   const [isMatchJoined, setIsMatchJoined] = useState(!isOnline);
-  usePageLeaveBlocker(isMatchJoined && !isGameEnded && import.meta.env.PROD);
+  const [bypassLeaveBlocker, setBypassLeaveBlocker] = useState(false);
+  usePageLeaveBlocker(isMatchJoined && !isGameEnded && !bypassLeaveBlocker && import.meta.env.PROD);
   const [localSessionId, setLocalSessionId] = useState<string>('');
   const [turnDeadlineMs, setTurnDeadlineMs] = useState<number>(Date.now() + 15000);
   const matchJoinedRef = useRef(false);
@@ -221,6 +225,7 @@ function Game({
   }, [isOnline, isMatchJoined, navigate]);
 
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
+  const activeTokenAnimationPromiseRef = useRef<Promise<any> | null>(null);
   const diceRollStartTimestampRef = useRef<number>(0);
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef<boolean>(false);
@@ -261,14 +266,16 @@ function Game({
     socket.ondisconnect = (evt) => {
       console.warn('[ONLINE] Nakama socket disconnected:', evt);
       toast.error('Game server connection lost.');
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
       if (originalOnDisconnect) originalOnDisconnect(evt);
     };
 
     socket.onerror = (err) => {
       console.error('[ONLINE] Nakama socket error:', err);
       toast.error('Game server connection error.');
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
       if (originalOnError) originalOnError(err);
     };
 
@@ -280,13 +287,40 @@ function Game({
       if (!playersRegisteredInitiallyRef.current) return;
       console.log('[ONLINE] Initializing game locally with player list:', playersList);
 
+      const storedUser = localStorage.getItem('ludo_user');
+      let localUserName = '';
+      let localUserId = '';
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          localUserName = parsed.userName;
+          localUserId = parsed.userId;
+        } catch (e) {}
+      }
+
       const mappedSequence = playersList.map((p: any) => p.colour || p.color);
       const effectivePlayerId = getEffectivePlayerId();
-      const myMatchPlayer = playersList.find((p: any) => p.id === effectivePlayerId) || playersList.find((p: any) => p.userId === myUserId);
+      
+      const myMatchPlayer = playersList.find((p: any) => {
+        if (p.id && effectivePlayerId && p.id === effectivePlayerId) return true;
+        if (p.userId && (p.userId === myUserId || p.userId === localUserId || p.userId === `usr_${localUserId}`)) return true;
+        if (p.name && p.name === localUserName) return true;
+        return false;
+      });
+
       if (myMatchPlayer) {
         const col = myMatchPlayer.colour || myMatchPlayer.color;
+        console.log('[ONLINE] Found my match player in state sync. Color:', col, myMatchPlayer);
         setMyPlayerColour(col);
         myPlayerColourRef.current = col;
+      } else {
+        console.warn('[ONLINE] Could not find local player in playersList by sessionId/userId/name!', {
+          effectivePlayerId,
+          myUserId,
+          localUserName,
+          localUserId,
+          playersList
+        });
       }
 
       dispatch(setPlayerSequenceDirect(mappedSequence));
@@ -316,8 +350,25 @@ function Game({
 
     // ─── Helper: apply turn transition on every client ─────────────────────────
     const applyTurnTransition = (nextColour: TPlayerColour) => {
+      cancelActiveTokenAnimation();
+      dispatch(setIsAnyTokenMoving(false));
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
+
+      if (diceRollStartTimestampRef.current) {
+        diceRollStartTimestampRef.current = 0;
+      }
+
+      // Clear dice rolling/placeholder states for ALL players on turn change.
+      // Keep last diceNumber visible (don't reset to -1) so the face stays on
+      // the last rolled value and doesn't snap to face-1 between turns.
+      const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
+      colours.forEach((col) => {
+        dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
+      });
+      // Reset ONLY the next colour's dice to -1 (awaiting roll)
+      dispatch(setDiceNumberDirect({ colour: nextColour, diceNumber: -1 }));
     };
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 201) ─────────────────────────────
@@ -328,9 +379,12 @@ function Game({
       dispatch(setDiceNumberDirect({ colour, diceNumber: roll }));
 
       let remainingDelay = 0;
-      if (colour === myPlayerColourRef.current) {
+      const wasStartedOptimistically = colour === myPlayerColourRef.current && diceRollStartTimestampRef.current > 0;
+
+      if (wasStartedOptimistically) {
         const elapsed = Date.now() - diceRollStartTimestampRef.current;
         remainingDelay = Math.max(0, 300 - elapsed);
+        diceRollStartTimestampRef.current = 0;
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
@@ -377,6 +431,7 @@ function Game({
       const applyResult = () => {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
+        dispatch(setDiceNumberDirect({ colour, diceNumber: data.roll }));
 
         if (roll === 6) {
           dispatch(incrementNumberOfConsecutiveSix(colour));
@@ -402,11 +457,16 @@ function Game({
               dispatch(setIsAnyTokenMoving(true));
               setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, targetToken);
               dispatch(unlockAndAlignTokens({ colour, id: targetToken.id }));
-              setTimeout(() => {
-                dispatch(setIsAnyTokenMoving(false));
-              }, FORWARD_TOKEN_TRANSITION_TIME);
+              const animPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve();
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              });
+              activeTokenAnimationPromiseRef.current = animPromise;
             } else {
-              moveAndCapture(targetToken, roll);
+              const animPromise = moveAndCapture(targetToken, roll);
+              activeTokenAnimationPromiseRef.current = animPromise;
             }
           }
           onComplete?.();
@@ -455,6 +515,11 @@ function Game({
       if (isOptimistic) {
         optimisticTokenMovesRef.current.delete(moveKey);
         console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
+        if (activeTokenAnimationPromiseRef.current) {
+          console.log('[OPTIMISTIC] Awaiting active optimistic animation before resolving...');
+          await activeTokenAnimationPromiseRef.current;
+          activeTokenAnimationPromiseRef.current = null;
+        }
       } else {
         if (data.isUnlock) {
           dispatch(setIsAnyTokenMoving(true));
@@ -494,9 +559,14 @@ function Game({
     const handleSingleSocketMessage = async (opCode: number, parsed: any, _result: MatchData) => {
       console.log(`[SOCKET QUEUE] Processing OpCode ${opCode}`, parsed);
 
-      // Handle rematch events after game has ended
-      if (isGameEnded && opCode >= 101 && opCode <= 103) {
-        document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
+      // Use store.getState() to read isGameEnded to avoid stale closure
+      const currentIsGameEnded = store.getState().players.isGameEnded;
+
+      // Handle rematch events after game has ended, ignore all other match events
+      if (currentIsGameEnded) {
+        if (opCode >= 101 && opCode <= 103) {
+          document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
+        }
         return;
       }
 
@@ -505,6 +575,8 @@ function Game({
         if (playersRegisteredInitiallyRef.current) {
           initializeGame(parsed.players);
         } else {
+          const isMoving = store.getState().players.isAnyTokenMoving;
+          const isStableState = !isMoving && (!parsed.hasRolled || parsed.status === 'ended');
           parsed.players.forEach((p: any) => {
             if (p.isBot) {
               dispatch(convertPlayerToBot({ colour: p.colour }));
@@ -515,27 +587,67 @@ function Game({
                 dispatch(quitMatch(p.colour));
               }
             }
-            p.tokens.forEach((t: any) => {
-              dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
-              if (t.isLocked) {
-                try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
-              } else {
-                try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+            // Sync missedTurns authoritatively from the server so lifeline dots
+            // reflect real missed turns. Without this, dots never decrease online.
+            if (typeof p.missedTurns === 'number') {
+              const localPlayer = store.getState().players.players.find(lp => lp.colour === p.colour);
+              if (localPlayer && localPlayer.missedTurns !== p.missedTurns) {
+                dispatch(setPlayerMissedTurns({ colour: p.colour, missedTurns: p.missedTurns }));
               }
-              if (t.hasTokenReachedHome) {
-                try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
-              }
-            });
+            }
+            // Skip snapping token details if a local or remote token animation is active
+            // or if the player has already rolled and is about to move.
+            // This prevents snapping and incorrect predictions during live gameplay.
+            if (isStableState) {
+              p.tokens.forEach((t: any) => {
+                if (t.hasTokenReachedHome) {
+                  try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
+                  dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
+                } else {
+                  dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
+                  if (t.isLocked) {
+                    try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                  } else {
+                    try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                  }
+                }
+              });
+            }
           });
           dispatch(setPlayerSequenceDirect(parsed.playerSequence));
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
         }
 
-        setTurnDeadlineMs(parsed.turnDeadlineMs);
-
-        if (parsed.diceNumber !== -1) {
-          dispatch(setDiceNumberDirect({ colour: parsed.currentTurnColour, diceNumber: parsed.diceNumber }));
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.turnDeadlineMs);
         }
+
+        // Authoritatively sync dice numbers from STATE_SYNC.
+        // RULE: Only apply when parsed.diceNumber is a real rolled value (>= 1).
+        // NEVER set to -1 from STATE_SYNC — that is exclusively TURN_CHANGE's (OpCode 203) job.
+        // Setting to -1 here would snap the cube to face-1 between turns, causing the visual glitch.
+        const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
+        const freshDiceState = store.getState().dice;
+        const isCurrentlyRolling = freshDiceState.dice.some(d => d.isVisualRolling || d.isPlaceholderShowing);
+        if (!isCurrentlyRolling && typeof parsed.diceNumber === 'number' && parsed.diceNumber >= 1) {
+          colours.forEach((col) => {
+            if (col === parsed.currentTurnColour) {
+              dispatch(setDiceNumberDirect({ colour: col, diceNumber: parsed.diceNumber }));
+            }
+            // Don't touch other colours' dice numbers to preserve their last-shown value
+          });
+        }
+
+        // Ensure dice animations are cleared on state sync if the roll has already occurred/resolved
+        colours.forEach((col) => {
+          // Only clear animation state for non-active players, or if match hasn't rolled yet
+          if (col !== parsed.currentTurnColour || parsed.hasRolled) {
+            dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
+            dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
+          }
+        });
 
       } else if (opCode === 201) {
         // DICE_ROLLED
@@ -549,7 +661,11 @@ function Game({
 
       } else if (opCode === 203) {
         // TURN_CHANGE
-        setTurnDeadlineMs(parsed.deadlineMs);
+        if (typeof parsed.turnRemainingMs === 'number') {
+          setTurnDeadlineMs(Date.now() + parsed.turnRemainingMs);
+        } else {
+          setTurnDeadlineMs(parsed.deadlineMs);
+        }
         applyTurnTransition(parsed.nextTurnColour);
 
       } else if (opCode === 204) {
@@ -560,7 +676,16 @@ function Game({
       } else if (opCode === 205) {
         // ACTION_REJECTED
         console.warn("[CLIENT] Action rejected by server:", parsed.reason);
-        toast.error(`Invalid action: ${parsed.reason}`);
+        // 'Not your turn' and 'Already rolled' are expected race conditions in the
+        // authoritative server model (e.g. bot took over just before player tapped).
+        // Showing a toast for these would be confusing noise — only surface truly
+        // unexpected rejections (e.g. 'Invalid move') as user-facing errors.
+        if (parsed.reason !== 'Not your turn' && parsed.reason !== 'Already rolled') {
+          toast.error(`Invalid action: ${parsed.reason}`);
+        }
+        // Always clear local rolling/placeholder state so the dice stops animating.
+        dispatch(setIsPlaceholderShowing({ colour: myPlayerColourRef.current, isPlaceholderShowing: false }));
+        dispatch(setIsVisualRolling({ colour: myPlayerColourRef.current, isVisualRolling: false }));
       }
     };
 
@@ -700,9 +825,96 @@ function Game({
     // 4-Player mode: The quitting player navigates to Home immediately and skips the leaderboard
     // 2-Player mode: The match ends and the Leaderboard appears instantly
     if (players.length > 2) {
-      navigate('/setup');
+      setBypassLeaveBlocker(true);
+      setTimeout(() => navigate('/setup'), 0);
     }
   };
+
+  // Global keypad event listener to preset forcedRoll for testing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (isGameEnded) return;
+
+      // Ignore keydown if user is typing in input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        if (isOnline) {
+          // ─── ONLINE MODE: bypass the HTML button entirely ─────────────────────
+          // HTML-disabled buttons silently swallow programmatic .click() calls,
+          // which is why the previous btn.click() approach never worked in Live Match.
+          // Instead, we read stable refs to avoid stale closures and send OpCode 100
+          // directly to Nakama with the forcedRoll payload if it is our turn.
+          const currentRoomId = roomIdRef.current;
+          const myColour = myPlayerColourRef.current;
+          const freshState = store.getState();
+          const isMyTurn = freshState.players.currentPlayerColour === myColour;
+          const alreadyRolling = freshState.dice.dice.some(
+            (d) => d.isPlaceholderShowing || d.isVisualRolling
+          );
+          const hasAlreadyRolled = freshState.dice.dice.find(
+            (d) => d.colour === myColour
+          )?.diceNumber ?? -1;
+
+          // Only trigger if it is genuinely our turn and we haven't rolled yet
+          if (isMyTurn && !alreadyRolling && hasAlreadyRolled === -1 && currentRoomId) {
+            toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+
+            // Show the rolling animation optimistically
+            dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: true }));
+            dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: true }));
+            if (diceRollStartTimestampRef.current === 0) {
+              diceRollStartTimestampRef.current = Date.now();
+            }
+
+            try {
+              getNakamaSocket().sendMatchState(currentRoomId, 100, JSON.stringify({ forcedRoll: num }));
+            } catch (err) {
+              console.error('[KEYBOARD OVERRIDE] Failed to send forced roll:', err);
+              dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: false }));
+              dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: false }));
+              diceRollStartTimestampRef.current = 0;
+            }
+          }
+        } else {
+          // ─── OFFLINE MODE: use Redux forcedRoll + btn.click() ────────────────
+          dispatch(setForcedRoll(num));
+          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+
+          // In offline mode the button is never HTML-disabled when it's your turn,
+          // so btn.click() works correctly here.
+          const activeColour = currentPlayerColour;
+          if (activeColour) {
+            setTimeout(() => {
+              const btn = document.getElementById(`dice-btn-${activeColour}`) as HTMLButtonElement | null;
+              if (btn && !btn.disabled) {
+                btn.click();
+              }
+            }, 50);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  // Use stable refs for roomId and myPlayerColour to avoid stale closure bugs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, isGameEnded, isOnline, currentPlayerColour, store]);
 
   // Determine if the local player is the host (lowest session_id alphabetically)
   const amHostValue = useMemo(() => {
@@ -722,6 +934,7 @@ function Game({
       onTokenMove,
       diceRollStartTimestampRef,
       turnDeadlineMs,
+      activeTokenAnimationPromiseRef,
     };
   }, [isOnline, roomId, myPlayerColour, amHostValue, onTokenMove, turnDeadlineMs]);
 

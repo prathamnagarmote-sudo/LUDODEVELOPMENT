@@ -57,14 +57,21 @@ var TOKEN_SAFE_COORDINATES = [
     { x: 12, y: 6 }
 ];
 var TOKEN_LOCKED_COORDINATES = {
-    blue: [{ x: 1.45, y: 10.55 }, { x: 3.55, y: 10.55 }, { x: 1.45, y: 12.65 }, { x: 3.55, y: 12.65 }],
-    red: [{ x: 1.45, y: 1.5 }, { x: 3.55, y: 1.5 }, { x: 1.45, y: 3.6 }, { x: 3.55, y: 3.6 }],
-    green: [{ x: 10.5, y: 1.5 }, { x: 12.6, y: 1.5 }, { x: 10.5, y: 3.6 }, { x: 12.6, y: 3.6 }],
-    yellow: [{ x: 10.5, y: 10.55 }, { x: 12.6, y: 10.55 }, { x: 10.5, y: 12.65 }, { x: 12.6, y: 12.65 }]
+    blue: [{ x: 1.45, y: 10.50 }, { x: 3.55, y: 10.50 }, { x: 1.45, y: 12.60 }, { x: 3.55, y: 12.60 }],
+    red: [{ x: 1.45, y: 1.45 }, { x: 3.55, y: 1.45 }, { x: 1.45, y: 3.55 }, { x: 3.55, y: 3.55 }],
+    green: [{ x: 10.5, y: 1.45 }, { x: 12.6, y: 1.45 }, { x: 10.5, y: 3.55 }, { x: 12.6, y: 3.55 }],
+    yellow: [{ x: 10.5, y: 10.50 }, { x: 12.6, y: 10.50 }, { x: 10.5, y: 12.60 }, { x: 12.6, y: 12.60 }]
 };
 // ─── ES5 ARRAY / OBJECT HELPERS ───────────────────────────────────────────────
 function areCoordsEqual(c1, c2) {
     return c1.x === c2.x && c1.y === c2.y;
+}
+function generateRollBag() {
+    var diceNumbers = [];
+    for (var i = 0; i < 36; i++) {
+        diceNumbers.push((i % 6) + 1);
+    }
+    return diceNumbers;
 }
 function findCoordIndex(arr, coord) {
     for (var i = 0; i < arr.length; i++) {
@@ -184,12 +191,14 @@ function countTokensAtCoord(allTokens, coord, colour) {
     return count;
 }
 function isTokenMovable(token, diceNumber, allTokens) {
+    if (token.hasTokenReachedHome)
+        return false;
     if (!diceNumber)
-        return !token.isLocked && !token.hasTokenReachedHome;
+        return !token.isLocked;
     if (token.isLocked) {
         return diceNumber === 6;
     }
-    if (token.hasTokenReachedHome || getAvailableSteps(token) < diceNumber) {
+    if (getAvailableSteps(token) < diceNumber) {
         return false;
     }
     if (allTokens) {
@@ -266,7 +275,7 @@ function computeMoveResult(token, diceNumber, players) {
     var hasPlayerWon = hasTokenReachedHome && !token.hasTokenReachedHome && homeCount === 3;
     // Capture check
     var isCaptured = false;
-    var isSafe = isCoordASafeSpot(lastTokenCoord);
+    var isSafe = isCoordASafeSpot(lastTokenCoord, colour);
     if (!isSafe) {
         // Find if there is any opponent token on this cell
         for (var p = 0; p < players.length; p++) {
@@ -338,6 +347,12 @@ function matchInit(ctx, logger, nk, params) {
             consecutiveSixes: 0,
             turnDeadlineMs: Date.now() + 15000,
             status: 'playing',
+            rollBags: {
+                blue: generateRollBag(),
+                red: generateRollBag(),
+                green: generateRollBag(),
+                yellow: generateRollBag()
+            },
             tickCount: 0,
             emptyTicks: 0,
             botTakeoverTicks: {},
@@ -346,7 +361,8 @@ function matchInit(ctx, logger, nk, params) {
             noMovableTokensTimer: null,
             rematchAccepted: [],
             terminateAfterTicks: null,
-            lastStateSyncTick: 0 // track when we last broadcast periodic STATE_SYNC
+            lastStateSyncTick: 0,
+            matchInitTime: Date.now()
         };
         return {
             state: state,
@@ -375,6 +391,7 @@ function matchJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, me
     return { state: state, accept: false, rejectMessage: "Not part of this match" };
 }
 function sendStateSync(dispatcher, state, presence) {
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
     dispatcher.broadcastMessage(200, JSON.stringify({
         roomId: state.roomId,
         players: state.players,
@@ -384,8 +401,24 @@ function sendStateSync(dispatcher, state, presence) {
         hasRolled: state.hasRolled,
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs,
         status: state.status
     }), [presence]);
+}
+function broadcastStateSync(dispatcher, state) {
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
+    dispatcher.broadcastMessage(200, JSON.stringify({
+        roomId: state.roomId,
+        players: state.players,
+        playerSequence: state.playerSequence,
+        currentTurnColour: state.playerSequence[state.currentTurnIndex],
+        diceNumber: state.diceNumber,
+        hasRolled: state.hasRolled,
+        consecutiveSixes: state.consecutiveSixes,
+        turnDeadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs,
+        status: state.status
+    }));
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
@@ -419,14 +452,9 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
     var s = state;
     for (var p = 0; p < presences.length; p++) {
         var presence = presences[p];
-        for (var i = 0; i < s.players.length; i++) {
-            var player = s.players[i];
-            if (player.userId === presence.userId) {
-                s.botTakeoverTicks[presence.userId] = tick + 240; // 4 seconds at 60Hz
-            }
-        }
+        logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
     }
-    return { state: state };
+    return { state: s };
 }
 function nextTurn(state, dispatcher, animDuration) {
     if (animDuration === void 0) { animDuration = 0; }
@@ -439,9 +467,11 @@ function nextTurn(state, dispatcher, animDuration) {
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
+    var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
     dispatcher.broadcastMessage(203, JSON.stringify({
         nextTurnColour: nextColour,
-        deadlineMs: state.turnDeadlineMs
+        deadlineMs: state.turnDeadlineMs,
+        turnRemainingMs: turnRemainingMs
     }));
 }
 function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTokenReachedHome, isCaptured, animDuration) {
@@ -454,9 +484,11 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         state.botRollTick = null;
         state.botMoveTick = null;
         state.noMovableTokensTimer = null;
+        var turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
         dispatcher.broadcastMessage(203, JSON.stringify({
             nextTurnColour: colour,
-            deadlineMs: state.turnDeadlineMs
+            deadlineMs: state.turnDeadlineMs,
+            turnRemainingMs: turnRemainingMs
         }));
     }
     else {
@@ -464,8 +496,28 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         nextTurn(state, dispatcher, animDuration);
     }
 }
-function executeRoll(state, dispatcher, colour) {
-    var roll = Math.floor(Math.random() * 6) + 1;
+function executeRoll(state, dispatcher, colour, forcedRoll) {
+    if (!state.rollBags) {
+        state.rollBags = {
+            blue: generateRollBag(),
+            red: generateRollBag(),
+            green: generateRollBag(),
+            yellow: generateRollBag()
+        };
+    }
+    if (!state.rollBags[colour] || state.rollBags[colour].length === 0) {
+        state.rollBags[colour] = generateRollBag();
+    }
+    var roll = 0;
+    if (typeof forcedRoll === 'number' && forcedRoll >= 1 && forcedRoll <= 6) {
+        roll = forcedRoll;
+    }
+    else {
+        var bag = state.rollBags[colour];
+        var index_1 = Math.floor(Math.random() * bag.length);
+        roll = bag[index_1];
+        state.rollBags[colour] = bag.filter(function (_, i) { return i !== index_1; });
+    }
     state.diceNumber = roll;
     state.hasRolled = true;
     if (roll === 6) {
@@ -491,6 +543,7 @@ function executeRoll(state, dispatcher, colour) {
         }
     }
     var hasMovableTokens = false;
+    var movableTokens = [];
     if (player && player.tokens) {
         if (state.consecutiveSixes === 3) {
             hasMovableTokens = false;
@@ -499,7 +552,7 @@ function executeRoll(state, dispatcher, colour) {
             for (var t = 0; t < player.tokens.length; t++) {
                 if (isTokenMovable(player.tokens[t], roll, allTokens)) {
                     hasMovableTokens = true;
-                    break;
+                    movableTokens.push(player.tokens[t]);
                 }
             }
         }
@@ -509,12 +562,27 @@ function executeRoll(state, dispatcher, colour) {
         colour: colour,
         hasMovableTokens: hasMovableTokens
     }));
+    var shouldAutoMove = false;
+    var autoMoveToken = null;
+    if (hasMovableTokens && player) {
+        var areUnlockableTokensPresent = roll === 6 && player.tokens.some(function (t) { return areCoordsEqual(t.coordinates, t.initialCoords); });
+        var areAllTokensInSameCoord = movableTokens.length === 0
+            ? false
+            : movableTokens.every(function (t) { return areCoordsEqual(movableTokens[0].coordinates, t.coordinates); });
+        if (areAllTokensInSameCoord && !areUnlockableTokensPresent) {
+            shouldAutoMove = true;
+            autoMoveToken = movableTokens[0];
+        }
+    }
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
         state.noMovableTokensTimer = Date.now() + 1500;
     }
     else if (!hasMovableTokens) {
         state.noMovableTokensTimer = Date.now() + 1500;
+    }
+    else if (shouldAutoMove && autoMoveToken) {
+        executeMove(state, dispatcher, colour, autoMoveToken.id);
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -657,8 +725,8 @@ function selectBestBotToken(player, roll, allTokens) {
         }
     }
     var tokenScores = [];
-    for (var idx = 0; idx < botTokens.length; idx++) {
-        var token = botTokens[idx];
+    for (var idx = 0; idx < movableBotTokens.length; idx++) {
+        var token = movableBotTokens[idx];
         var feasibilityScore = 0;
         var finalCoord = null;
         var isUnlockable = token.isLocked && !token.hasTokenReachedHome && roll === BOT_LOGIC_CONFIG.UNLOCK_DICE_VALUE;
@@ -891,6 +959,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
     }
     if (hasTokenReachedHome) {
         token.hasTokenReachedHome = true;
+        token.isLocked = true;
         token.coordinates = getHomeCoordForColour(colour);
     }
     var capturedTokenColour = undefined;
@@ -970,17 +1039,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
     if (tick - s.lastStateSyncTick >= 300) {
         s.lastStateSyncTick = tick;
-        dispatcher.broadcastMessage(200, JSON.stringify({
-            roomId: s.roomId,
-            players: s.players,
-            playerSequence: s.playerSequence,
-            currentTurnColour: s.playerSequence[s.currentTurnIndex],
-            diceNumber: s.diceNumber,
-            hasRolled: s.hasRolled,
-            consecutiveSixes: s.consecutiveSixes,
-            turnDeadlineMs: s.turnDeadlineMs,
-            status: s.status
-        }));
+        broadcastStateSync(dispatcher, s);
     }
     if (s.status === 'ended') {
         // Process rematch messages
@@ -1048,17 +1107,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                                 s.players[i].tokens = genInitialTokens(s.players[i].colour);
                             }
                             // Broadcast STATE_SYNC (OpCode 200) to reset all clients
-                            dispatcher.broadcastMessage(200, JSON.stringify({
-                                roomId: s.roomId,
-                                players: s.players,
-                                playerSequence: s.playerSequence,
-                                currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                                diceNumber: s.diceNumber,
-                                hasRolled: s.hasRolled,
-                                consecutiveSixes: s.consecutiveSixes,
-                                turnDeadlineMs: s.turnDeadlineMs,
-                                status: s.status
-                            }));
+                            broadcastStateSync(dispatcher, s);
                         }
                     }
                     else if (opCode === 103) {
@@ -1073,37 +1122,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: s };
     }
-    // 1. Bot takeover transition countdown
-    for (var userId in s.botTakeoverTicks) {
-        if (tick >= s.botTakeoverTicks[userId]) {
-            var player = null;
-            for (var i = 0; i < s.players.length; i++) {
-                if (s.players[i].userId === userId) {
-                    player = s.players[i];
-                    break;
-                }
-            }
-            if (player) {
-                player.isBot = true;
-                if (player.name.indexOf(' (Bot)') === -1) {
-                    player.name += ' (Bot)';
-                }
-                // Broadcast standard state sync with new bot state
-                dispatcher.broadcastMessage(200, JSON.stringify({
-                    roomId: s.roomId,
-                    players: s.players,
-                    playerSequence: s.playerSequence,
-                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                    diceNumber: s.diceNumber,
-                    hasRolled: s.hasRolled,
-                    consecutiveSixes: s.consecutiveSixes,
-                    turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status
-                }));
-            }
-            delete s.botTakeoverTicks[userId];
-        }
-    }
     // 2. Turn Change Delay Handler (e.g. rolled a number with no moves)
     if (s.noMovableTokensTimer !== null) {
         if (Date.now() >= s.noMovableTokensTimer) {
@@ -1113,7 +1131,47 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         return { state: state };
     }
     // 3. Process turn deadlines (timeout)
-    if (Date.now() >= s.turnDeadlineMs) {
+    var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
+    if (anyHumanNotJoined) {
+        if (Date.now() - s.matchInitTime < 10000) {
+            s.turnDeadlineMs = Date.now() + 15000;
+        }
+        else {
+            var _loop_1 = function (i) {
+                var p = s.players[i];
+                if (!p.isBot && p.id === "" && !p.hasQuit) {
+                    p.hasQuit = true;
+                    s.playerSequence = s.playerSequence.filter(function (col) { return col !== p.colour; });
+                }
+            };
+            // Eliminate human players who failed to join initially
+            for (var i = 0; i < s.players.length; i++) {
+                _loop_1(i);
+            }
+            if (s.playerSequence.length > 0) {
+                s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+            }
+            var activeHumanCount = 0;
+            var winnerColour = s.playerSequence[0];
+            for (var i = 0; i < s.players.length; i++) {
+                if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                    activeHumanCount++;
+                    winnerColour = s.players[i].colour;
+                }
+            }
+            if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+                s.status = 'ended';
+                s.winnerColour = winnerColour;
+                s.terminateAfterTicks = tick + 1200;
+                s.rematchAccepted = [];
+                dispatcher.broadcastMessage(204, JSON.stringify({
+                    winnerColour: winnerColour
+                }));
+                return { state: s };
+            }
+        }
+    }
+    else if (Date.now() >= s.turnDeadlineMs) {
         var currentColour_1 = s.playerSequence[s.currentTurnIndex];
         var player = null;
         for (var i = 0; i < s.players.length; i++) {
@@ -1125,58 +1183,52 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         if (player) {
             player.missedTurns = (player.missedTurns || 0) + 1;
             if (player.missedTurns >= 3) {
-                player.isBot = true;
-                if (player.name.indexOf(' (Bot)') === -1) {
-                    player.name += ' (Bot)';
+                player.hasQuit = true;
+                // Remove from playerSequence
+                s.playerSequence = s.playerSequence.filter(function (col) { return col !== currentColour_1; });
+                // Adjust currentTurnIndex if needed
+                if (s.playerSequence.length > 0) {
+                    s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
                 }
-                // Broadcast standard state sync with new bot state
-                dispatcher.broadcastMessage(200, JSON.stringify({
-                    roomId: s.roomId,
-                    players: s.players,
-                    playerSequence: s.playerSequence,
-                    currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                    diceNumber: s.diceNumber,
-                    hasRolled: s.hasRolled,
-                    consecutiveSixes: s.consecutiveSixes,
-                    turnDeadlineMs: s.turnDeadlineMs,
-                    status: s.status
-                }));
-            }
-            var allTokens = [];
-            for (var p = 0; p < s.players.length; p++) {
-                var pl = s.players[p];
-                if (pl.tokens) {
-                    for (var t = 0; t < pl.tokens.length; t++) {
-                        allTokens.push(pl.tokens[t]);
+                // Check if match should end
+                var activeHumanCount = 0;
+                var winnerColour = s.playerSequence[0];
+                for (var i = 0; i < s.players.length; i++) {
+                    if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                        activeHumanCount++;
+                        winnerColour = s.players[i].colour;
                     }
                 }
-            }
-            if (!s.hasRolled) {
-                executeRoll(s, dispatcher, currentColour_1);
-                if (s.noMovableTokensTimer === null) {
-                    var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-                    if (bestToken) {
-                        executeMove(s, dispatcher, currentColour_1, bestToken.id);
-                    }
-                    else {
-                        nextTurn(s, dispatcher);
-                    }
-                }
-            }
-            else {
-                var bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-                if (bestToken) {
-                    executeMove(s, dispatcher, currentColour_1, bestToken.id);
+                if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+                    s.status = 'ended';
+                    s.winnerColour = winnerColour;
+                    s.terminateAfterTicks = tick + 1200;
+                    s.rematchAccepted = [];
+                    dispatcher.broadcastMessage(204, JSON.stringify({
+                        winnerColour: winnerColour
+                    }));
+                    return { state: s };
                 }
                 else {
+                    // Transition next turn
                     nextTurn(s, dispatcher);
+                    // Broadcast state sync
+                    broadcastStateSync(dispatcher, s);
+                    return { state: s };
                 }
             }
+            // Skip their turn cleanly: increment missedTurns, do NOT play as a bot,
+            // and transition immediately to the next player's turn.
+            nextTurn(s, dispatcher);
+            // Broadcast STATE_SYNC *after* skip turn transition so clients receive
+            // the updated missedTurns and the new turnDeadlineMs/currentTurnColour.
+            broadcastStateSync(dispatcher, s);
+            return { state: s };
         }
         else {
             nextTurn(s, dispatcher);
         }
-        return { state: state };
+        return { state: s };
     }
     // 4. Client Inputs
     messages.forEach(function (message) {
@@ -1233,17 +1285,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     }
                     else {
                         // Broadcast state sync to notify others
-                        dispatcher.broadcastMessage(200, JSON.stringify({
-                            roomId: s.roomId,
-                            players: s.players,
-                            playerSequence: s.playerSequence,
-                            currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                            diceNumber: s.diceNumber,
-                            hasRolled: s.hasRolled,
-                            consecutiveSixes: s.consecutiveSixes,
-                            turnDeadlineMs: s.turnDeadlineMs,
-                            status: s.status
-                        }));
+                        broadcastStateSync(dispatcher, s);
                         // If it was the quitting player's turn, change turn
                         var turnColour = s.playerSequence[s.currentTurnIndex];
                         if (turnColour === senderColour) {
@@ -1251,6 +1293,11 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                         }
                     }
                 }
+                return;
+            }
+            // 1. Handle heartbeat ping at the very top (allow from any connected player)
+            if (opCode === 102) { // INPUT_PING / HEARTBEAT
+                dispatcher.broadcastMessage(102, "", [message.sender]);
                 return;
             }
             var currentColour_2 = s.playerSequence[s.currentTurnIndex];
@@ -1277,6 +1324,10 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 return;
             }
             if (!currentPlayer_1 || currentPlayer_1.id !== message.sender.sessionId) {
+                // Reject out-of-turn actions to clear visual placeholder/rolling states on the client
+                if (opCode === 100) {
+                    dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Not your turn" }), [message.sender]);
+                }
                 return;
             }
             if (opCode === 100) { // INPUT_ROLL_DICE
@@ -1284,11 +1335,18 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
                     return;
                 }
-                executeRoll(s, dispatcher, currentColour_2);
+                var forcedRoll = undefined;
+                try {
+                    var payload = JSON.parse(nk.binaryToString(message.data));
+                    if (typeof payload.forcedRoll === 'number' && payload.forcedRoll >= 1 && payload.forcedRoll <= 6) {
+                        forcedRoll = payload.forcedRoll;
+                    }
+                }
+                catch (e) { }
+                executeRoll(s, dispatcher, currentColour_2, forcedRoll);
             }
             else if (opCode === 101) { // INPUT_MOVE_TOKEN
                 if (!s.hasRolled) {
-                    dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Roll first" }), [message.sender]);
                     return;
                 }
                 var data = {};
@@ -1320,9 +1378,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     return;
                 }
                 executeMove(s, dispatcher, currentColour_2, tokenId);
-            }
-            else if (opCode === 102) { // INPUT_PING / HEARTBEAT
-                dispatcher.broadcastMessage(102, "", [message.sender]);
             }
         }
         catch (e) {
@@ -1418,6 +1473,10 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
         // Always use the number of matched users as size (2 for 1v1)
         var size = 2;
         logger.info("Building player list from %v real players, target size: %v", matches.length, size);
+        if (matches.length < size) {
+            logger.warn("Matchmaker matched fewer than %v players (got %v). Rejecting match creation to avoid bots.", size, matches.length);
+            return; // Return void so Nakama does not build authoritative match with bots
+        }
         matches.forEach(function (m, idx) {
             var props = m.properties || {};
             // Log every field of the presence to debug userId issues
@@ -1432,20 +1491,6 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
                 level: 1
             });
         });
-        // Fill remaining slots with bots if needed
-        var botIndex = 0;
-        while (matchPlayers_1.length < size) {
-            var botProfile = REALISTIC_BOTS[botIndex % REALISTIC_BOTS.length];
-            botIndex++;
-            matchPlayers_1.push({
-                id: 'bot_' + Math.random().toString(36).substring(7),
-                isBot: true,
-                userId: 'bot_' + Math.random().toString(36).substring(7),
-                name: botProfile.name,
-                avatarUrl: botProfile.avatarUrl,
-                level: botProfile.level
-            });
-        }
         var colors_1 = ['blue', 'green', 'red', 'yellow'];
         var finalPlayers = matchPlayers_1.map(function (p, idx) {
             return {

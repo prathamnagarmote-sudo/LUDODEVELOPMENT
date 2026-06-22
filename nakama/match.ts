@@ -72,15 +72,23 @@ const TOKEN_SAFE_COORDINATES: TCoordinate[] = [
 ];
 
 const TOKEN_LOCKED_COORDINATES = {
-  blue: [{ x: 1.45, y: 10.55 }, { x: 3.55, y: 10.55 }, { x: 1.45, y: 12.65 }, { x: 3.55, y: 12.65 }],
-  red: [{ x: 1.45, y: 1.5 }, { x: 3.55, y: 1.5 }, { x: 1.45, y: 3.6 }, { x: 3.55, y: 3.6 }],
-  green: [{ x: 10.5, y: 1.5 }, { x: 12.6, y: 1.5 }, { x: 10.5, y: 3.6 }, { x: 12.6, y: 3.6 }],
-  yellow: [{ x: 10.5, y: 10.55 }, { x: 12.6, y: 10.55 }, { x: 10.5, y: 12.65 }, { x: 12.6, y: 12.65 }]
+  blue: [{ x: 1.45, y: 10.50 }, { x: 3.55, y: 10.50 }, { x: 1.45, y: 12.60 }, { x: 3.55, y: 12.60 }],
+  red: [{ x: 1.45, y: 1.45 }, { x: 3.55, y: 1.45 }, { x: 1.45, y: 3.55 }, { x: 3.55, y: 3.55 }],
+  green: [{ x: 10.5, y: 1.45 }, { x: 12.6, y: 1.45 }, { x: 10.5, y: 3.55 }, { x: 12.6, y: 3.55 }],
+  yellow: [{ x: 10.5, y: 10.50 }, { x: 12.6, y: 10.50 }, { x: 10.5, y: 12.60 }, { x: 12.6, y: 12.60 }]
 };
 
 // ─── ES5 ARRAY / OBJECT HELPERS ───────────────────────────────────────────────
 function areCoordsEqual(c1: TCoordinate, c2: TCoordinate): boolean {
   return c1.x === c2.x && c1.y === c2.y;
+}
+
+function generateRollBag(): number[] {
+  const diceNumbers: number[] = [];
+  for (let i = 0; i < 36; i++) {
+    diceNumbers.push((i % 6) + 1);
+  }
+  return diceNumbers;
 }
 
 function findCoordIndex(arr: TCoordinate[], coord: TCoordinate): number {
@@ -219,13 +227,14 @@ function countTokensAtCoord(allTokens: TToken[], coord: TCoordinate, colour: TPl
 }
 
 function isTokenMovable(token: TToken, diceNumber?: number, allTokens?: TToken[]): boolean {
-  if (!diceNumber) return !token.isLocked && !token.hasTokenReachedHome;
+  if (token.hasTokenReachedHome) return false;
+  if (!diceNumber) return !token.isLocked;
   
   if (token.isLocked) {
     return diceNumber === 6;
   }
   
-  if (token.hasTokenReachedHome || getAvailableSteps(token) < diceNumber) {
+  if (getAvailableSteps(token) < diceNumber) {
     return false;
   }
 
@@ -318,7 +327,7 @@ function computeMoveResult(
 
   // Capture check
   let isCaptured = false;
-  const isSafe = isCoordASafeSpot(lastTokenCoord);
+  const isSafe = isCoordASafeSpot(lastTokenCoord, colour);
   if (!isSafe) {
     // Find if there is any opponent token on this cell
     for (let p = 0; p < players.length; p++) {
@@ -400,6 +409,12 @@ function matchInit(
       consecutiveSixes: 0,
       turnDeadlineMs: Date.now() + 15000,
       status: 'playing',
+      rollBags: {
+        blue: generateRollBag(),
+        red: generateRollBag(),
+        green: generateRollBag(),
+        yellow: generateRollBag()
+      } as {[colour in TPlayerColour]: number[]},
       
       tickCount: 0,
       emptyTicks: 0,
@@ -409,7 +424,8 @@ function matchInit(
       noMovableTokensTimer: null as number | null,
       rematchAccepted: [] as TPlayerColour[],
       terminateAfterTicks: null as number | null,
-      lastStateSyncTick: 0  // track when we last broadcast periodic STATE_SYNC
+      lastStateSyncTick: 0,  // track when we last broadcast periodic STATE_SYNC
+      matchInitTime: Date.now()
     };
 
     return {
@@ -449,6 +465,7 @@ function matchJoinAttempt(
 }
 
 function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presence: nkruntime.Presence) {
+  const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
   dispatcher.broadcastMessage(200, JSON.stringify({
     roomId: state.roomId,
     players: state.players,
@@ -458,8 +475,25 @@ function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presen
     hasRolled: state.hasRolled,
     consecutiveSixes: state.consecutiveSixes,
     turnDeadlineMs: state.turnDeadlineMs,
+    turnRemainingMs: turnRemainingMs,
     status: state.status
   }), [presence]);
+}
+
+function broadcastStateSync(dispatcher: nkruntime.MatchDispatcher, state: any) {
+  const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
+  dispatcher.broadcastMessage(200, JSON.stringify({
+    roomId: state.roomId,
+    players: state.players,
+    playerSequence: state.playerSequence,
+    currentTurnColour: state.playerSequence[state.currentTurnIndex],
+    diceNumber: state.diceNumber,
+    hasRolled: state.hasRolled,
+    consecutiveSixes: state.consecutiveSixes,
+    turnDeadlineMs: state.turnDeadlineMs,
+    turnRemainingMs: turnRemainingMs,
+    status: state.status
+  }));
 }
 
 function matchJoin(
@@ -513,14 +547,9 @@ function matchLeave(
   const s = state as any;
   for (let p = 0; p < presences.length; p++) {
     const presence = presences[p];
-    for (let i = 0; i < s.players.length; i++) {
-      const player = s.players[i];
-      if (player.userId === presence.userId) {
-        s.botTakeoverTicks[presence.userId] = tick + 240; // 4 seconds at 60Hz
-      }
-    }
+    logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
   }
-  return { state };
+  return { state: s };
 }
 
 function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
@@ -535,9 +564,11 @@ function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuratio
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
 
+  const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
   dispatcher.broadcastMessage(203, JSON.stringify({
     nextTurnColour: nextColour,
-    deadlineMs: state.turnDeadlineMs
+    deadlineMs: state.turnDeadlineMs,
+    turnRemainingMs: turnRemainingMs
   }));
 }
 
@@ -560,9 +591,11 @@ function resolvePostMoveTurnHandoff(
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
 
+    const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
     dispatcher.broadcastMessage(203, JSON.stringify({
       nextTurnColour: colour,
-      deadlineMs: state.turnDeadlineMs
+      deadlineMs: state.turnDeadlineMs,
+      turnRemainingMs: turnRemainingMs
     }));
   } else {
     state.consecutiveSixes = 0;
@@ -570,8 +603,29 @@ function resolvePostMoveTurnHandoff(
   }
 }
 
-function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour) {
-  const roll = Math.floor(Math.random() * 6) + 1;
+function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour, forcedRoll?: number) {
+  if (!state.rollBags) {
+    state.rollBags = {
+      blue: generateRollBag(),
+      red: generateRollBag(),
+      green: generateRollBag(),
+      yellow: generateRollBag()
+    } as {[colour in TPlayerColour]: number[]};
+  }
+  if (!state.rollBags[colour] || state.rollBags[colour].length === 0) {
+    state.rollBags[colour] = generateRollBag();
+  }
+
+  let roll = 0;
+  if (typeof forcedRoll === 'number' && forcedRoll >= 1 && forcedRoll <= 6) {
+    roll = forcedRoll;
+  } else {
+    const bag = state.rollBags[colour];
+    const index = Math.floor(Math.random() * bag.length);
+    roll = bag[index];
+    state.rollBags[colour] = bag.filter(function(_: number, i: number) { return i !== index; });
+  }
+
   state.diceNumber = roll;
   state.hasRolled = true;
 
@@ -600,6 +654,7 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
   }
   
   let hasMovableTokens = false;
+  const movableTokens: TToken[] = [];
   if (player && player.tokens) {
     if (state.consecutiveSixes === 3) {
       hasMovableTokens = false;
@@ -607,7 +662,7 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
       for (let t = 0; t < player.tokens.length; t++) {
         if (isTokenMovable(player.tokens[t], roll, allTokens)) {
           hasMovableTokens = true;
-          break;
+          movableTokens.push(player.tokens[t]);
         }
       }
     }
@@ -619,11 +674,30 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
     hasMovableTokens: hasMovableTokens
   }));
 
+  let shouldAutoMove = false;
+  let autoMoveToken: TToken | null = null;
+  if (hasMovableTokens && player) {
+    const areUnlockableTokensPresent =
+      roll === 6 && player.tokens.some(function(t: TToken) { return areCoordsEqual(t.coordinates, t.initialCoords); });
+
+    const areAllTokensInSameCoord =
+      movableTokens.length === 0
+        ? false
+        : movableTokens.every(function(t: TToken) { return areCoordsEqual(movableTokens[0].coordinates, t.coordinates); });
+
+    if (areAllTokensInSameCoord && !areUnlockableTokensPresent) {
+      shouldAutoMove = true;
+      autoMoveToken = movableTokens[0];
+    }
+  }
+
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
     state.noMovableTokensTimer = Date.now() + 1500;
   } else if (!hasMovableTokens) {
     state.noMovableTokensTimer = Date.now() + 1500;
+  } else if (shouldAutoMove && autoMoveToken) {
+    executeMove(state, dispatcher, colour, autoMoveToken.id);
   } else {
     state.turnDeadlineMs = Date.now() + 15000;
   }
@@ -777,8 +851,8 @@ function selectBestBotToken(player: TPlayer, roll: number, allTokens: TToken[]):
   
   const tokenScores: TokenScore[] = [];
 
-  for (let idx = 0; idx < botTokens.length; idx++) {
-    const token = botTokens[idx];
+  for (let idx = 0; idx < movableBotTokens.length; idx++) {
+    const token = movableBotTokens[idx];
     let feasibilityScore = 0;
     let finalCoord: TCoordinate | null = null;
 
@@ -1037,6 +1111,7 @@ function executeMove(
 
   if (hasTokenReachedHome) {
     token.hasTokenReachedHome = true;
+    token.isLocked = true;
     token.coordinates = getHomeCoordForColour(colour);
   }
 
@@ -1073,7 +1148,7 @@ function executeMove(
   if (hasPlayerWon) {
     state.status = 'ended';
     state.winnerColour = colour;
-    state.terminateAfterTicks = state.tickCount + 1200; // 20 seconds at 60Hz
+    state.terminateAfterTicks = state.tickCount + 3600; // 60 seconds at 60Hz for rematch window
     state.rematchAccepted = [];
     dispatcher.broadcastMessage(204, JSON.stringify({
       winnerColour: colour
@@ -1131,19 +1206,10 @@ function matchLoop(
 
   // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
   // This guarantees clients get STATE_SYNC even if the initial matchJoin push was lost.
-  if (tick - s.lastStateSyncTick >= 300) {
+  // Only broadcast during active play (not after match ends) to prevent score inflation.
+  if (s.status === 'playing' && tick - s.lastStateSyncTick >= 300) {
     s.lastStateSyncTick = tick;
-    dispatcher.broadcastMessage(200, JSON.stringify({
-      roomId: s.roomId,
-      players: s.players,
-      playerSequence: s.playerSequence,
-      currentTurnColour: s.playerSequence[s.currentTurnIndex],
-      diceNumber: s.diceNumber,
-      hasRolled: s.hasRolled,
-      consecutiveSixes: s.consecutiveSixes,
-      turnDeadlineMs: s.turnDeadlineMs,
-      status: s.status
-    }));
+    broadcastStateSync(dispatcher, s);
   }
 
   if (s.status === 'ended') {
@@ -1219,17 +1285,7 @@ function matchLoop(
               }
 
               // Broadcast STATE_SYNC (OpCode 200) to reset all clients
-              dispatcher.broadcastMessage(200, JSON.stringify({
-                roomId: s.roomId,
-                players: s.players,
-                playerSequence: s.playerSequence,
-                currentTurnColour: s.playerSequence[s.currentTurnIndex],
-                diceNumber: s.diceNumber,
-                hasRolled: s.hasRolled,
-                consecutiveSixes: s.consecutiveSixes,
-                turnDeadlineMs: s.turnDeadlineMs,
-                status: s.status
-              }));
+              broadcastStateSync(dispatcher, s);
             }
           } else if (opCode === 103) {
             // Declined: terminate early
@@ -1245,39 +1301,6 @@ function matchLoop(
     return { state: s };
   }
 
-  // 1. Bot takeover transition countdown
-  for (const userId in s.botTakeoverTicks) {
-    if (tick >= s.botTakeoverTicks[userId]) {
-      let player: TPlayer | null = null;
-      for (let i = 0; i < s.players.length; i++) {
-        if (s.players[i].userId === userId) {
-          player = s.players[i];
-          break;
-        }
-      }
-      if (player) {
-        player.isBot = true;
-        if (player.name.indexOf(' (Bot)') === -1) {
-          player.name += ' (Bot)';
-        }
-        
-        // Broadcast standard state sync with new bot state
-        dispatcher.broadcastMessage(200, JSON.stringify({
-          roomId: s.roomId,
-          players: s.players,
-          playerSequence: s.playerSequence,
-          currentTurnColour: s.playerSequence[s.currentTurnIndex],
-          diceNumber: s.diceNumber,
-          hasRolled: s.hasRolled,
-          consecutiveSixes: s.consecutiveSixes,
-          turnDeadlineMs: s.turnDeadlineMs,
-          status: s.status
-        }));
-      }
-      delete s.botTakeoverTicks[userId];
-    }
-  }
-
   // 2. Turn Change Delay Handler (e.g. rolled a number with no moves)
   if (s.noMovableTokensTimer !== null) {
     if (Date.now() >= s.noMovableTokensTimer) {
@@ -1290,7 +1313,44 @@ function matchLoop(
 
 
   // 3. Process turn deadlines (timeout)
-  if (Date.now() >= s.turnDeadlineMs) {
+  const anyHumanNotJoined = s.players.some((p: any) => !p.isBot && p.id === "" && !p.hasQuit);
+  if (anyHumanNotJoined) {
+    if (Date.now() - s.matchInitTime < 10000) {
+      s.turnDeadlineMs = Date.now() + 15000;
+    } else {
+      // Eliminate human players who failed to join initially
+      for (let i = 0; i < s.players.length; i++) {
+        const p = s.players[i];
+        if (!p.isBot && p.id === "" && !p.hasQuit) {
+          p.hasQuit = true;
+          s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== p.colour; });
+        }
+      }
+      if (s.playerSequence.length > 0) {
+        s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+      }
+      
+      let activeHumanCount = 0;
+      let winnerColour: TPlayerColour = s.playerSequence[0];
+      for (let i = 0; i < s.players.length; i++) {
+        if (!s.players[i].isBot && !s.players[i].hasQuit) {
+          activeHumanCount++;
+          winnerColour = s.players[i].colour;
+        }
+      }
+
+      if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+        s.status = 'ended';
+        s.winnerColour = winnerColour;
+        s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
+        s.rematchAccepted = [];
+        dispatcher.broadcastMessage(204, JSON.stringify({
+          winnerColour: winnerColour
+        }));
+        return { state: s };
+      }
+    }
+  } else if (Date.now() >= s.turnDeadlineMs) {
     const currentColour = s.playerSequence[s.currentTurnIndex];
     let player: TPlayer | null = null;
     for (let i = 0; i < s.players.length; i++) {
@@ -1304,56 +1364,57 @@ function matchLoop(
       player.missedTurns = (player.missedTurns || 0) + 1;
       
       if (player.missedTurns >= 3) {
-        player.isBot = true;
-        if (player.name.indexOf(' (Bot)') === -1) {
-          player.name += ' (Bot)';
+        player.hasQuit = true;
+        
+        // Remove from playerSequence
+        s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== currentColour; });
+
+        // Adjust currentTurnIndex if needed
+        if (s.playerSequence.length > 0) {
+          s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
         }
-        // Broadcast standard state sync with new bot state
-        dispatcher.broadcastMessage(200, JSON.stringify({
-          roomId: s.roomId,
-          players: s.players,
-          playerSequence: s.playerSequence,
-          currentTurnColour: s.playerSequence[s.currentTurnIndex],
-          diceNumber: s.diceNumber,
-          hasRolled: s.hasRolled,
-          consecutiveSixes: s.consecutiveSixes,
-          turnDeadlineMs: s.turnDeadlineMs,
-          status: s.status
-        }));
-      }
-      
-      const allTokens: TToken[] = [];
-      for (let p = 0; p < s.players.length; p++) {
-        const pl = s.players[p];
-        if (pl.tokens) {
-          for (let t = 0; t < pl.tokens.length; t++) {
-            allTokens.push(pl.tokens[t]);
+
+        // Check if match should end
+        let activeHumanCount = 0;
+        let winnerColour: TPlayerColour = s.playerSequence[0];
+        for (let i = 0; i < s.players.length; i++) {
+          if (!s.players[i].isBot && !s.players[i].hasQuit) {
+            activeHumanCount++;
+            winnerColour = s.players[i].colour;
           }
+        }
+
+        if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+          s.status = 'ended';
+          s.winnerColour = winnerColour;
+          s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
+          s.rematchAccepted = [];
+          dispatcher.broadcastMessage(204, JSON.stringify({
+            winnerColour: winnerColour
+          }));
+          return { state: s };
+        } else {
+          // Transition next turn
+          nextTurn(s, dispatcher);
+          
+          // Broadcast state sync
+          broadcastStateSync(dispatcher, s);
+          return { state: s };
         }
       }
 
-      if (!s.hasRolled) {
-        executeRoll(s, dispatcher, currentColour);
-        if (s.noMovableTokensTimer === null) {
-          const bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-          if (bestToken) {
-            executeMove(s, dispatcher, currentColour, bestToken.id);
-          } else {
-            nextTurn(s, dispatcher);
-          }
-        }
-      } else {
-        const bestToken = selectBestBotToken(player, s.diceNumber, allTokens);
-        if (bestToken) {
-          executeMove(s, dispatcher, currentColour, bestToken.id);
-        } else {
-          nextTurn(s, dispatcher);
-        }
-      }
+      // Skip their turn cleanly: increment missedTurns, do NOT play as a bot,
+      // and transition immediately to the next player's turn.
+      nextTurn(s, dispatcher);
+
+      // Broadcast STATE_SYNC *after* skip turn transition so clients receive
+      // the updated missedTurns and the new turnDeadlineMs/currentTurnColour.
+      broadcastStateSync(dispatcher, s);
+      return { state: s };
     } else {
       nextTurn(s, dispatcher);
     }
-    return { state };
+    return { state: s };
   }
 
   // 4. Client Inputs
@@ -1408,24 +1469,14 @@ function matchLoop(
           if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
             s.status = 'ended';
             s.winnerColour = winnerColour;
-            s.terminateAfterTicks = tick + 1200;
+            s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
             s.rematchAccepted = [];
             dispatcher.broadcastMessage(204, JSON.stringify({
               winnerColour: winnerColour
             }));
           } else {
             // Broadcast state sync to notify others
-            dispatcher.broadcastMessage(200, JSON.stringify({
-              roomId: s.roomId,
-              players: s.players,
-              playerSequence: s.playerSequence,
-              currentTurnColour: s.playerSequence[s.currentTurnIndex],
-              diceNumber: s.diceNumber,
-              hasRolled: s.hasRolled,
-              consecutiveSixes: s.consecutiveSixes,
-              turnDeadlineMs: s.turnDeadlineMs,
-              status: s.status
-            }));
+            broadcastStateSync(dispatcher, s);
 
             // If it was the quitting player's turn, change turn
             const turnColour = s.playerSequence[s.currentTurnIndex];
@@ -1434,6 +1485,12 @@ function matchLoop(
             }
           }
         }
+        return;
+      }
+
+      // 1. Handle heartbeat ping at the very top (allow from any connected player)
+      if (opCode === 102) { // INPUT_PING / HEARTBEAT
+        dispatcher.broadcastMessage(102, "", [message.sender]);
         return;
       }
 
@@ -1463,6 +1520,10 @@ function matchLoop(
       }
 
       if (!currentPlayer || currentPlayer.id !== message.sender.sessionId) {
+        // Reject out-of-turn actions to clear visual placeholder/rolling states on the client
+        if (opCode === 100) {
+          dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Not your turn" }), [message.sender]);
+        }
         return;
       }
 
@@ -1472,11 +1533,18 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
-        executeRoll(s, dispatcher, currentColour);
+        let forcedRoll: number | undefined = undefined;
+        try {
+          const payload = JSON.parse(nk.binaryToString(message.data));
+          if (typeof payload.forcedRoll === 'number' && payload.forcedRoll >= 1 && payload.forcedRoll <= 6) {
+            forcedRoll = payload.forcedRoll;
+          }
+        } catch (e) {}
+
+        executeRoll(s, dispatcher, currentColour, forcedRoll);
       } 
       else if (opCode === 101) { // INPUT_MOVE_TOKEN
         if (!s.hasRolled) {
-          dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Roll first" }), [message.sender]);
           return;
         }
         let data: any = {};
@@ -1511,9 +1579,6 @@ function matchLoop(
         }
 
         executeMove(s, dispatcher, currentColour, tokenId);
-      }
-      else if (opCode === 102) { // INPUT_PING / HEARTBEAT
-        dispatcher.broadcastMessage(102, "", [message.sender]);
       }
     } catch (e) {
       logger.error("Error processing message in matchLoop: %v", e);
