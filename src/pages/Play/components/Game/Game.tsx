@@ -23,7 +23,7 @@ import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { AppDispatch, RootState } from '../../../../state/store';
-import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling, setForcedRoll } from '../../../../state/slices/diceSlice';
+import { registerDice, setDiceNumberDirect, setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
 import { handlePostDiceRollThunk } from '../../../../state/thunks/handlePostDiceRollThunk';
 import GameFinishedScreen from '../GameFinishedScreen/GameFinishedScreen';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
@@ -827,92 +827,6 @@ function Game({
       setTimeout(() => navigate('/setup'), 0);
     }
   };
-
-  // Global keypad event listener to preset forcedRoll for testing
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      if (isGameEnded) return;
-
-      // Ignore keydown if user is typing in input or textarea
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
-
-      let num = NaN;
-      if (e.code && e.code.startsWith('Digit')) {
-        num = parseInt(e.code.substring(5), 10);
-      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
-        num = parseInt(e.code.substring(6), 10);
-      } else {
-        const parsed = parseInt(e.key, 10);
-        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
-          num = parsed;
-        }
-      }
-
-      if (!isNaN(num) && num >= 1 && num <= 6) {
-        if (isOnline) {
-          // ─── ONLINE MODE: bypass the HTML button entirely ─────────────────────
-          // HTML-disabled buttons silently swallow programmatic .click() calls,
-          // which is why the previous btn.click() approach never worked in Live Match.
-          // Instead, we read stable refs to avoid stale closures and send OpCode 100
-          // directly to Nakama with the forcedRoll payload if it is our turn.
-          const currentRoomId = roomIdRef.current;
-          const myColour = myPlayerColourRef.current;
-          const freshState = store.getState();
-          const isMyTurn = freshState.players.currentPlayerColour === myColour;
-          const alreadyRolling = freshState.dice.dice.some(
-            (d) => d.isPlaceholderShowing || d.isVisualRolling
-          );
-          const hasAlreadyRolled = freshState.dice.dice.find(
-            (d) => d.colour === myColour
-          )?.diceNumber ?? -1;
-
-          // Only trigger if it is genuinely our turn and we haven't rolled yet
-          if (isMyTurn && !alreadyRolling && hasAlreadyRolled === -1 && currentRoomId) {
-            toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
-
-            // Show the rolling animation optimistically
-            dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: true }));
-            dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: true }));
-            if (diceRollStartTimestampRef.current === 0) {
-              diceRollStartTimestampRef.current = Date.now();
-            }
-
-            try {
-              getNakamaSocket().sendMatchState(currentRoomId, 100, JSON.stringify({ forcedRoll: num }));
-            } catch (err) {
-              console.error('[KEYBOARD OVERRIDE] Failed to send forced roll:', err);
-              dispatch(setIsPlaceholderShowing({ colour: myColour, isPlaceholderShowing: false }));
-              dispatch(setIsVisualRolling({ colour: myColour, isVisualRolling: false }));
-              diceRollStartTimestampRef.current = 0;
-            }
-          }
-        } else {
-          // ─── OFFLINE MODE: use Redux forcedRoll + btn.click() ────────────────
-          dispatch(setForcedRoll(num));
-          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
-
-          // In offline mode the button is never HTML-disabled when it's your turn,
-          // so btn.click() works correctly here.
-          const activeColour = currentPlayerColour;
-          if (activeColour) {
-            setTimeout(() => {
-              const btn = document.getElementById(`dice-btn-${activeColour}`) as HTMLButtonElement | null;
-              if (btn && !btn.disabled) {
-                btn.click();
-              }
-            }, 50);
-          }
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  // Use stable refs for roomId and myPlayerColour to avoid stale closure bugs.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, isGameEnded, isOnline, currentPlayerColour, store]);
 
   // Determine if the local player is the host (lowest session_id alphabetically)
   const amHostValue = useMemo(() => {

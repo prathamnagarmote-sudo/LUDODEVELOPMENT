@@ -110,6 +110,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (isGameEnded) return;
+
+      // Ignore keydown if user is typing in input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
 
       const canControlThisDice = onlineContext?.isOnline 
         ? (colour === onlineContext.myPlayerColour && isCurrentPlayer)
@@ -117,13 +123,34 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
 
       if (!canControlThisDice) return;
 
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        if (!isDiceDisabled) {
+          dispatch(setForcedRoll(num));
+          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+          handleDiceClick();
+        }
+        return;
+      }
+
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer]);
+  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer, isGameEnded, dispatch]);
 
   const missedTurns = playerObj?.missedTurns ?? 0;
   const avatarUrl = playerObj?.avatarUrl;
@@ -163,6 +190,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
       setCanShowArrow(false);
     }
   }, [
+    colour,
     isCurrentPlayer,
     isMyTurn,
     anyTokenActive,
