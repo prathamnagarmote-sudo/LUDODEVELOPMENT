@@ -31,10 +31,10 @@
   border-radius: 0;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.4s ease, box-shadow 0.4s ease;
+  transition: opacity 0.4s ease, box-shadow 0.4s ease, background-color 0.4s ease;
   z-index: 1;
   /* Above board image, below tokens */
-  mix-blend-mode: color-dodge;
+  mix-blend-mode: normal;
   box-sizing: border-box;
 }
 
@@ -46,44 +46,48 @@
 .paddockGlow.red {
   top: 0;
   left: 0;
-  box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.8), inset 0 0 20px rgba(239, 68, 68, 0.5);
-  border: 3.5px solid rgba(239, 68, 68, 0.85);
+  background-color: rgba(239, 68, 68, 0.25);
+  box-shadow: inset 0 0 80px rgba(239, 68, 68, 1), inset 0 0 30px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.8);
+  border: 4px solid rgba(239, 68, 68, 1);
   border-top-left-radius: 0px;
 }
 
 .paddockGlow.green {
   top: 0;
   right: 0;
-  box-shadow: inset 0 0 60px rgba(34, 197, 94, 0.8), inset 0 0 20px rgba(34, 197, 94, 0.5);
-  border: 3.5px solid rgba(34, 197, 94, 0.85);
+  background-color: rgba(34, 197, 94, 0.25);
+  box-shadow: inset 0 0 80px rgba(34, 197, 94, 1), inset 0 0 30px rgba(34, 197, 94, 0.8), 0 0 20px rgba(34, 197, 94, 0.8);
+  border: 4px solid rgba(34, 197, 94, 1);
   border-top-right-radius: 0px;
 }
 
 .paddockGlow.yellow {
   bottom: 0;
   right: 0;
-  box-shadow: inset 0 0 60px rgba(234, 179, 8, 0.8), inset 0 0 20px rgba(234, 179, 8, 0.5);
-  border: 3.5px solid rgba(234, 179, 8, 0.85);
+  background-color: rgba(234, 179, 8, 0.25);
+  box-shadow: inset 0 0 80px rgba(234, 179, 8, 1), inset 0 0 30px rgba(234, 179, 8, 0.8), 0 0 20px rgba(234, 179, 8, 0.8);
+  border: 4px solid rgba(234, 179, 8, 1);
   border-bottom-right-radius: 0px;
 }
 
 .paddockGlow.blue {
   bottom: 0;
   left: 0;
-  box-shadow: inset 0 0 60px rgba(59, 130, 246, 0.8), inset 0 0 20px rgba(59, 130, 246, 0.5);
-  border: 3.5px solid rgba(59, 130, 246, 0.85);
+  background-color: rgba(59, 130, 246, 0.25);
+  box-shadow: inset 0 0 80px rgba(59, 130, 246, 1), inset 0 0 30px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.8);
+  border: 4px solid rgba(59, 130, 246, 1);
   border-bottom-left-radius: 0px;
 }
 
 @keyframes pulseGlow {
   0% {
-    opacity: 0.45;
-    filter: brightness(0.95);
+    opacity: 0.6;
+    filter: brightness(1);
   }
 
   100% {
-    opacity: 0.95;
-    filter: brightness(1.35);
+    opacity: 1;
+    filter: brightness(1.5);
   }
 }
 

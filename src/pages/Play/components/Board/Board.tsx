@@ -1,5 +1,6 @@
 import boardSvg from '../../../../assets/board.svg';
 import Token from '../Token/Token';
+import clsx from 'clsx';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../../../state/store';
 import { useCallback, useState, useContext } from 'react';
@@ -90,6 +91,17 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
         </defs>
       </svg>
       <img src={boardSvg} className={styles.boardImage} aria-hidden="true" />
+
+      {['red', 'green', 'yellow', 'blue'].map((color) => (
+        <div
+          key={color}
+          className={clsx(
+            styles.paddockGlow,
+            styles[color],
+            currentPlayerColour === color && styles.active
+          )}
+        />
+      ))}
 
       {players.map((p) =>
         p.tokens.map((t) => (

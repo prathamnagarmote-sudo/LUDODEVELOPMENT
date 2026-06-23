@@ -44,6 +44,8 @@ function Token({ colour, id, tokenClickData }: Props) {
   const numberOfConsecutiveSix = useSelector((state: RootState) =>
     state.players.players.find((p) => p.colour === colour)?.numberOfConsecutiveSix ?? 0
   );
+  const currentPlayerColour = useSelector((state: RootState) => state.players.currentPlayerColour);
+  const isCurrentPlayerTurn = currentPlayerColour === colour;
   const tokenClickDataRef = useRef(tokenClickData);
   const [isCurrentlyFocused, setIsCurrentlyFocused] = useState(false);
   const tokenElRef = useRef<HTMLButtonElement | null>(null);
@@ -207,7 +209,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   return (
     <button
       id={getTokenDOMId(colour, id)}
-      className={styles.token}
+      className={clsx(styles.token, isCurrentPlayerTurn && styles.activePlayerHighlight)}
       tabIndex={isActive ? undefined : -1}
       onFocus={() => setIsCurrentlyFocused(true)}
       onBlur={() => setIsCurrentlyFocused(false)}
