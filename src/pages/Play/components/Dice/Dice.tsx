@@ -178,15 +178,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     !isPlaceholderShowing;
 
   if (isCurrentPlayer && isMyTurn) {
-    console.log(`[DICE ARROW DEBUG] colour=${colour} canShowArrow=${canShowArrow} conditions:`, {
-      isCurrentPlayer,
-      isMyTurn,
-      anyTokenActive,
-      isAnyTokenMoving,
-      isGameEnded,
-      isPlaceholderShowing,
-      diceNumber
-    });
+    // Debug logs removed to prevent render loop performance overhead
   }
 
   const avatarContent = (
