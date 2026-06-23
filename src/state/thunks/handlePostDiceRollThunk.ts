@@ -4,6 +4,7 @@ import {
   incrementNumberOfConsecutiveSix,
   resetNumberOfConsecutiveSix,
 } from '../slices/playersSlice';
+import { renewRollBag } from '../slices/diceSlice';
 import { type TPlayerColour } from '../../types';
 import type { AppDispatch, RootState } from '../store';
 import { areCoordsEqual } from '../../game/coords/logic';
@@ -34,6 +35,7 @@ export const handlePostDiceRollThunk = (
     if (player.numberOfConsecutiveSix === 3) {
       dispatch(resetNumberOfConsecutiveSix(colour));
       dispatch(deactivateAllTokens(colour));
+      dispatch(renewRollBag(colour));
       if (player.isBot) await sleep(500);
       dispatch(changeTurnThunk(moveAndCapture));
       return { moveData: null, shouldContinue: false };

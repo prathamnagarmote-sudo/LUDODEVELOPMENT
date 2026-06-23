@@ -361,7 +361,7 @@ function matchInit(ctx, logger, nk, params) {
             noMovableTokensTimer: null,
             rematchAccepted: [],
             terminateAfterTicks: null,
-            lastStateSyncTick: 0,
+            lastStateSyncTick: 0, // track when we last broadcast periodic STATE_SYNC
             matchInitTime: Date.now(),
             // Pending turn-change: the server schedules OpCode 203 to be broadcast
             // AFTER the token animation duration so clients receive it once the
@@ -647,6 +647,7 @@ function executeRoll(state, dispatcher, colour, forcedRoll, skipBroadcast206) {
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
         state.noMovableTokensTimer = Date.now() + 400;
+        state.rollBags[colour] = generateRollBag();
     }
     else if (!hasMovableTokens) {
         state.noMovableTokensTimer = Date.now() + 400;
