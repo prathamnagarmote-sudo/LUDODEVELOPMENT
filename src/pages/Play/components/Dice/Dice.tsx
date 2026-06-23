@@ -110,6 +110,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (isGameEnded) return;
+
+      // Ignore keydown if user is typing in input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
 
       const canControlThisDice = onlineContext?.isOnline 
         ? (colour === onlineContext.myPlayerColour && isCurrentPlayer)
@@ -117,13 +123,34 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
 
       if (!canControlThisDice) return;
 
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        if (!isDiceDisabled) {
+          dispatch(setForcedRoll(num));
+          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+          handleDiceClick();
+        }
+        return;
+      }
+
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer]);
+  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer, isGameEnded, dispatch]);
 
   const missedTurns = playerObj?.missedTurns ?? 0;
   const avatarUrl = playerObj?.avatarUrl;
@@ -133,14 +160,34 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
-  const showRollArrow =
+  const lastRolledDiceNumberRef = useRef<number>(1);
+  if (diceNumber !== undefined && diceNumber !== -1) {
+    lastRolledDiceNumberRef.current = diceNumber;
+  }
+
+  const displayDiceNumber = (diceNumber === -1 || diceNumber === undefined)
+    ? lastRolledDiceNumberRef.current
+    : diceNumber;
+
+  const canShowArrow =
     isCurrentPlayer &&
     isMyTurn &&
     !anyTokenActive &&
     !isAnyTokenMoving &&
     !isGameEnded &&
-    !isPlaceholderShowing &&
-    (diceNumber === -1 || diceNumber === undefined);
+    !isPlaceholderShowing;
+
+  if (isCurrentPlayer && isMyTurn) {
+    console.log(`[DICE ARROW DEBUG] colour=${colour} canShowArrow=${canShowArrow} conditions:`, {
+      isCurrentPlayer,
+      isMyTurn,
+      anyTokenActive,
+      isAnyTokenMoving,
+      isGameEnded,
+      isPlaceholderShowing,
+      diceNumber
+    });
+  }
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>
@@ -235,12 +282,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             <div
               className={clsx(styles.cube, {
                 [styles.rollingCube]: isPlaceholderShowing,
-                [styles.show1]: !isPlaceholderShowing && diceNumber === 1,
-                [styles.show2]: !isPlaceholderShowing && diceNumber === 2,
-                [styles.show3]: !isPlaceholderShowing && diceNumber === 3,
-                [styles.show4]: !isPlaceholderShowing && diceNumber === 4,
-                [styles.show5]: !isPlaceholderShowing && diceNumber === 5,
-                [styles.show6]: !isPlaceholderShowing && diceNumber === 6,
+                [styles.show1]: !isPlaceholderShowing && displayDiceNumber === 1,
+                [styles.show2]: !isPlaceholderShowing && displayDiceNumber === 2,
+                [styles.show3]: !isPlaceholderShowing && displayDiceNumber === 3,
+                [styles.show4]: !isPlaceholderShowing && displayDiceNumber === 4,
+                [styles.show5]: !isPlaceholderShowing && displayDiceNumber === 5,
+                [styles.show6]: !isPlaceholderShowing && displayDiceNumber === 6,
               })}
             >
               <div className={clsx(styles.face, styles.front)}>
@@ -328,7 +375,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           </div>
         </>
       )}
-      {showRollArrow && (
+      {canShowArrow && (
         <div className={styles.woodenArrowWrapper}>
           <svg
             className={styles.woodenArrow}

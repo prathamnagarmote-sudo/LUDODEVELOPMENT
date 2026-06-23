@@ -425,7 +425,17 @@ function matchInit(
       rematchAccepted: [] as TPlayerColour[],
       terminateAfterTicks: null as number | null,
       lastStateSyncTick: 0,  // track when we last broadcast periodic STATE_SYNC
-      matchInitTime: Date.now()
+      matchInitTime: Date.now(),
+      // Pending turn-change: the server schedules OpCode 203 to be broadcast
+      // AFTER the token animation duration so clients receive it once the
+      // animation is visually complete. This eliminates the latency desync
+      // where one client sees the next turn arrow before the opponent's
+      // token has finished moving.
+      pendingTurnChange: null as {
+        nextTurnColour: TPlayerColour;
+        broadcastAtMs: number;
+        newDeadlineMs: number;
+      } | null
     };
 
     return {
@@ -476,7 +486,8 @@ function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presen
     consecutiveSixes: state.consecutiveSixes,
     turnDeadlineMs: state.turnDeadlineMs,
     turnRemainingMs: turnRemainingMs,
-    status: state.status
+    status: state.status,
+    serverNowMs: Date.now()
   }), [presence]);
 }
 
@@ -492,7 +503,8 @@ function broadcastStateSync(dispatcher: nkruntime.MatchDispatcher, state: any) {
     consecutiveSixes: state.consecutiveSixes,
     turnDeadlineMs: state.turnDeadlineMs,
     turnRemainingMs: turnRemainingMs,
-    status: state.status
+    status: state.status,
+    serverNowMs: Date.now()
   }));
 }
 
@@ -545,31 +557,103 @@ function matchLeave(
   presences: nkruntime.Presence[]
 ): {state: nkruntime.MatchState} | null {
   const s = state as any;
+  if (s.status === 'ended') {
+    return { state: s };
+  }
+
   for (let p = 0; p < presences.length; p++) {
     const presence = presences[p];
     logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
+    
+    for (let i = 0; i < s.players.length; i++) {
+      if (s.players[i].userId === presence.userId) {
+        s.players[i].hasQuit = true;
+        s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== s.players[i].colour; });
+      }
+    }
   }
+
+  if (s.playerSequence.length > 0) {
+    s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+  }
+
+  let activeHumanCount = 0;
+  let winnerColour: TPlayerColour = s.playerSequence[0];
+  for (let i = 0; i < s.players.length; i++) {
+    if (!s.players[i].isBot && !s.players[i].hasQuit) {
+      activeHumanCount++;
+      winnerColour = s.players[i].colour;
+    }
+  }
+
+  if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+    s.status = 'ended';
+    s.winnerColour = winnerColour;
+    s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
+    s.rematchAccepted = [];
+    
+    let quitterColour: TPlayerColour | undefined;
+    if (presences.length > 0) {
+      const leftPlayer = s.players.find(function(pl: any) { return pl.userId === presences[0].userId; });
+      if (leftPlayer) {
+        quitterColour = leftPlayer.colour;
+      }
+    }
+
+    dispatcher.broadcastMessage(204, JSON.stringify({
+      winnerColour: winnerColour,
+      quitterColour: quitterColour
+    }));
+  } else {
+    // If turn changed because active player left, change turn
+    const turnColour = s.playerSequence[s.currentTurnIndex];
+    const leftColours = presences.map(function(pres) {
+      const pl = s.players.find(function(p: any) { return p.userId === pres.userId; });
+      return pl ? pl.colour : null;
+    }).filter(Boolean);
+    
+    if (leftColours.indexOf(turnColour) !== -1) {
+      nextTurn(s, dispatcher);
+    }
+    
+    broadcastStateSync(dispatcher, s);
+  }
+
   return { state: s };
 }
 
-function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher, animDuration: number = 0) {
-  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
-  const nextColour = state.playerSequence[state.currentTurnIndex];
-  
+// Broadcast turn-change (OpCode 203) IMMEDIATELY when the turn changes.
+// The client handles visual overlap correctly — non-blocking remote animations
+// continue playing while the next player's turn arrow appears and they can roll.
+// This eliminates 50-1500ms+ of server-side holding time per turn.
+function broadcastTurnChange(
+  state: any,
+  dispatcher: nkruntime.MatchDispatcher,
+  nextColour: TPlayerColour
+) {
+  const newDeadlineMs = Date.now() + 15000;
+  state.turnDeadlineMs = newDeadlineMs;
   state.diceNumber = -1;
   state.hasRolled = false;
   state.consecutiveSixes = 0;
-  state.turnDeadlineMs = Date.now() + 15000 + animDuration;
   state.botRollTick = null;
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
+  state.pendingTurnChange = null;
 
-  const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
+  const turnRemainingMs = 15000;
   dispatcher.broadcastMessage(203, JSON.stringify({
     nextTurnColour: nextColour,
-    deadlineMs: state.turnDeadlineMs,
-    turnRemainingMs: turnRemainingMs
+    deadlineMs: newDeadlineMs,
+    turnRemainingMs: turnRemainingMs,
+    serverNowMs: Date.now()
   }));
+}
+
+function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher) {
+  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
+  const nextColour = state.playerSequence[state.currentTurnIndex];
+  broadcastTurnChange(state, dispatcher, nextColour);
 }
 
 function resolvePostMoveTurnHandoff(
@@ -578,32 +662,37 @@ function resolvePostMoveTurnHandoff(
   colour: TPlayerColour,
   diceNumber: number,
   hasTokenReachedHome: boolean,
-  isCaptured: boolean,
-  animDuration: number = 0
+  isCaptured: boolean
 ) {
   const getsAnotherTurn = (diceNumber === 6 && state.consecutiveSixes < 3) || isCaptured || hasTokenReachedHome;
   
   if (getsAnotherTurn) {
-    state.diceNumber = -1;
-    state.hasRolled = false;
-    state.turnDeadlineMs = Date.now() + 15000 + animDuration;
-    state.botRollTick = null;
-    state.botMoveTick = null;
-    state.noMovableTokensTimer = null;
-
-    const turnRemainingMs = Math.max(0, state.turnDeadlineMs - Date.now());
-    dispatcher.broadcastMessage(203, JSON.stringify({
-      nextTurnColour: colour,
-      deadlineMs: state.turnDeadlineMs,
-      turnRemainingMs: turnRemainingMs
-    }));
+    // Same player gets another turn — broadcast immediately
+    broadcastTurnChange(state, dispatcher, colour);
   } else {
     state.consecutiveSixes = 0;
-    nextTurn(state, dispatcher, animDuration);
+    nextTurn(state, dispatcher);
   }
 }
 
-function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour, forcedRoll?: number) {
+function executeRoll(
+  state: any,
+  dispatcher: nkruntime.MatchDispatcher,
+  colour: TPlayerColour,
+  forcedRoll?: number,
+  skipBroadcast206: boolean = false
+) {
+  // DICE_ROLL_START — broadcast as the very first action so ALL call paths
+  // (player roll, auto-move, turn-timeout roll) immediately notify every device.
+  // The matchLoop also sends this for the normal player-roll path; a duplicate
+  // 206 on the client is harmless (client ignores it if already rolling).
+  if (!skipBroadcast206) {
+    dispatcher.broadcastMessage(206, JSON.stringify({
+      colour: colour,
+      rollStartedAtMs: Date.now()
+    }));
+  }
+
   if (!state.rollBags) {
     state.rollBags = {
       blue: generateRollBag(),
@@ -671,7 +760,8 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
   dispatcher.broadcastMessage(201, JSON.stringify({
     roll: roll,
     colour: colour,
-    hasMovableTokens: hasMovableTokens
+    hasMovableTokens: hasMovableTokens,
+    serverNowMs: Date.now()
   }));
 
   let shouldAutoMove = false;
@@ -693,11 +783,24 @@ function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: 
 
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
-    state.noMovableTokensTimer = Date.now() + 1500;
+    state.noMovableTokensTimer = Date.now() + 400;
   } else if (!hasMovableTokens) {
-    state.noMovableTokensTimer = Date.now() + 1500;
+    state.noMovableTokensTimer = Date.now() + 400;
   } else if (shouldAutoMove && autoMoveToken) {
-    executeMove(state, dispatcher, colour, autoMoveToken.id);
+    // Broadcast TOKEN_MOVE_START (207) before executing auto-move so observer
+    // devices can start the token animation at the exact same moment.
+    const autoToken = autoMoveToken;
+    const { path: autoPath } = computeMoveResult(autoToken, roll, state.players);
+    const autoStepCount = (autoToken.isLocked && roll === 6) ? 1 : autoPath.length;
+    dispatcher.broadcastMessage(207, JSON.stringify({
+      colour: colour,
+      tokenId: autoToken.id,
+      diceNumber: roll,
+      stepCount: autoStepCount,
+      isUnlock: autoToken.isLocked && roll === 6,
+      moveStartedAtMs: Date.now()
+    }));
+    executeMove(state, dispatcher, colour, autoToken.id, true);
   } else {
     state.turnDeadlineMs = Date.now() + 15000;
   }
@@ -1063,7 +1166,8 @@ function executeMove(
   state: any,
   dispatcher: nkruntime.MatchDispatcher,
   colour: TPlayerColour,
-  tokenId: number
+  tokenId: number,
+  skipBroadcast207: boolean = false
 ) {
   let player: TPlayer | null = null;
   for (let i = 0; i < state.players.length; i++) {
@@ -1082,9 +1186,43 @@ function executeMove(
     }
   }
   if (!token) return;
-  const wasLocked = token.isLocked;
 
   const roll = state.diceNumber;
+
+  // TOKEN_MOVE_START — broadcast as the very first action before any state
+  // mutations so all devices (player + observer) begin the animation at the
+  // exact same moment. stepCount lets the observer animate the correct number
+  // of steps without waiting for OpCode 202 to confirm the final position.
+  // The matchLoop and the auto-move path in executeRoll may also send 207;
+  // a duplicate on the client is harmless (second 207 for the same token is
+  // ignored if the animation is already running).
+  if (!skipBroadcast207) {
+    const earlyAllTokens: TToken[] = [];
+    for (let ep = 0; ep < state.players.length; ep++) {
+      const epl = state.players[ep];
+      if (epl.tokens) {
+        for (let et = 0; et < epl.tokens.length; et++) {
+          earlyAllTokens.push(epl.tokens[et]);
+        }
+      }
+    }
+    const isUnlockEarly = token.isLocked && roll === 6;
+    let earlyStepCount = 1;
+    if (!isUnlockEarly) {
+      const { path: earlyPath } = computeMoveResult(token, roll, state.players);
+      earlyStepCount = earlyPath.length;
+    }
+    dispatcher.broadcastMessage(207, JSON.stringify({
+      colour: colour,
+      tokenId: tokenId,
+      diceNumber: roll,
+      stepCount: earlyStepCount,
+      isUnlock: isUnlockEarly,
+      moveStartedAtMs: Date.now()
+    }));
+  }
+
+  const wasLocked = token.isLocked;
   const allTokens: TToken[] = [];
   for (let p = 0; p < state.players.length; p++) {
     const pl = state.players[p];
@@ -1142,7 +1280,8 @@ function executeMove(
     isCaptured: isCaptured,
     hasPlayerWon: hasPlayerWon,
     capturedTokenColour: capturedTokenColour,
-    capturedTokenId: capturedTokenId
+    capturedTokenId: capturedTokenId,
+    serverNowMs: Date.now()
   }));
 
   if (hasPlayerWon) {
@@ -1156,40 +1295,9 @@ function executeMove(
     return;
   }
 
-  // Calculate animation duration
-  let forwardDuration = 0;
-  const isUnlock = wasLocked && roll === 6 && path.length === 1;
-  if (isUnlock) {
-    forwardDuration = 300;
-  } else {
-    forwardDuration = path.length * 300;
-  }
-
-  let captureDuration = 0;
-  if (isCaptured && capturedTokenColour && typeof capturedTokenId === 'number') {
-    const dest = token.coordinates;
-    for (let k = 0; k < allTokens.length; k++) {
-      const oppToken = allTokens[k];
-      if (oppToken.colour === capturedTokenColour && oppToken.id === capturedTokenId) {
-        const oppPath = tokenPaths[oppToken.colour as TPlayerColour];
-        let oppIndex = -1;
-        for (let i = 0; i < oppPath.length; i++) {
-          if (areCoordsEqual(oppPath[i], dest)) {
-            oppIndex = i;
-            break;
-          }
-        }
-        if (oppIndex !== -1) {
-          captureDuration = oppIndex * 100;
-        }
-        break;
-      }
-    }
-  }
-
-  const animDuration = forwardDuration + captureDuration + 200; // 200ms safety buffer
-
-  resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured, animDuration);
+  // Broadcast turn change immediately — no animation delay needed.
+  // The client handles visual overlap correctly via non-blocking animations.
+  resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 
 function matchLoop(
@@ -1274,6 +1382,7 @@ function matchLoop(
               s.botRollTick = null;
               s.botMoveTick = null;
               s.noMovableTokensTimer = null;
+              s.pendingTurnChange = null;
               s.rematchAccepted = [];
               s.terminateAfterTicks = null;
 
@@ -1310,7 +1419,19 @@ function matchLoop(
     return { state };
   }
 
-
+  // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
+  // Kept as a safety net: if any code path accidentally sets pendingTurnChange,
+  // broadcast it immediately rather than holding it.
+  if (s.pendingTurnChange !== null) {
+    const turnChange = s.pendingTurnChange;
+    s.pendingTurnChange = null;
+    const turnRemainingMs = Math.max(0, turnChange.newDeadlineMs - Date.now());
+    dispatcher.broadcastMessage(203, JSON.stringify({
+      nextTurnColour: turnChange.nextTurnColour,
+      deadlineMs: turnChange.newDeadlineMs,
+      turnRemainingMs: turnRemainingMs
+    }));
+  }
 
   // 3. Process turn deadlines (timeout)
   const anyHumanNotJoined = s.players.some((p: any) => !p.isBot && p.id === "" && !p.hasQuit);
@@ -1344,8 +1465,14 @@ function matchLoop(
         s.winnerColour = winnerColour;
         s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
         s.rematchAccepted = [];
+        let quitterColour: TPlayerColour | undefined;
+        const failedPlayer = s.players.find(function(p: any) { return !p.isBot && p.id === "" && p.hasQuit; });
+        if (failedPlayer) {
+          quitterColour = failedPlayer.colour;
+        }
         dispatcher.broadcastMessage(204, JSON.stringify({
-          winnerColour: winnerColour
+          winnerColour: winnerColour,
+          quitterColour: quitterColour
         }));
         return { state: s };
       }
@@ -1390,7 +1517,8 @@ function matchLoop(
           s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
           s.rematchAccepted = [];
           dispatcher.broadcastMessage(204, JSON.stringify({
-            winnerColour: winnerColour
+            winnerColour: winnerColour,
+            quitterColour: currentColour
           }));
           return { state: s };
         } else {
@@ -1472,7 +1600,8 @@ function matchLoop(
             s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
             s.rematchAccepted = [];
             dispatcher.broadcastMessage(204, JSON.stringify({
-              winnerColour: winnerColour
+              winnerColour: winnerColour,
+              quitterColour: senderColour
             }));
           } else {
             // Broadcast state sync to notify others
@@ -1490,7 +1619,16 @@ function matchLoop(
 
       // 1. Handle heartbeat ping at the very top (allow from any connected player)
       if (opCode === 102) { // INPUT_PING / HEARTBEAT
-        dispatcher.broadcastMessage(102, "", [message.sender]);
+        try {
+          const content = nk.binaryToString(message.data);
+          const payload = JSON.parse(content);
+          dispatcher.broadcastMessage(102, JSON.stringify({
+            clientTime: payload.clientTime || 0,
+            serverTime: Date.now()
+          }), [message.sender]);
+        } catch (e) {
+          dispatcher.broadcastMessage(102, "", [message.sender]);
+        }
         return;
       }
 
@@ -1533,6 +1671,13 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
+
+        // Broadcast DICE_ROLL_START immediately to sync start times on all devices
+        dispatcher.broadcastMessage(206, JSON.stringify({
+          colour: currentColour,
+          rollStartedAtMs: Date.now()
+        }));
+
         let forcedRoll: number | undefined = undefined;
         try {
           const payload = JSON.parse(nk.binaryToString(message.data));
@@ -1541,7 +1686,7 @@ function matchLoop(
           }
         } catch (e) {}
 
-        executeRoll(s, dispatcher, currentColour, forcedRoll);
+        executeRoll(s, dispatcher, currentColour, forcedRoll, true);
       } 
       else if (opCode === 101) { // INPUT_MOVE_TOKEN
         if (!s.hasRolled) {
@@ -1578,7 +1723,23 @@ function matchLoop(
           return;
         }
 
-        executeMove(s, dispatcher, currentColour, tokenId);
+        // ─── TOKEN_MOVE_START (OpCode 207) ────────────────────────────────────────
+        // Broadcast BEFORE executing the move so observer devices can begin the
+        // token animation at the EXACT same moment the roller sees it move.
+        // stepCount is the authoritative path length so the observer animation
+        // matches exactly what OpCode 202 will confirm — no stutter on reconcile.
+        const { path: previewPath } = computeMoveResult(token, s.diceNumber, s.players);
+        const stepCount = (token.isLocked && s.diceNumber === 6) ? 1 : previewPath.length;
+        dispatcher.broadcastMessage(207, JSON.stringify({
+          colour: currentColour,
+          tokenId: tokenId,
+          diceNumber: s.diceNumber,
+          stepCount: stepCount,
+          isUnlock: token.isLocked && s.diceNumber === 6,
+          moveStartedAtMs: Date.now()
+        }));
+
+        executeMove(s, dispatcher, currentColour, tokenId, true);
       }
     } catch (e) {
       logger.error("Error processing message in matchLoop: %v", e);
@@ -1598,14 +1759,50 @@ function matchLoop(
   if (currentPlayer && currentPlayer.isBot && s.noMovableTokensTimer === null) {
     if (!s.hasRolled) {
       if (!s.botRollTick) {
-        s.botRollTick = tick + 30; // 500ms think time at 60Hz
+        // Immediately broadcast DICE_ROLL_START so the human opponent sees the
+        // bot's dice begin spinning right now — the actual roll executes after
+        // the think-time delay and the animation hides the wait entirely.
+        dispatcher.broadcastMessage(206, JSON.stringify({
+          colour: currentColour,
+          rollStartedAtMs: Date.now()
+        }));
+        s.botRollTick = tick + 30; // ~500ms think time at 60Hz
       } else if (tick >= s.botRollTick) {
-        executeRoll(s, dispatcher, currentColour);
+        executeRoll(s, dispatcher, currentColour, undefined, true);
         s.botRollTick = null;
       }
     } else {
       if (!s.botMoveTick) {
-        s.botMoveTick = tick + 30; // 500ms think time at 60Hz
+        // Pre-select the best token at decision time and store it so the
+        // chosen token ID is stable when we actually execute the move.
+        const allTokensForBot: TToken[] = [];
+        for (let p = 0; p < s.players.length; p++) {
+          const pl = s.players[p];
+          if (pl.tokens) {
+            for (let t = 0; t < pl.tokens.length; t++) {
+              allTokensForBot.push(pl.tokens[t]);
+            }
+          }
+        }
+        const preSelectedToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokensForBot);
+        if (preSelectedToken) {
+          // Compute step count for authoritative observer animation
+          const { path: botPreviewPath } = computeMoveResult(preSelectedToken, s.diceNumber, s.players);
+          const botStepCount = (preSelectedToken.isLocked && s.diceNumber === 6) ? 1 : botPreviewPath.length;
+          // Broadcast TOKEN_MOVE_START immediately so human sees animation start now
+          dispatcher.broadcastMessage(207, JSON.stringify({
+            colour: currentColour,
+            tokenId: preSelectedToken.id,
+            diceNumber: s.diceNumber,
+            stepCount: botStepCount,
+            isUnlock: preSelectedToken.isLocked && s.diceNumber === 6,
+            moveStartedAtMs: Date.now()
+          }));
+          s.botSelectedTokenId = preSelectedToken.id;
+        } else {
+          s.botSelectedTokenId = null;
+        }
+        s.botMoveTick = tick + 30; // ~500ms think time at 60Hz
       } else if (tick >= s.botMoveTick) {
         const allTokens: TToken[] = [];
         for (let p = 0; p < s.players.length; p++) {
@@ -1616,18 +1813,36 @@ function matchLoop(
             }
           }
         }
-        const bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
+        // Use pre-selected token ID if still valid; fall back to fresh selection
+        let bestToken: TToken | null = null;
+        if (typeof s.botSelectedTokenId === 'number') {
+          let candidate: TToken | null = null;
+          for (let bi = 0; bi < allTokens.length; bi++) {
+            if (allTokens[bi].id === s.botSelectedTokenId && allTokens[bi].colour === currentColour) {
+              candidate = allTokens[bi];
+              break;
+            }
+          }
+          if (candidate && isTokenMovable(candidate, s.diceNumber, allTokens)) {
+            bestToken = candidate;
+          }
+        }
+        if (!bestToken) {
+          bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
+        }
         if (bestToken) {
-          executeMove(s, dispatcher, currentColour, bestToken.id);
+          executeMove(s, dispatcher, currentColour, bestToken.id, true);
         } else {
           nextTurn(s, dispatcher);
         }
         s.botMoveTick = null;
+        s.botSelectedTokenId = null;
       }
     }
   } else {
     s.botRollTick = null;
     s.botMoveTick = null;
+    s.botSelectedTokenId = null;
   }
 
   // 6. Clean empty match check
