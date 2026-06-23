@@ -36,6 +36,17 @@ type TUserProfile = {
 const lobbyAvatarModules = import.meta.glob<{ default: string }>('../../assets/LobbyAvatars/*.png', { eager: true });
 const lobbyAvatarsList = Object.values(lobbyAvatarModules).map((mod) => mod.default);
 
+// Generate unique shifted/offset avatar lists to prevent identical patterns when multiple search boxes scroll
+const getShiftedAvatars = (index: number): string[] => {
+  const offsets = [0, 7, 13];
+  const offset = offsets[index % offsets.length];
+  const shifted = [
+    ...lobbyAvatarsList.slice(offset),
+    ...lobbyAvatarsList.slice(0, offset)
+  ];
+  return [...shifted, ...shifted]; // Duplicate list for seamless infinite loop scroll
+};
+
 function PlayerSetup() {
   const [currentUser, setCurrentUser] = useState<TUserProfile | null>(() => {
     const stored = localStorage.getItem('ludo_user');
@@ -54,6 +65,8 @@ function PlayerSetup() {
   const [matchFound, setMatchFound] = useState(false);
   const [opponentName, setOpponentName] = useState('Searching...');
   const [opponentAvatar, setOpponentAvatar] = useState('');
+  const [opponents, setOpponents] = useState<{ name: string; avatarUrl: string }[]>([]);
+  const [visibleOpponentsCount, setVisibleOpponentsCount] = useState(0);
   const [countdown, setCountdown] = useState<number | string | null>(null);
   const [matchmakerTicket, setMatchmakerTicket] = useState<string>('');
   const [isConnectingSocket, setIsConnectingSocket] = useState(false);
@@ -117,34 +130,86 @@ function PlayerSetup() {
     const SIMULATE_MATCHMAKING = false; // Toggle to true to test UI transitions, false for actual socket play
     if (SIMULATE_MATCHMAKING) {
       const timer = setTimeout(() => {
-        setOpponentName('NovaRush');
-        setOpponentAvatar(lobbyAvatarsList[1] || '');
-        setMatchFound(true);
-        setCountdown(3);
+        if (playerCount === 4) {
+          const simulatedOpponents = [
+            { name: 'NovaRush', avatarUrl: lobbyAvatarsList[1] || '' },
+            { name: 'ZenoFly', avatarUrl: lobbyAvatarsList[2] || '' },
+            { name: 'RexStorm', avatarUrl: lobbyAvatarsList[3] || '' }
+          ];
+          setOpponents(simulatedOpponents);
+          setVisibleOpponentsCount(0);
+          
+          let count = 0;
+          const staggerInterval = setInterval(() => {
+            count++;
+            setVisibleOpponentsCount(count);
+            try { playMatchFoundSound(); } catch (e) {}
 
-        let counter = 3;
-        const countInterval = setInterval(() => {
-          counter--;
-          if (counter < 0) {
-            clearInterval(countInterval);
-            setIsSearching(false);
-            setMatchFound(false);
-            setCountdown(null);
-            navigate('/play', {
-              state: {
-                isOnline: false,
-                initData: [
-                  { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                  { name: 'NovaRush', isBot: true, avatarUrl: lobbyAvatarsList[1] || '' }
-                ]
-              }
-            });
-          } else if (counter === 0) {
-            setCountdown("Let's Play!");
-          } else {
-            setCountdown(counter);
-          }
-        }, 1000);
+            if (count === 3) {
+              clearInterval(staggerInterval);
+              setMatchFound(true);
+              setCountdown(3);
+
+              let counter = 3;
+              const countInterval = setInterval(() => {
+                counter--;
+                if (counter < 0) {
+                  clearInterval(countInterval);
+                  setIsSearching(false);
+                  setMatchFound(false);
+                  setCountdown(null);
+                  navigate('/play', {
+                    state: {
+                      isOnline: false,
+                      initData: [
+                        { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                        { name: 'NovaRush', isBot: true, avatarUrl: lobbyAvatarsList[1] || '' },
+                        { name: 'ZenoFly', isBot: true, avatarUrl: lobbyAvatarsList[2] || '' },
+                        { name: 'RexStorm', isBot: true, avatarUrl: lobbyAvatarsList[3] || '' }
+                      ]
+                    }
+                  });
+                } else if (counter === 0) {
+                  setCountdown("Let's Play!");
+                } else {
+                  setCountdown(counter);
+                }
+              }, 1000);
+            }
+          }, 1200);
+
+        } else {
+          setOpponentName('NovaRush');
+          setOpponentAvatar(lobbyAvatarsList[1] || '');
+          setOpponents([{ name: 'NovaRush', avatarUrl: lobbyAvatarsList[1] || '' }]);
+          setVisibleOpponentsCount(1);
+          setMatchFound(true);
+          setCountdown(3);
+
+          let counter = 3;
+          const countInterval = setInterval(() => {
+            counter--;
+            if (counter < 0) {
+              clearInterval(countInterval);
+              setIsSearching(false);
+              setMatchFound(false);
+              setCountdown(null);
+              navigate('/play', {
+                state: {
+                  isOnline: false,
+                  initData: [
+                    { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                    { name: 'NovaRush', isBot: true, avatarUrl: lobbyAvatarsList[1] || '' }
+                  ]
+                }
+              });
+            } else if (counter === 0) {
+              setCountdown("Let's Play!");
+            } else {
+              setCountdown(counter);
+            }
+          }, 1000);
+        }
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -182,66 +247,97 @@ function PlayerSetup() {
 
           console.log("=== RESOLVED matchId:", resolvedMatchId, "===");
 
-          if (!matched.users || matched.users.length < 2) {
-            console.warn("[MATCHMAKER] Matched fewer than 2 players. Re-entering matchmaking queue...");
-            toast.info("Waiting for a real player... resuming search.");
+          const targetMinSize = playerCount === 4 ? 4 : 2;
+          if (!matched.users || matched.users.length < targetMinSize) {
+            console.warn(`[MATCHMAKER] Matched fewer than ${targetMinSize} players. Re-entering matchmaking queue...`);
+            toast.info("Waiting for all players... resuming search.");
             startMatchmaking();
             return;
           }
 
-          // Find the opponent presence in 2 player match
-          const opponent = matched.users.find(
-            (u) => u.presence.session_id !== matched.self.presence.session_id
-          );
-          const opName = opponent?.string_properties?.name || 
-                         opponent?.string_properties?.userName || 
-                         opponent?.presence.username || 
-                         "Opponent";
-          const opAvatar = opponent?.string_properties?.avatarurl || 
-                           opponent?.string_properties?.avatarUrl || 
-                           opponent?.string_properties?.avatar_url || 
-                           lobbyAvatarsList[0] || '';
+          const opponentsList = matched.users
+            .filter((u) => u.presence.session_id !== matched.self.presence.session_id)
+            .map((opponent, idx) => {
+              const opName = opponent.string_properties?.name || 
+                             opponent.string_properties?.userName || 
+                             opponent.presence.username || 
+                             (`Opponent ${idx + 1}`);
+              const opAvatar = opponent.string_properties?.avatarurl || 
+                               opponent.string_properties?.avatarUrl || 
+                               opponent.string_properties?.avatar_url || 
+                               lobbyAvatarsList[idx % lobbyAvatarsList.length] || '';
+              return { name: opName, avatarUrl: opAvatar };
+            });
 
-          setOpponentName(opName);
-          setOpponentAvatar(opAvatar);
-          setMatchFound(true);
-          setCountdown(3);
-
+          setOpponents(opponentsList);
+          
           // CRITICAL: Clear ticket BEFORE navigating so the useEffect cleanup
           // does NOT call removeMatchmaker (which would break the server match)
           ticketRef.current = '';
           setMatchmakerTicket('');
 
-          let counter = 3;
-          const countInterval = setInterval(() => {
-            counter--;
-            if (counter < 0) {
-              clearInterval(countInterval);
-              navigate('/play', {
-                state: {
-                  isOnline: true,
-                  matchId: resolvedMatchId,        // Authoritative match ID (empty if server failed)
-                  matchedToken: matched.token,      // Relay token (fallback when matchId is empty)
-                  matchedUsers: matched.users,      // Player list for relay host initialization
-                  myPlayerId: matched.self.presence.session_id,
-                  myUserId: getSession()?.user_id || currentUser?.userId,
-                  canonicalColour: 'blue'
-                }
-              });
-            } else if (counter === 0) {
-              setCountdown("Let's Play!");
-            } else {
-              setCountdown(counter);
+          const runCountdown = () => {
+            let counter = 3;
+            const countInterval = setInterval(() => {
+              counter--;
+              if (counter < 0) {
+                clearInterval(countInterval);
+                navigate('/play', {
+                  state: {
+                    isOnline: true,
+                    matchId: resolvedMatchId,        // Authoritative match ID (empty if server failed)
+                    matchedToken: matched.token,      // Relay token (fallback when matchId is empty)
+                    matchedUsers: matched.users,      // Player list for relay host initialization
+                    myPlayerId: matched.self.presence.session_id,
+                    myUserId: getSession()?.user_id || currentUser?.userId,
+                    canonicalColour: 'blue'
+                  }
+                });
+              } else if (counter === 0) {
+                setCountdown("Let's Play!");
+              } else {
+                setCountdown(counter);
+              }
+            }, 1000);
+          };
+
+          if (playerCount === 4) {
+            setVisibleOpponentsCount(0);
+            let count = 0;
+            const staggerInterval = setInterval(() => {
+              count++;
+              setVisibleOpponentsCount(count);
+              try { playMatchFoundSound(); } catch (e) {}
+
+              if (count === 3) {
+                clearInterval(staggerInterval);
+                setMatchFound(true);
+                setCountdown(3);
+                runCountdown();
+              }
+            }, 1200);
+          } else {
+            if (opponentsList.length > 0) {
+              setOpponentName(opponentsList[0].name);
+              setOpponentAvatar(opponentsList[0].avatarUrl);
             }
-          }, 1000);
+            setVisibleOpponentsCount(1);
+            setMatchFound(true);
+            setCountdown(3);
+            runCountdown();
+          }
         };
 
+        const minCount = playerCount === 4 ? 4 : 2;
+        const maxCount = playerCount === 4 ? 4 : 2;
+        const matchSizeStr = playerCount === 4 ? '4' : '2';
+
         const res = await activeSocket.addMatchmaker(
-          '*',
-          2,
-          2,
+          `+properties.matchSize:${matchSizeStr}`,
+          minCount,
+          maxCount,
           {
-            matchSize: '2',
+            matchSize: matchSizeStr,
             name: currentUser?.userName || '',
             userName: currentUser?.userName || '',
             avatarUrl: currentUser?.avatar_url || '',
@@ -279,12 +375,10 @@ function PlayerSetup() {
 
   const handlePlayBtnClick = () => {
     if (playerCount === null) return;
-    if (playerCount === 4) {
-      toast.info("4 Players matchmaking is coming soon! Please select 2 Players.");
-      return;
-    }
     
     // Start search
+    setOpponents([]);
+    setVisibleOpponentsCount(0);
     setOpponentName('Searching...');
     setMatchFound(false);
     playMatchmakingScrollSound(true); // Instant audio start on click
@@ -302,6 +396,8 @@ function PlayerSetup() {
     ticketRef.current = '';
     setIsSearching(false);
     setMatchFound(false);
+    setOpponents([]);
+    setVisibleOpponentsCount(0);
   };
 
   const handleLogout = () => {
@@ -371,36 +467,91 @@ function PlayerSetup() {
                 )}
               </div>
 
-              <div className={styles.profileContainerYellow}>
-                <img src={profileBgYellow} alt="Profile Background Yellow" className={styles.profileBgImage} />
-                <div className={styles.profileContentYellow}>
-                  <div className={styles.avatarWrapper}>
-                    {matchFound && (
-                      <img src={profileOuterGlowYellow} className={styles.avatarGlowYellow} alt="Glow" />
-                    )}
-                    <div className={styles.avatarCircle}>
-                      <img src={profileRoundYellow} alt="Round Ring Yellow" className={styles.avatarRing} />
-                      {matchFound ? (
-                        opponentAvatar ? (
-                          <img src={opponentAvatar} alt="Opponent Avatar" className={styles.avatarImage} />
-                        ) : (
-                          <div className={styles.avatarPlaceholder} />
-                        )
-                      ) : (
-                        <div className={styles.scrollingAvatarsWrapper}>
-                          <div className={styles.scrollingAvatarsContainer}>
-                            {[...lobbyAvatarsList, ...lobbyAvatarsList].map((url, i) => (
-                              <img key={i} src={url} className={styles.scrollingAvatarItem} alt="Searching avatar" />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              {playerCount === 4 ? (
+                /* 4 Players Matchmaking Bottom Card */
+                <div className={styles.profileContainerYellow4}>
+                  <img src={profileBgYellow} alt="Profile Background Yellow" className={styles.profileBgImage} />
+                  <div className={styles.profileContentYellow4}>
+                    {[0, 1, 2].map((idx) => {
+                      const isMatchedThisSlot = idx < visibleOpponentsCount;
+                      const opp = opponents[idx];
+                      const oppName = (isMatchedThisSlot && opp) ? opp.name : 'Searching...';
+                      const oppAvatar = (isMatchedThisSlot && opp) ? opp.avatarUrl : null;
+                      
+                      let ringFilterClass = '';
+                      if (idx === 1) ringFilterClass = styles.ringRed;
+                      else if (idx === 2) ringFilterClass = styles.ringGreen;
 
-                  <span className={styles.playerNameYellow}>{opponentName}</span>
+                      return (
+                        <div key={idx} className={styles.opponentSlot}>
+                          <div className={styles.avatarWrapperSmall}>
+                            {isMatchedThisSlot && (
+                              <img src={profileOuterGlowYellow} className={styles.avatarGlowYellow} alt="Glow" />
+                            )}
+                            <div className={styles.avatarCircleSmall}>
+                              <img 
+                                src={profileRoundYellow} 
+                                alt={`Round Ring Opponent ${idx + 1}`} 
+                                className={`${styles.avatarRingSmall} ${ringFilterClass}`} 
+                              />
+                              {isMatchedThisSlot && oppAvatar ? (
+                                <img src={oppAvatar} alt={`Opponent ${idx + 1} Avatar`} className={styles.avatarImageSmall} />
+                              ) : (
+                                <div className={styles.scrollingAvatarsWrapperSmall}>
+                                  <div 
+                                    className={styles.scrollingAvatarsContainerSmall}
+                                    style={{
+                                      animationDelay: `${idx * 0.3}s`,
+                                      animationDuration: `${4.5 + idx * 0.5}s`
+                                    }}
+                                  >
+                                    {getShiftedAvatars(idx).map((url, i) => (
+                                      <img key={i} src={url} className={styles.scrollingAvatarItemSmall} alt="Searching avatar" />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <span className={styles.playerNameYellow4}>{oppName}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* 2 Players Matchmaking Bottom Card */
+                <div className={styles.profileContainerYellow}>
+                  <img src={profileBgYellow} alt="Profile Background Yellow" className={styles.profileBgImage} />
+                  <div className={styles.profileContentYellow}>
+                    <div className={styles.avatarWrapper}>
+                      {matchFound && (
+                        <img src={profileOuterGlowYellow} className={styles.avatarGlowYellow} alt="Glow" />
+                      )}
+                      <div className={styles.avatarCircle}>
+                        <img src={profileRoundYellow} alt="Round Ring Yellow" className={styles.avatarRing} />
+                        {matchFound ? (
+                          opponentAvatar ? (
+                            <img src={opponentAvatar} alt="Opponent Avatar" className={styles.avatarImage} />
+                          ) : (
+                            <div className={styles.avatarPlaceholder} />
+                          )
+                        ) : (
+                          <div className={styles.scrollingAvatarsWrapper}>
+                            <div className={styles.scrollingAvatarsContainer}>
+                              {[...lobbyAvatarsList, ...lobbyAvatarsList].map((url, i) => (
+                                <img key={i} src={url} className={styles.scrollingAvatarItem} alt="Searching avatar" />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <span className={styles.playerNameYellow}>{opponentName}</span>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

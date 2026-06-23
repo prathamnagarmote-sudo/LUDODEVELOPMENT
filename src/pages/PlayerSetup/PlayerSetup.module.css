@@ -859,3 +859,155 @@
     transform: translateY(-1500px); /* 20 avatars * 75px each = 1500px */
   }
 }
+
+/* ─── 4-PLAYER MATCHMAKING STYLES ────────────────────────────────────────── */
+
+.profileContainerYellow4 {
+  position: relative;
+  width: 90%;
+  max-width: 350px;
+  margin-top: 0px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: center;
+  animation: slideInYellow 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.profileContentYellow4 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-direction: row;
+  padding-left: 45px;
+  padding-right: 45px;
+  padding-top: 10px;
+  z-index: 2;
+}
+
+.opponentSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 75px;
+}
+
+.avatarWrapperSmall {
+  position: relative;
+  height: 65px;
+  width: 65px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.avatarCircleSmall {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+}
+
+.avatarRingSmall {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 3;
+}
+
+.avatarImageSmall {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  object-fit: cover;
+  z-index: 4;
+  background-color: transparent;
+}
+
+.avatarPlaceholderSmall {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  z-index: 4;
+}
+
+.scrollingAvatarsWrapperSmall {
+  position: absolute;
+  top: 12.5%;
+  left: 12.5%;
+  width: 75%;
+  height: 75%;
+  overflow: hidden;
+  border-radius: 50%;
+  z-index: 4;
+}
+
+.scrollingAvatarsContainerSmall {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  animation: avatarScrollUpSmall 5s linear infinite;
+}
+
+.scrollingAvatarItemSmall {
+  width: 100%;
+  height: 48.75px; /* 75% of 65px */
+  object-fit: cover;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+@keyframes avatarScrollUpSmall {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-975px); /* 20 avatars * 48.75px = 975px */
+  }
+}
+
+.ringRed {
+  filter: hue-rotate(310deg) saturate(2.2) brightness(0.95);
+}
+
+.ringGreen {
+  filter: hue-rotate(75deg) saturate(1.8) brightness(1);
+}
+
+.playerNameYellow4 {
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #000000;
+  text-shadow: none;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 75px;
+  margin-top: 2px;
+}

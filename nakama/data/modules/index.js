@@ -1667,8 +1667,16 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
     try {
         logger.info("=== MATCHMAKER MATCHED CALLED === matched count: %v", matches.length);
         var matchPlayers_1 = [];
-        // Always use the number of matched users as size (2 for 1v1)
+        // Dynamically resolve size based on properties from the matchmaker search
         var size = 2;
+        if (matches.length > 0) {
+            var firstMatch = matches[0];
+            var props = firstMatch.properties || {};
+            var requestedSize = parseInt(props.matchSize || '2');
+            if (requestedSize === 4) {
+                size = 4;
+            }
+        }
         logger.info("Building player list from %v real players, target size: %v", matches.length, size);
         if (matches.length < size) {
             logger.warn("Matchmaker matched fewer than %v players (got %v). Rejecting match creation to avoid bots.", size, matches.length);

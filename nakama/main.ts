@@ -19,8 +19,16 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
 
     const matchPlayers: any[] = [];
 
-    // Always use the number of matched users as size (2 for 1v1)
-    const size = 2;
+    // Dynamically resolve size based on properties from the matchmaker search
+    let size = 2;
+    if (matches.length > 0) {
+      const firstMatch = matches[0];
+      const props = firstMatch.properties || {};
+      const requestedSize = parseInt((props as any).matchSize || '2');
+      if (requestedSize === 4) {
+        size = 4;
+      }
+    }
 
     logger.info("Building player list from %v real players, target size: %v", matches.length, size);
 
