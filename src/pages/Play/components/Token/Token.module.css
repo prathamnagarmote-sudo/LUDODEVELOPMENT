@@ -78,3 +78,11 @@
   }
 }
 
+.activePlayerHighlight {
+  animation: activeTokenPulse 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes activeTokenPulse {
+  0% { filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.4)) brightness(1); }
+  100% { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) brightness(1.25); }
+}

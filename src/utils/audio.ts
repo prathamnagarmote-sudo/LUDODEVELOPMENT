@@ -15,12 +15,16 @@ function isMusicEnabled(): boolean {
   return localStorage.getItem('musicEnabled') !== 'false';
 }
 
-function triggerVibration(pattern: number | number[]) {
+export function triggerVibration(pattern: number | number[]) {
   if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && navigator.vibrate) {
     if (localStorage.getItem('vibrationEnabled') !== 'false') {
       navigator.vibrate(pattern);
     }
   }
+}
+
+export function onTimerWarning() {
+  // Future hook for warning sound integration during the last 10 seconds
 }
 
 const audioCache: Record<string, HTMLAudioElement> = {};
