@@ -408,7 +408,8 @@ function sendStateSync(dispatcher, state, presence) {
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
         turnRemainingMs: turnRemainingMs,
-        status: state.status
+        status: state.status,
+        serverNowMs: Date.now()
     }), [presence]);
 }
 function broadcastStateSync(dispatcher, state) {
@@ -423,7 +424,8 @@ function broadcastStateSync(dispatcher, state) {
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
         turnRemainingMs: turnRemainingMs,
-        status: state.status
+        status: state.status,
+        serverNowMs: Date.now()
     }));
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
@@ -532,7 +534,8 @@ function broadcastTurnChange(state, dispatcher, nextColour) {
     dispatcher.broadcastMessage(203, JSON.stringify({
         nextTurnColour: nextColour,
         deadlineMs: newDeadlineMs,
-        turnRemainingMs: turnRemainingMs
+        turnRemainingMs: turnRemainingMs,
+        serverNowMs: Date.now()
     }));
 }
 function nextTurn(state, dispatcher) {
@@ -615,7 +618,8 @@ function executeRoll(state, dispatcher, colour, forcedRoll) {
     dispatcher.broadcastMessage(201, JSON.stringify({
         roll: roll,
         colour: colour,
-        hasMovableTokens: hasMovableTokens
+        hasMovableTokens: hasMovableTokens,
+        serverNowMs: Date.now()
     }));
     var shouldAutoMove = false;
     var autoMoveToken = null;
@@ -637,7 +641,20 @@ function executeRoll(state, dispatcher, colour, forcedRoll) {
         state.noMovableTokensTimer = Date.now() + 400;
     }
     else if (shouldAutoMove && autoMoveToken) {
-        executeMove(state, dispatcher, colour, autoMoveToken.id);
+        // Broadcast TOKEN_MOVE_START (207) before executing auto-move so observer
+        // devices can start the token animation at the exact same moment.
+        var autoToken = autoMoveToken;
+        var autoPath = computeMoveResult(autoToken, roll, state.players).path;
+        var autoStepCount = (autoToken.isLocked && roll === 6) ? 1 : autoPath.length;
+        dispatcher.broadcastMessage(207, JSON.stringify({
+            colour: colour,
+            tokenId: autoToken.id,
+            diceNumber: roll,
+            stepCount: autoStepCount,
+            isUnlock: autoToken.isLocked && roll === 6,
+            moveStartedAtMs: Date.now()
+        }));
+        executeMove(state, dispatcher, colour, autoToken.id);
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -1042,7 +1059,8 @@ function executeMove(state, dispatcher, colour, tokenId) {
         isCaptured: isCaptured,
         hasPlayerWon: hasPlayerWon,
         capturedTokenColour: capturedTokenColour,
-        capturedTokenId: capturedTokenId
+        capturedTokenId: capturedTokenId,
+        serverNowMs: Date.now()
     }));
     if (hasPlayerWon) {
         state.status = 'ended';
@@ -1396,7 +1414,8 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 }
                 // Broadcast DICE_ROLL_START immediately to sync start times on all devices
                 dispatcher.broadcastMessage(206, JSON.stringify({
-                    colour: currentColour_2
+                    colour: currentColour_2,
+                    rollStartedAtMs: Date.now()
                 }));
                 var forcedRoll = undefined;
                 try {
@@ -1440,6 +1459,21 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Invalid move" }), [message.sender]);
                     return;
                 }
+                // ─── TOKEN_MOVE_START (OpCode 207) ────────────────────────────────────────
+                // Broadcast BEFORE executing the move so observer devices can begin the
+                // token animation at the EXACT same moment the roller sees it move.
+                // stepCount is the authoritative path length so the observer animation
+                // matches exactly what OpCode 202 will confirm — no stutter on reconcile.
+                var previewPath = computeMoveResult(token, s.diceNumber, s.players).path;
+                var stepCount = (token.isLocked && s.diceNumber === 6) ? 1 : previewPath.length;
+                dispatcher.broadcastMessage(207, JSON.stringify({
+                    colour: currentColour_2,
+                    tokenId: tokenId,
+                    diceNumber: s.diceNumber,
+                    stepCount: stepCount,
+                    isUnlock: token.isLocked && s.diceNumber === 6,
+                    moveStartedAtMs: Date.now()
+                }));
                 executeMove(s, dispatcher, currentColour_2, tokenId);
             }
         }
@@ -1459,7 +1493,14 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (currentPlayer && currentPlayer.isBot && s.noMovableTokensTimer === null) {
         if (!s.hasRolled) {
             if (!s.botRollTick) {
-                s.botRollTick = tick + 30; // 500ms think time at 60Hz
+                // Immediately broadcast DICE_ROLL_START so the human opponent sees the
+                // bot's dice begin spinning right now — the actual roll executes after
+                // the think-time delay and the animation hides the wait entirely.
+                dispatcher.broadcastMessage(206, JSON.stringify({
+                    colour: currentColour,
+                    rollStartedAtMs: Date.now()
+                }));
+                s.botRollTick = tick + 30; // ~500ms think time at 60Hz
             }
             else if (tick >= s.botRollTick) {
                 executeRoll(s, dispatcher, currentColour);
@@ -1468,7 +1509,37 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         else {
             if (!s.botMoveTick) {
-                s.botMoveTick = tick + 30; // 500ms think time at 60Hz
+                // Pre-select the best token at decision time and store it so the
+                // chosen token ID is stable when we actually execute the move.
+                var allTokensForBot = [];
+                for (var p = 0; p < s.players.length; p++) {
+                    var pl = s.players[p];
+                    if (pl.tokens) {
+                        for (var t = 0; t < pl.tokens.length; t++) {
+                            allTokensForBot.push(pl.tokens[t]);
+                        }
+                    }
+                }
+                var preSelectedToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokensForBot);
+                if (preSelectedToken) {
+                    // Compute step count for authoritative observer animation
+                    var botPreviewPath = computeMoveResult(preSelectedToken, s.diceNumber, s.players).path;
+                    var botStepCount = (preSelectedToken.isLocked && s.diceNumber === 6) ? 1 : botPreviewPath.length;
+                    // Broadcast TOKEN_MOVE_START immediately so human sees animation start now
+                    dispatcher.broadcastMessage(207, JSON.stringify({
+                        colour: currentColour,
+                        tokenId: preSelectedToken.id,
+                        diceNumber: s.diceNumber,
+                        stepCount: botStepCount,
+                        isUnlock: preSelectedToken.isLocked && s.diceNumber === 6,
+                        moveStartedAtMs: Date.now()
+                    }));
+                    s.botSelectedTokenId = preSelectedToken.id;
+                }
+                else {
+                    s.botSelectedTokenId = null;
+                }
+                s.botMoveTick = tick + 30; // ~500ms think time at 60Hz
             }
             else if (tick >= s.botMoveTick) {
                 var allTokens = [];
@@ -1480,7 +1551,23 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                         }
                     }
                 }
-                var bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
+                // Use pre-selected token ID if still valid; fall back to fresh selection
+                var bestToken = null;
+                if (typeof s.botSelectedTokenId === 'number') {
+                    var candidate = null;
+                    for (var bi = 0; bi < allTokens.length; bi++) {
+                        if (allTokens[bi].id === s.botSelectedTokenId && allTokens[bi].colour === currentColour) {
+                            candidate = allTokens[bi];
+                            break;
+                        }
+                    }
+                    if (candidate && isTokenMovable(candidate, s.diceNumber, allTokens)) {
+                        bestToken = candidate;
+                    }
+                }
+                if (!bestToken) {
+                    bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
+                }
                 if (bestToken) {
                     executeMove(s, dispatcher, currentColour, bestToken.id);
                 }
@@ -1488,12 +1575,14 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     nextTurn(s, dispatcher);
                 }
                 s.botMoveTick = null;
+                s.botSelectedTokenId = null;
             }
         }
     }
     else {
         s.botRollTick = null;
         s.botMoveTick = null;
+        s.botSelectedTokenId = null;
     }
     // 6. Clean empty match check
     var isMatchEmpty = true;

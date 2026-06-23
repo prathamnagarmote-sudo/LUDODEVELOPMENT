@@ -46,6 +46,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
+import { updateClockOffset, serverToLocal, getClockOffset } from '../../../../utils/clockSync';
 
 
 export const EXIT_MESSAGE = 'Are you sure you want to exit? Any progress made will be lost.';
@@ -373,7 +374,7 @@ function Game({
     };
 
     // ─── ALL CLIENTS: Apply dice result (OpCode 201) ─────────────────────────────
-    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number; hasMovableTokens?: boolean }, onComplete?: () => void) => {
+    const allClientsApplyDiceResult = (data: { colour: TPlayerColour; roll: number; hasMovableTokens?: boolean; rollStartedAtMs?: number; serverNowMs?: number }, onComplete?: () => void) => {
       const colour = data.colour;
       const roll = data.roll;
 
@@ -385,11 +386,21 @@ function Game({
         const elapsed = Date.now() - startTimestamp;
         remainingDelay = Math.max(0, 300 - elapsed);
         diceRollStartTimestampRef.current = 0;
+      } else if (data.rollStartedAtMs) {
+        // Roller received 201 without a prior 206 fast-path (e.g. bot roll seen
+        // by the roller, or reconnect). Use the server timestamp to compute how
+        // much of the 300ms animation has already elapsed on other devices.
+        const localRollStart = serverToLocal(data.rollStartedAtMs);
+        const elapsed = Date.now() - localRollStart;
+        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
+        dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
+        remainingDelay = Math.max(0, 300 - elapsed);
       } else {
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
         remainingDelay = 150;
       }
+
 
       // Prefetch auto-move decision and send to server early to overlap with dice roll animation
       let autoMoveTokenId: number | null = null;
@@ -745,9 +756,10 @@ function Game({
         const serverTime = parsed.serverTime || 0;
         if (clientTime > 0 && serverTime > 0) {
           const rtt = localRecvTime - clientTime;
-          const calculatedOffset = serverTime - (localRecvTime + clientTime) / 2;
-          clockOffsetRef.current = calculatedOffset;
-          console.log(`[CLOCK SYNC] RTT: ${rtt}ms, Calculated Offset: ${calculatedOffset}ms`);
+          // Update EMA-smoothed clock offset
+          updateClockOffset(clientTime, serverTime, localRecvTime);
+          clockOffsetRef.current = getClockOffset();
+          console.log(`[CLOCK SYNC] RTT: ${rtt}ms, EMA Offset: ${clockOffsetRef.current.toFixed(1)}ms`);
         }
         return;
       }
@@ -758,8 +770,13 @@ function Game({
         if (rollingColour && rollingColour !== myPlayerColourRef.current) {
           dispatch(setIsPlaceholderShowing({ colour: rollingColour, isPlaceholderShowing: true }));
           dispatch(setIsVisualRolling({ colour: rollingColour, isVisualRolling: true }));
-          diceRollStartTimestampRef.current = Date.now();
-          console.log(`[DICE ROLL START] Started rolling animation early for ${rollingColour}`);
+          // Anchor roll start to server wall-clock so observer's 300ms timer
+          // is synchronised with the roller's 300ms timer via shared serverNowMs.
+          const localStart = parsed.rollStartedAtMs
+            ? serverToLocal(parsed.rollStartedAtMs)
+            : Date.now();
+          diceRollStartTimestampRef.current = localStart;
+          console.log(`[DICE ROLL START] Started rolling animation for ${rollingColour}, serverAnchor=${parsed.rollStartedAtMs}, localStart=${localStart}`);
         }
         return;
       }
@@ -767,14 +784,14 @@ function Game({
       // ─── Fast-path OpCode 207 (TOKEN_MOVE_START) ─────────────────────────────
       // When another player's token begins moving, start the animation on THIS
       // device IMMEDIATELY without waiting for the authoritative OpCode 202.
-      // This eliminates the full RTT gap on observer devices — the same pattern
-      // OpCode 206 uses for dice rolls. When OpCode 202 later arrives in the
-      // sequential queue it detects the optimisticTokenMovesRef entry, awaits
-      // the in-progress animation, then only reconciles final state.
+      // stepCount (server-authoritative path length) is used instead of raw
+      // diceNumber so the animation matches exactly what 202 will confirm.
       if (opCode === 207) {
         const movingColour = parsed.colour as TPlayerColour | undefined;
         const earlyTokenId: number = parsed.tokenId;
         const earlyDiceNumber: number = parsed.diceNumber;
+        // Use server-computed stepCount; fall back to diceNumber for old servers
+        const earlyStepCount: number = typeof parsed.stepCount === 'number' ? parsed.stepCount : earlyDiceNumber;
         const earlyIsUnlock: boolean = parsed.isUnlock ?? false;
 
         // Only fast-path for OTHER players' tokens.
@@ -787,7 +804,7 @@ function Game({
           if (movingToken) {
             const moveKey = `${movingColour}_${earlyTokenId}`;
             optimisticTokenMovesRef.current.add(moveKey);
-            console.log(`[TOKEN MOVE START] Fast-path early animation: ${movingColour} token ${earlyTokenId} (isUnlock=${earlyIsUnlock})`);
+            console.log(`[TOKEN MOVE START] Fast-path early animation: ${movingColour} token ${earlyTokenId} steps=${earlyStepCount} (isUnlock=${earlyIsUnlock})`);
 
             if (earlyIsUnlock) {
               dispatch(setIsAnyTokenMoving(true));
@@ -802,8 +819,8 @@ function Game({
               });
               activeTokenAnimationPromiseRef.current = animPromise;
             } else {
-              // Use the dice number from the 207 payload (server-authoritative)
-              const animPromise = moveAndCapture(movingToken, earlyDiceNumber);
+              // Use authoritative stepCount for the animation (not raw diceNumber)
+              const animPromise = moveAndCapture(movingToken, earlyStepCount);
               activeTokenAnimationPromiseRef.current = animPromise;
             }
           }
