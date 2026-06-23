@@ -13,17 +13,22 @@ const isLocalNetwork = typeof window !== 'undefined' &&
    window.location.hostname.startsWith('192.168.') ||
    window.location.hostname.startsWith('10.'));
 
-// On localhost/LAN: connect to local Nakama (or env var override).
-// On production (Vercel/HTTPS): connect to Railway Nakama.
-const resolvedHost = import.meta.env.VITE_NAKAMA_HOST ||
-  (isLocalNetwork ? window.location.hostname : PRODUCTION_NAKAMA_HOST);
+// Direct localhost bypass: If playing on localhost/127.0.0.1/LAN, ALWAYS bypass
+// the environment variable and connect directly to the local docker server (0ms).
+// Otherwise, use the environment variable (Cloudflare tunnel/Railway) or fallback production.
+const resolvedHost = isLocalNetwork
+  ? window.location.hostname
+  : (import.meta.env.VITE_NAKAMA_HOST || PRODUCTION_NAKAMA_HOST);
 
-const resolvedPort = import.meta.env.VITE_NAKAMA_PORT ||
-  (isLocalNetwork ? '7350' : PRODUCTION_NAKAMA_PORT);
+const resolvedPort = isLocalNetwork
+  ? '7350'
+  : (import.meta.env.VITE_NAKAMA_PORT || PRODUCTION_NAKAMA_PORT);
 
-const useSSL = import.meta.env.VITE_NAKAMA_SSL === 'true' ||
-               import.meta.env.VITE_NAKAMA_USE_SSL === 'true' ||
-               isHttps;
+const useSSL = isLocalNetwork
+  ? false
+  : (import.meta.env.VITE_NAKAMA_SSL === 'true' ||
+     import.meta.env.VITE_NAKAMA_USE_SSL === 'true' ||
+     isHttps);
 
 console.log('[Nakama] Connecting to', resolvedHost + ':' + resolvedPort, 'SSL:', useSSL);
 
