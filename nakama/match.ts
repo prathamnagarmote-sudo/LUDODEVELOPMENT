@@ -784,6 +784,7 @@ function executeRoll(
   if (state.consecutiveSixes === 3) {
     state.consecutiveSixes = 0;
     state.noMovableTokensTimer = Date.now() + 400;
+    state.rollBags[colour] = generateRollBag();
   } else if (!hasMovableTokens) {
     state.noMovableTokensTimer = Date.now() + 400;
   } else if (shouldAutoMove && autoMoveToken) {
