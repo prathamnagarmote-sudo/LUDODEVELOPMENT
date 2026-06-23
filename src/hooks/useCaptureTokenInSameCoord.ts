@@ -23,7 +23,7 @@ import { getTokenDOMId, tokensWithCoord } from '../game/tokens/logic';
 import { tokenPaths } from '../game/tokens/paths';
 import { sleep } from '../utils/sleep';
 import { registerCaptureCancelFn } from './useMoveTokenForward';
-import { playReverseSound, stopReverseSound } from '../utils/audio';
+import { playReverseSound, stopReverseSound, stopReverseSoundWithFade } from '../utils/audio';
 
 export function useCaptureTokenInSameCoord() {
   const dispatch = useDispatch();
@@ -81,6 +81,7 @@ export function useCaptureTokenInSameCoord() {
               areCoordsEqual(v, coordinates)
             );
             let index = initialCoordinateIndex;
+            let startTime = 0;
 
             const handleTransitionEnd = () => {
               if (captureCancelled) {
@@ -95,7 +96,9 @@ export function useCaptureTokenInSameCoord() {
                 setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, t);
                 dispatch(lockToken({ colour, id }));
                 tokenEl.removeEventListener('transitionend', handleTransitionEnd);
-                stopReverseSound();
+                // Use the new fade out logic, ensuring a min 500ms playtime
+                stopReverseSoundWithFade(startTime);
+                
                 tokensSuccessfullyCaptured++;
                 if (tokensSuccessfullyCaptured === capturableTokens.length) resolve(true);
                 return;
@@ -107,9 +110,9 @@ export function useCaptureTokenInSameCoord() {
             if (isFirstCapture) isFirstCapture = false;
             else await sleep(250);
             
-            // Play reverse sound stretched to the exact duration of the return trip
-            const totalDurationMs = initialCoordinateIndex * BACKWARD_TOKEN_TRANSITION_TIME;
-            if (totalDurationMs > 0) playReverseSound(totalDurationMs);
+            // Play reverse sound, passing the distance so it can slow down for long kills
+            startTime = Date.now();
+            playReverseSound(initialCoordinateIndex);
             
             index--;
             const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);

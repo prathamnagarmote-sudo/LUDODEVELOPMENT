@@ -14,6 +14,7 @@ import { OnlineGameContext } from '../Game/Game';
 import { useDispatch } from 'react-redux';
 import type { AppDispatch } from '../../../../state/store';
 import { restartGameThunk } from '../../../../state/thunks/restartGameThunk';
+import { playResultSound, stopResultSounds } from '../../../../utils/audio';
 import { getNakamaSocket } from '../../../../services/nakama';
 
 type Props = {
@@ -88,6 +89,19 @@ function GameFinishedScreen({ players }: Props) {
     }, 1500);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (showSplash) {
+      if (splashText === 'You Win!') playResultSound('win');
+      else if (splashText === "It's a Tie!") playResultSound('tie');
+      else if (splashText === 'You Lose!') playResultSound('lose');
+    } else {
+      stopResultSounds();
+    }
+    return () => {
+      stopResultSounds();
+    };
+  }, [showSplash, splashText]);
 
   const onlineContextRef = useRef(onlineContext);
   useEffect(() => {

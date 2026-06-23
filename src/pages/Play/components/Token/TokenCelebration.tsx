@@ -30,22 +30,34 @@ const generateParticles = (count: number, type: 'confetti' | 'sparkle' | 'star')
   });
 };
 
+type Particle = {
+  id: string;
+  tx: number;
+  ty: number;
+  rot: number;
+  rotEnd: number;
+  delay: number;
+  color: string;
+};
+
 export const TokenCelebration: React.FC<Props> = ({ show }) => {
   const [renderEffect, setRenderEffect] = useState(false);
   const [particles, setParticles] = useState<{
-    confetti: any[];
-    sparkles: any[];
-    stars: any[];
+    confetti: Particle[];
+    sparkles: Particle[];
+    stars: Particle[];
   }>({ confetti: [], sparkles: [], stars: [] });
 
   useEffect(() => {
     if (show) {
-      setParticles({
-        confetti: generateParticles(12, 'confetti'),
-        sparkles: generateParticles(8, 'sparkle'),
-        stars: generateParticles(6, 'star'),
-      });
-      setRenderEffect(true);
+      setTimeout(() => {
+        setParticles({
+          confetti: generateParticles(12, 'confetti'),
+          sparkles: generateParticles(8, 'sparkle'),
+          stars: generateParticles(6, 'star'),
+        });
+        setRenderEffect(true);
+      }, 0);
       const timer = setTimeout(() => {
         setRenderEffect(false);
       }, 2000);

@@ -138,11 +138,13 @@ function Token({ colour, id, tokenClickData }: Props) {
                   }, FORWARD_TOKEN_TRANSITION_TIME);
                 });
                 if (onlineContext.activeTokenAnimationPromiseRef) {
+                  // eslint-disable-next-line
                   onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
                 }
               } else {
                 const animPromise = moveAndCapture(token, diceNumber);
                 if (onlineContext.activeTokenAnimationPromiseRef) {
+                  // eslint-disable-next-line
                   onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
                 }
               }
@@ -180,11 +182,13 @@ function Token({ colour, id, tokenClickData }: Props) {
                 }, FORWARD_TOKEN_TRANSITION_TIME);
               });
               if (onlineContext.activeTokenAnimationPromiseRef) {
+                // eslint-disable-next-line
                 onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
               }
             } else {
               const animPromise = moveAndCapture(token, diceNumber);
               if (onlineContext.activeTokenAnimationPromiseRef) {
+                // eslint-disable-next-line
                 onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
               }
             }
