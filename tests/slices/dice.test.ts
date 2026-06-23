@@ -38,7 +38,7 @@ describe('Test dice slice reducers', () => {
     it('should update the dice number for the specified player colour', () => {
       const state = diceReducer(initialState, registerDice('blue'));
       const newState = diceReducer(state, setDiceNumber({ colour: 'blue', randomIndex: 0 }));
-      expect(getDice(newState, 'blue').diceNumber).toBe(state.rollBag.blue[0]);
+      expect(getDice(newState, 'blue')?.diceNumber).toBe(state.rollBag.blue[0]);
     });
   });
   describe('renewRollBag', () => {
@@ -89,7 +89,7 @@ describe('Test dice helpers', () => {
 
       expect(getDice(state, 'blue')).toEqual(state.dice[0]);
     });
-    it('should throw an error if no dice matches the specified player color', () => {
+    it('should return undefined if no dice matches the specified player color', () => {
       const state: TDiceState = {
         dice: [
           { colour: 'blue', diceNumber: 1, isPlaceholderShowing: false, isVisualRolling: false },
@@ -98,10 +98,10 @@ describe('Test dice helpers', () => {
         rollBag: { blue: [], red: [], green: [], yellow: [] },
         forcedRoll: null,
       };
-      expect(() => getDice(state, 'white' as never)).toThrowError();
+      expect(getDice(state, 'white' as never)).toBeUndefined();
     });
-    it('should throw an error if the dice state is empty', () => {
-      expect(() => getDice(initialState, 'blue')).toThrowError();
+    it('should return undefined if the dice state is empty', () => {
+      expect(getDice(initialState, 'blue')).toBeUndefined();
     });
   });
 

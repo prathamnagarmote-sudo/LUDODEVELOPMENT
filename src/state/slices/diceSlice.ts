@@ -1,6 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { TPlayerColour } from '../../types';
-import { ERRORS } from '../../utils/errors';
 import type { TDice } from '../../types';
 
 export type TDiceState = {
