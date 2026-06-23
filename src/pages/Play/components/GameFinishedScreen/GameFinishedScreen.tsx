@@ -97,14 +97,21 @@ function GameFinishedScreen({ players }: Props) {
     return standings[0].colour === myColour ? 'win' : 'lose';
   }, [isTie, onlineContext, players, standings]);
 
+  // Play the appropriate result sound when resultType is calculated/changes.
+  // We do NOT stop the sound in this effect's cleanup, which prevents
+  // component re-renders (e.g. when showSplash changes) from fading the sound out early.
   useEffect(() => {
     if (resultType) {
       playResultSound(resultType);
     }
+  }, [resultType]);
+
+  // Only stop the result sounds when the finished screen component unmounts.
+  useEffect(() => {
     return () => {
       stopResultSounds();
     };
-  }, [resultType]);
+  }, []);
 
   const onlineContextRef = useRef(onlineContext);
   useEffect(() => {
