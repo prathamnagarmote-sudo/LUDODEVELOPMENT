@@ -361,7 +361,7 @@ function matchInit(ctx, logger, nk, params) {
             noMovableTokensTimer: null,
             rematchAccepted: [],
             terminateAfterTicks: null,
-            lastStateSyncTick: 0, // track when we last broadcast periodic STATE_SYNC
+            lastStateSyncTick: 0,
             matchInitTime: Date.now(),
             // Pending turn-change: the server schedules OpCode 203 to be broadcast
             // AFTER the token animation duration so clients receive it once the
@@ -1237,7 +1237,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // 3. Process turn deadlines (timeout)
     var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
     if (anyHumanNotJoined) {
-        if (Date.now() - s.matchInitTime < 10000) {
+        if (Date.now() - s.matchInitTime < 45000) {
             s.turnDeadlineMs = Date.now() + 15000;
         }
         else {

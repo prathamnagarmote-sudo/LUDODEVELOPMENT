@@ -1437,7 +1437,7 @@ function matchLoop(
   // 3. Process turn deadlines (timeout)
   const anyHumanNotJoined = s.players.some((p: any) => !p.isBot && p.id === "" && !p.hasQuit);
   if (anyHumanNotJoined) {
-    if (Date.now() - s.matchInitTime < 10000) {
+    if (Date.now() - s.matchInitTime < 45000) {
       s.turnDeadlineMs = Date.now() + 15000;
     } else {
       // Eliminate human players who failed to join initially

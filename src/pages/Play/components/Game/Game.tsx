@@ -222,7 +222,7 @@ function Game({
         toast.error('Match start timeout: Could not sync with game loop.');
         navigate('/setup');
       }
-    }, 12000); // 12 seconds timeout
+    }, 50000); // 50 seconds timeout
 
     return () => clearTimeout(timeoutId);
   }, [isOnline, isMatchJoined, navigate]);
