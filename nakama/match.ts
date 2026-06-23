@@ -676,6 +676,15 @@ function resolvePostMoveTurnHandoff(
 }
 
 function executeRoll(state: any, dispatcher: nkruntime.MatchDispatcher, colour: TPlayerColour, forcedRoll?: number) {
+  // DICE_ROLL_START — broadcast as the very first action so ALL call paths
+  // (player roll, auto-move, turn-timeout roll) immediately notify every device.
+  // The matchLoop also sends this for the normal player-roll path; a duplicate
+  // 206 on the client is harmless (client ignores it if already rolling).
+  dispatcher.broadcastMessage(206, JSON.stringify({
+    colour: colour,
+    rollStartedAtMs: Date.now()
+  }));
+
   if (!state.rollBags) {
     state.rollBags = {
       blue: generateRollBag(),
@@ -1168,9 +1177,40 @@ function executeMove(
     }
   }
   if (!token) return;
-  const wasLocked = token.isLocked;
 
+  // TOKEN_MOVE_START — broadcast as the very first action before any state
+  // mutations so all devices (player + observer) begin the animation at the
+  // exact same moment. stepCount lets the observer animate the correct number
+  // of steps without waiting for OpCode 202 to confirm the final position.
+  // The matchLoop and the auto-move path in executeRoll may also send 207;
+  // a duplicate on the client is harmless (second 207 for the same token is
+  // ignored if the animation is already running).
   const roll = state.diceNumber;
+  const earlyAllTokens: TToken[] = [];
+  for (let ep = 0; ep < state.players.length; ep++) {
+    const epl = state.players[ep];
+    if (epl.tokens) {
+      for (let et = 0; et < epl.tokens.length; et++) {
+        earlyAllTokens.push(epl.tokens[et]);
+      }
+    }
+  }
+  const isUnlockEarly = token.isLocked && roll === 6;
+  let earlyStepCount = 1;
+  if (!isUnlockEarly) {
+    const { path: earlyPath } = computeMoveResult(token, roll, state.players);
+    earlyStepCount = earlyPath.length;
+  }
+  dispatcher.broadcastMessage(207, JSON.stringify({
+    colour: colour,
+    tokenId: tokenId,
+    diceNumber: roll,
+    stepCount: earlyStepCount,
+    isUnlock: isUnlockEarly,
+    moveStartedAtMs: Date.now()
+  }));
+
+  const wasLocked = token.isLocked;
   const allTokens: TToken[] = [];
   for (let p = 0; p < state.players.length; p++) {
     const pl = state.players[p];
