@@ -36,7 +36,7 @@
   width: 100%;
   max-width: 500px;
   min-height: 100vh;
-  padding: 120px 20px 20px;
+  padding: 90px 20px 20px;
   /* Reduced bottom padding */
   display: flex;
   flex-direction: column;
@@ -51,7 +51,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 10px;
+  margin-top: -15px; /* Shift logo slightly upwards */
+  margin-bottom: 25px;
 }
 
 .logoImage {
@@ -1010,4 +1011,144 @@
   text-overflow: ellipsis;
   max-width: 75px;
   margin-top: 2px;
+}
+
+.tempQuickPlayBtn {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  margin: 20px auto;
+  padding: 15px;
+  background-color: #e53935;
+  color: #fff;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  position: relative;
+  z-index: 1000;
+}
+
+@media (max-width: 480px), (max-height: 740px) {
+  .playerSetupDialog {
+    padding: 35px 15px 15px; /* Reduced top and side padding */
+  }
+
+  .logoContainer {
+    height: 110px; /* Scaled down logo container */
+    margin-top: -10px;
+    margin-bottom: 12px; /* Reduced gap */
+  }
+
+  .profileContainer {
+    max-width: 290px; /* Make blue profile card slightly more compact */
+  }
+
+  .profileContainerYellow,
+  .profileContainerYellow4 {
+    max-width: 290px; /* Make yellow opponent cards more compact */
+  }
+
+  .profileContent {
+    padding-left: 42px;
+    padding-right: 48px;
+    padding-bottom: 25px;
+  }
+
+  .playerName {
+    font-size: 20px; /* Slightly smaller name text */
+    max-width: 140px;
+  }
+
+  .avatarWrapper {
+    height: 75px;
+    width: 75px;
+  }
+
+  .profileContentYellow {
+    padding-left: 55px;
+    padding-right: 42px;
+    padding-top: 15px;
+  }
+
+  .playerNameYellow {
+    font-size: 20px;
+    max-width: 140px;
+  }
+
+  .divider {
+    margin-top: 10px;
+    margin-bottom: 15px; /* Reduced gap */
+  }
+
+  .playerCountOptions {
+    gap: 20px; /* Tighter gap between 2/4 buttons */
+  }
+
+  .playerBtnInner {
+    width: 95px;
+    height: 75px;
+  }
+
+  .btnNumber {
+    font-size: 24px;
+    margin-bottom: 2px;
+  }
+
+  .btnText {
+    font-size: 10px;
+  }
+
+  .playButtonWrapper {
+    width: 150px;
+    height: 52px;
+    margin-bottom: 15px; /* Less bottom clearance */
+  }
+
+  .playText {
+    font-size: 20px;
+  }
+
+  .cancelSearchBtn {
+    padding: 10px 25px;
+    font-size: 14px;
+    border-radius: 12px;
+    margin-bottom: 15px; /* Less bottom clearance */
+  }
+
+  .vsContainer {
+    width: 60px;
+    height: 45px;
+    margin-top: -35px;
+    margin-bottom: -35px;
+  }
+
+  /* 4-player matching slots on mobile */
+  .profileContentYellow4 {
+    padding-left: 36px;
+    padding-right: 36px;
+    padding-top: 8px;
+  }
+
+  .opponentSlot {
+    width: 62px;
+  }
+
+  .avatarWrapperSmall {
+    height: 52px;
+    width: 52px;
+  }
+
+  .playerNameYellow4 {
+    font-size: 12px;
+    max-width: 62px;
+  }
+
+  .tempQuickPlayBtn {
+    margin: 10px auto;
+    padding: 10px;
+    font-size: 13px;
+    max-width: 240px;
+  }
 }

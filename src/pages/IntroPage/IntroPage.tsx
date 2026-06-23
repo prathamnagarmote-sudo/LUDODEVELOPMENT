@@ -7,18 +7,9 @@ import styles from './IntroPage.module.css';
 // Import assets from the project
 import boardSvg from '../../assets/board.svg';
 import tokenSvg from '../../assets/token.svg';
+import logoImg from '../../Atlas_Lobby/images/logo.png';
 
 import TokenIcon from '../../assets/token.svg?react';
-
-const CrownIcon = () => (
-  <svg viewBox="0 0 100 60" width="100%" height="100%" fill="#ffca28">
-    <path d="M10 50 L20 10 L40 30 L50 5 L60 30 L80 10 L90 50 Z" stroke="#ff8f00" strokeWidth="4" strokeLinejoin="round" />
-    <circle cx="20" cy="8" r="6" fill="#ffb300" />
-    <circle cx="50" cy="3" r="6" fill="#ffb300" />
-    <circle cx="80" cy="8" r="6" fill="#ffb300" />
-    <path d="M15 50 L85 50 L80 58 L20 58 Z" fill="#ff8f00" />
-  </svg>
-);
 
 const DieIcon = () => (
   <svg viewBox="0 0 100 100" width="100%" height="100%">
@@ -182,30 +173,8 @@ export default function IntroPage() {
       <BackgroundWatermarks />
       
       {/* Logo Header */}
-      <div className={styles.logoHeader}>
-        <div className={styles.crown}>
-          <CrownIcon />
-        </div>
-        <div className={styles.looserBanner}>
-          <span>LOOSER</span>
-        </div>
-        <div className={styles.ludoTextContainer}>
-          <div className={styles.pawnLeft}>
-            <TokenIcon style={{ ['--fill-colour' as any]: '#1e88e5' }} />
-          </div>
-          <h1 className={styles.ludoText}>
-            <span className={styles.letterL}>L</span>
-            <span className={styles.letterU}>U</span>
-            <span className={styles.letterD}>D</span>
-            <span className={styles.letterO}>O</span>
-          </h1>
-          <div className={styles.pawnRight}>
-            <TokenIcon style={{ ['--fill-colour' as any]: '#e53935' }} />
-          </div>
-          <div className={styles.dieRight}>
-            <DieIcon />
-          </div>
-        </div>
+      <div className={styles.logoHeaderContainer}>
+        <img src={logoImg} alt="Looser Ludo Logo" className={styles.logoImage} />
       </div>
 
       {/* Main Ludo Graphic Area */}

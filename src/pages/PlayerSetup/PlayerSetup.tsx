@@ -615,7 +615,7 @@ function PlayerSetup() {
                state: { initData } 
              });
           }}
-          style={{ display: 'block', width: '100%', maxWidth: '280px', margin: '20px auto', padding: '15px', backgroundColor: '#e53935', color: '#fff', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', textAlign: 'center', position: 'relative', zIndex: 1000 }}
+          className={styles.tempQuickPlayBtn}
         >
           QUICK PLAY (TEMP MANUAL)
         </button>
