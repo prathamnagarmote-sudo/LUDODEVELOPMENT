@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, createContext, useMemo, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   registerNewPlayer,
   setPlayerSequence,
@@ -109,11 +110,12 @@ function Game({
   const [turnDeadlineMs, setTurnDeadlineMs] = useState<number>(Date.now() + 15000);
   const matchJoinedRef = useRef(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showFinishedScreen, setShowFinishedScreen] = useState(false);
 
   useEffect(() => {
     if (isGameEnded) {
-      const timer = setTimeout(() => setShowFinishedScreen(true), 1500);
+      const timer = setTimeout(() => setShowFinishedScreen(true), 0);
       return () => clearTimeout(timer);
     } else {
       setShowFinishedScreen(false);
@@ -908,7 +910,7 @@ function Game({
   };
 
   const handleExitBtnClick = () => {
-    setIsMenuOpen(false);
+    setShowQuitConfirm(false);
 
     const colourToQuit = isOnline ? (myPlayerColour || currentPlayerColour) : currentPlayerColour;
 
@@ -985,53 +987,63 @@ function Game({
             type="button"
             aria-label="Menu button"
             className={styles.menuBtn}
-            onClick={() => setIsMenuOpen(true)}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             <img src={menuIcon} alt="Menu" className={styles.menuIconImg} />
           </button>
         </div>
+        
         {isMenuOpen && (
-          <div className={styles.menuOverlay} onClick={() => setIsMenuOpen(false)}>
-            <div className={styles.menuModal} onClick={(e) => e.stopPropagation()}>
-              <h2 className={styles.menuTitle}>Game Menu</h2>
-              
-              <div className={styles.menuSettings}>
-                <div className={styles.settingItem}>
-                  <span className={styles.settingLabel}>Music & Sound</span>
-                  <label className={styles.switch}>
-                    <input type="checkbox" checked={music} onChange={toggleMusic} />
-                    <span className={styles.slider} />
-                  </label>
-                </div>
-                
-                <div className={styles.settingItem}>
-                  <span className={styles.settingLabel}>Vibration</span>
-                  <label className={styles.switch}>
-                    <input type="checkbox" checked={vibration} onChange={toggleVibration} />
-                    <span className={styles.slider} />
-                  </label>
-                </div>
-              </div>
-
-              <div className={styles.menuActions}>
-                <button
-                  type="button"
-                  className={styles.resumeBtn}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Resume Game
-                </button>
-                <button
-                  type="button"
-                  className={styles.quitBtn}
-                  onClick={handleExitBtnClick}
-                >
-                  Quit Game
-                </button>
-              </div>
+          <div className={styles.miniMenuBoard}>
+            <div className={styles.miniMenuItem} onClick={toggleMusic}>
+              <span>Sound</span>
+              {music ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+              )}
+            </div>
+            <div className={styles.miniMenuItem} onClick={toggleVibration}>
+              <span>Vibrate</span>
+              {vibration ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><path d="M22 10v4"></path><path d="M2 10v4"></path><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+              )}
+            </div>
+            <div className={styles.miniMenuItem} onClick={() => { setIsMenuOpen(false); setShowQuitConfirm(true); }}>
+              <span>Quit Game</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
             </div>
           </div>
         )}
+
+        <AnimatePresence>
+          {showQuitConfirm && (
+            <div className={styles.quitOverlay}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={styles.quitBackdrop}
+              />
+              <motion.div 
+                className={styles.quitModal}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+              >
+                <h3 className={styles.quitTitleSmall}>Are you sure want to</h3>
+                <h2 className={styles.quitTitleBig}>Quit</h2>
+                <div className={styles.quitBtnGroup}>
+                  <button className={styles.quitNoBtn} onClick={() => setShowQuitConfirm(false)}>No</button>
+                  <button className={styles.quitYesBtn} onClick={handleExitBtnClick}>Yes</button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
         {showFinishedScreen && <GameFinishedScreen players={players} />}
       </div>
     </OnlineGameContext.Provider>
