@@ -33,6 +33,11 @@
   overflow-x: hidden;
   font-family: 'Jua', sans-serif;
 }
+
+.splashActiveDialog {
+  background-image: none;
+  background-color: transparent;
+}
 .gameFinishedText {
   font-size: var(--board-tile-size);
   font-weight: 600;
@@ -207,4 +212,48 @@
   padding: 15px 30px;
   border-radius: 15px;
   border: 1px solid #FFD700;
+}
+
+.losePopupCard {
+  background-color: #bd1414;
+  border: 4px solid #fff200;
+  padding: 40px 60px;
+  width: 90%;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.winPopupCard {
+  background-color: #318621;
+}
+
+.tiePopupCard {
+  background-color: #2e4ebd;
+}
+
+.splashCrown {
+  width: 140px;
+  height: auto;
+  margin-bottom: 15px;
+}
+
+.losePopupStars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.losePopupText {
+  color: white;
+  font-size: 3.5rem;
+  font-weight: 900;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  margin: 10px 0 20px 0;
+  text-align: center;
 }

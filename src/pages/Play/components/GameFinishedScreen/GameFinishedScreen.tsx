@@ -47,7 +47,13 @@ function GameFinishedScreen({ players }: Props) {
   
   let splashText = '';
   if (isGameOver) {
-    splashText = 'GAME OVER!';
+    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
+    const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
+    if (amITiedForFirst) {
+      splashText = "It's a Tie!";
+    } else {
+      splashText = 'GAME OVER!';
+    }
   } else {
     const someoneQuit = standings.some(p => p.hasQuit);
     if (someoneQuit) {
@@ -55,7 +61,7 @@ function GameFinishedScreen({ players }: Props) {
         const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
         splashText = isMyWin ? 'You Win!' : 'You Lose!';
       } else {
-        splashText = `${standings[0].name} Wins!`;
+        splashText = 'You Lose!';
       }
     } else {
       // If online, use the assigned colour. If offline, assume players[0] is the primary local user.
@@ -256,12 +262,12 @@ function GameFinishedScreen({ players }: Props) {
       <motion.div className={styles.gameFinishedScreen} ref={ref}>
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.7 }}
+          animate={{ opacity: showSplash ? 0.6 : 0.7 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className={styles.gameFinishedBackdrop}
         />
-        {!isGameOver && isLocalWinner && rematchState === 'idle' && width > 0 && (
+        {!isGameOver && isLocalWinner && !showSplash && rematchState === 'idle' && width > 0 && (
           <Confetti
             width={width}
             height={height}
@@ -269,7 +275,7 @@ function GameFinishedScreen({ players }: Props) {
           />
         )}
         <motion.div
-          className={styles.gameFinishedDialog}
+          className={`${styles.gameFinishedDialog} ${showSplash ? styles.splashActiveDialog : ''}`}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
