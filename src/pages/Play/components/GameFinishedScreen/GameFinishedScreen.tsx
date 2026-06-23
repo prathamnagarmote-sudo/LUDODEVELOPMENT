@@ -90,18 +90,21 @@ function GameFinishedScreen({ players }: Props) {
     return () => clearTimeout(timer);
   }, []);
 
+  const resultType = useMemo<'win' | 'lose' | 'tie' | null>(() => {
+    if (standings.length === 0) return null;
+    if (isTie) return 'tie';
+    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
+    return standings[0].colour === myColour ? 'win' : 'lose';
+  }, [isTie, onlineContext, players, standings]);
+
   useEffect(() => {
-    if (showSplash) {
-      if (splashText === 'You Win!') playResultSound('win');
-      else if (splashText === "It's a Tie!") playResultSound('tie');
-      else if (splashText === 'You Lose!') playResultSound('lose');
-    } else {
-      stopResultSounds();
+    if (resultType) {
+      playResultSound(resultType);
     }
     return () => {
       stopResultSounds();
     };
-  }, [showSplash, splashText]);
+  }, [resultType]);
 
   const onlineContextRef = useRef(onlineContext);
   useEffect(() => {
