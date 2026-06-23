@@ -54,12 +54,7 @@ function GameFinishedScreen({ players }: Props) {
         const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
         splashText = isMyWin ? 'You Win!' : 'You Lose!';
       } else {
-        if (players.length === 2) {
-          splashText = 'You Lose!';
-        } else {
-          const isHumanWinner = standings[0] && !standings[0].isBot;
-          splashText = isHumanWinner ? 'You Win!' : 'You Lose!';
-        }
+        splashText = `${standings[0].name} Wins!`;
       }
     } else {
       // If online, use the assigned colour. If offline, assume players[0] is the primary local user.

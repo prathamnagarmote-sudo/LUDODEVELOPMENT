@@ -13,7 +13,9 @@ import { useMoveAndCaptureToken } from '../../../../hooks/useMoveAndCaptureToken
 import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTokens';
 import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
+import { setDiceNumberDirect } from '../../../../state/slices/diceSlice';
 import { TokenCelebration } from './TokenCelebration';
+
 import styles from './Token.module.css';
 import clsx from 'clsx';
 import { getTokenDOMId } from '../../../../game/tokens/logic';
@@ -82,13 +84,17 @@ function Token({ colour, id, tokenClickData }: Props) {
     setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
     dispatch(unlockAndAlignTokens({ colour, id }));
     dispatch(deactivateAllTokens(colour));
+    // NOTE: Do NOT reset diceNumber to -1 here.
+    // In online mode the server's TURN_CHANGE (OpCode 203) handles the dice reset
+    // authoritatively. Resetting here causes the cube to snap to face-1 before
+    // the next roll begins, which is the dice-reset-to-1 bug.
     setTimeout(() => {
       dispatch(setIsAnyTokenMoving(false));
     }, FORWARD_TOKEN_TRANSITION_TIME);
   };
 
   // OFFLINE-only: full token move including post-move turn change logic.
-  // In ONLINE mode, turn changes come EXCLUSIVELY from OpCode 6 — never from local logic.
+  // In ONLINE mode, turn changes come EXCLUSIVELY from OpCode 203 — never from local logic.
   const executeTokenMoveOffline = useCallback(async () => {
     if (!isActive || diceNumber === -1 || !diceNumber) return;
 
@@ -97,9 +103,13 @@ function Token({ colour, id, tokenClickData }: Props) {
     const { hasTokenReachedHome, isCaptured, hasPlayerWon } = moveData;
     if (hasPlayerWon) return dispatch(changeTurnThunk(moveAndCapture));
     if ((diceNumber !== 6 || numberOfConsecutiveSix >= 3) && !isCaptured && !hasTokenReachedHome) {
+      // Turn changes: changeTurnThunk already resets the NEXT player's dice to -1 internally.
       return dispatch(changeTurnThunk(moveAndCapture));
     }
-  }, [diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
+    // Same player gets another roll (rolled 6, captured, or reached home).
+    // Reset dice to -1 so the turn arrow reappears.
+    dispatch(setDiceNumberDirect({ colour, diceNumber: -1 }));
+  }, [colour, diceNumber, dispatch, isActive, moveAndCapture, numberOfConsecutiveSix, token]);
 
   useEffect(() => {
     const prevClickData = tokenClickDataRef.current;
@@ -121,11 +131,20 @@ function Token({ colour, id, tokenClickData }: Props) {
                 dispatch(setIsAnyTokenMoving(true));
                 setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
                 dispatch(unlockAndAlignTokens({ colour, id }));
-                setTimeout(() => {
-                  dispatch(setIsAnyTokenMoving(false));
-                }, FORWARD_TOKEN_TRANSITION_TIME);
+                const animPromise = new Promise<void>((resolve) => {
+                  setTimeout(() => {
+                    dispatch(setIsAnyTokenMoving(false));
+                    resolve();
+                  }, FORWARD_TOKEN_TRANSITION_TIME);
+                });
+                if (onlineContext.activeTokenAnimationPromiseRef) {
+                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                }
               } else {
-                moveAndCapture(token, diceNumber);
+                const animPromise = moveAndCapture(token, diceNumber);
+                if (onlineContext.activeTokenAnimationPromiseRef) {
+                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                }
               }
             } catch (err) {
               console.error("Failed to execute token move:", err);
@@ -154,11 +173,20 @@ function Token({ colour, id, tokenClickData }: Props) {
               dispatch(setIsAnyTokenMoving(true));
               setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
               dispatch(unlockAndAlignTokens({ colour, id }));
-              setTimeout(() => {
-                dispatch(setIsAnyTokenMoving(false));
-              }, FORWARD_TOKEN_TRANSITION_TIME);
+              const animPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve();
+                }, FORWARD_TOKEN_TRANSITION_TIME);
+              });
+              if (onlineContext.activeTokenAnimationPromiseRef) {
+                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+              }
             } else {
-              moveAndCapture(token, diceNumber);
+              const animPromise = moveAndCapture(token, diceNumber);
+              if (onlineContext.activeTokenAnimationPromiseRef) {
+                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+              }
             }
           } catch (err) {
             console.error("Failed to execute token move:", err);

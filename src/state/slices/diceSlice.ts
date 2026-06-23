@@ -6,11 +6,13 @@ import type { TDice } from '../../types';
 export type TDiceState = {
   dice: TDice[];
   rollBag: Record<TPlayerColour, number[]>;
+  forcedRoll: number | null;
 };
 
 export const initialState: TDiceState = {
   dice: [],
   rollBag: { blue: [], red: [], green: [], yellow: [] },
+  forcedRoll: null,
 };
 
 export function getDice(state: TDiceState, colour: TPlayerColour): TDice {
@@ -30,7 +32,7 @@ const reducers = {
   registerDice: (state: TDiceState, action: PayloadAction<TPlayerColour>) => {
     state.dice.push({
       colour: action.payload,
-      diceNumber: 1,
+      diceNumber: -1,
       isPlaceholderShowing: false,
       isVisualRolling: false,
     });
@@ -70,6 +72,9 @@ const reducers = {
     const dice = getDice(state, action.payload.colour);
     dice.diceNumber = action.payload.diceNumber;
   },
+  setForcedRoll: (state: TDiceState, action: PayloadAction<number | null>) => {
+    state.forcedRoll = action.payload;
+  },
   clearDiceState: () => initialState,
 };
 
@@ -86,6 +91,7 @@ export const {
   setIsVisualRolling,
   renewRollBag,
   setDiceNumberDirect,
+  setForcedRoll,
   clearDiceState,
 } = diceSlice.actions;
 

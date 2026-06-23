@@ -6,12 +6,12 @@ import dice5 from '../../../../assets/dice/5.svg';
 import dice6 from '../../../../assets/dice/6.svg';
 import { useCallback, useEffect, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
 import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
-import { setIsPlaceholderShowing, setIsVisualRolling } from '../../../../state/slices/diceSlice';
+import { setIsPlaceholderShowing, setIsVisualRolling, setForcedRoll } from '../../../../state/slices/diceSlice';
 import { playerColours } from '../../../../game/players/constants';
 import { isAnyTokenActiveOfColour } from '../../../../game/tokens/logic';
 import { getPlayerScore } from '../../../../game/score/logic';
@@ -38,6 +38,7 @@ type Props = {
 
 function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const dispatch = useDispatch<AppDispatch>();
+  const store = useStore<RootState>();
   const onlineContext = useContext(OnlineGameContext);
   const isAnyTokenMoving = useSelector((state: RootState) => state.players.isAnyTokenMoving);
   const isGameEnded = useSelector((state: RootState) => state.players.isGameEnded);
@@ -73,16 +74,13 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isDiceRollAllowed = !anyTokenActive && !isAnyTokenMoving && !isPlaceholderShowing;
   const { phase, isCritical, shouldShowTimer } = useTurnTimer(colour, isDiceRollAllowed, timerPathRef);
 
-  const forcedNumberRef = useRef<number | null>(null);
-
   const handleDiceClick = useCallback(() => {
     if (isDiceDisabled) return;
     playDiceRollSound();
 
-    let forcedNumber: number | null = null;
-    if (forcedNumberRef.current !== null) {
-      forcedNumber = forcedNumberRef.current;
-      forcedNumberRef.current = null;
+    const rollVal = store.getState().dice.forcedRoll;
+    if (rollVal !== null) {
+      dispatch(setForcedRoll(null));
     }
 
     if (onlineContext?.isOnline) {
@@ -96,7 +94,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
       try {
         // Send roll request input to Nakama (OpCode 100)
         // forcedRoll is a dev/test hint — the server ignores it in production
-        const payload = forcedNumber !== null ? JSON.stringify({ forcedRoll: forcedNumber }) : JSON.stringify({});
+        const payload = rollVal !== null ? JSON.stringify({ forcedRoll: rollVal }) : JSON.stringify({});
         getNakamaSocket().sendMatchState(onlineContext.roomId, 100, payload);
       } catch (err) {
         console.error("Failed to send dice roll input:", err);
@@ -105,27 +103,54 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
         toast.error("Failed to sync dice roll with server.");
       }
     } else {
-      dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), forcedNumber !== null ? forcedNumber : undefined));
+      dispatch(rollDiceThunk(colour, (diceNumber) => onDiceClick(colour, diceNumber), rollVal !== null ? rollVal : undefined));
     }
-  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext]);
+  }, [colour, dispatch, isDiceDisabled, onDiceClick, onlineContext, store]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      // Keys 1-6 force a specific dice number (works in all environments for testing)
-      const num = parseInt(e.key, 10);
-      if (!isNaN(num) && num >= 1 && num <= 6) {
-        forcedNumberRef.current = num;
-        if (!isDiceDisabled) handleDiceClick();
+      if (isGameEnded) return;
+
+      // Ignore keydown if user is typing in input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
         return;
       }
+
+      const canControlThisDice = onlineContext?.isOnline 
+        ? (colour === onlineContext.myPlayerColour && isCurrentPlayer)
+        : isCurrentPlayer;
+
+      if (!canControlThisDice) return;
+
+      let num = NaN;
+      if (e.code && e.code.startsWith('Digit')) {
+        num = parseInt(e.code.substring(5), 10);
+      } else if (e.code && e.code.startsWith('Numpad') && e.code.length === 7) {
+        num = parseInt(e.code.substring(6), 10);
+      } else {
+        const parsed = parseInt(e.key, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 6) {
+          num = parsed;
+        }
+      }
+
+      if (!isNaN(num) && num >= 1 && num <= 6) {
+        if (!isDiceDisabled) {
+          dispatch(setForcedRoll(num));
+          toast.info(`Next roll preset to: ${num}`, { toastId: 'forced-roll-toast', autoClose: 1500 });
+          handleDiceClick();
+        }
+        return;
+      }
+
       if ((e.key.toLowerCase() === 'd' || e.key === ' ') && !isDiceDisabled) {
         handleDiceClick();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDiceClick, isDiceDisabled]);
+  }, [handleDiceClick, isDiceDisabled, onlineContext, colour, isCurrentPlayer, isGameEnded, dispatch]);
 
   const missedTurns = playerObj?.missedTurns ?? 0;
   const avatarUrl = playerObj?.avatarUrl;
@@ -135,13 +160,34 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
-  const showRollArrow =
+  const lastRolledDiceNumberRef = useRef<number>(1);
+  if (diceNumber !== undefined && diceNumber !== -1) {
+    lastRolledDiceNumberRef.current = diceNumber;
+  }
+
+  const displayDiceNumber = (diceNumber === -1 || diceNumber === undefined)
+    ? lastRolledDiceNumberRef.current
+    : diceNumber;
+
+  const canShowArrow =
     isCurrentPlayer &&
-    (!onlineContext?.isOnline || colour === onlineContext.myPlayerColour) &&
+    isMyTurn &&
     !anyTokenActive &&
     !isAnyTokenMoving &&
     !isGameEnded &&
     !isPlaceholderShowing;
+
+  if (isCurrentPlayer && isMyTurn) {
+    console.log(`[DICE ARROW DEBUG] colour=${colour} canShowArrow=${canShowArrow} conditions:`, {
+      isCurrentPlayer,
+      isMyTurn,
+      anyTokenActive,
+      isAnyTokenMoving,
+      isGameEnded,
+      isPlaceholderShowing,
+      diceNumber
+    });
+  }
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>
@@ -220,6 +266,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     <div className={clsx(styles.diceFrameContainer, styles[colour], { [styles.activeFrame]: isVisualCurrentPlayer })}>
       <div className={styles.diceWrapper}>
         <button
+          id={`dice-btn-${colour}`}
           className={clsx(styles.dice, {
             [styles.active]: !isDiceDisabled,
             [styles.rolling]: isPlaceholderShowing,
@@ -235,12 +282,12 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             <div
               className={clsx(styles.cube, {
                 [styles.rollingCube]: isPlaceholderShowing,
-                [styles.show1]: !isPlaceholderShowing && diceNumber === 1,
-                [styles.show2]: !isPlaceholderShowing && diceNumber === 2,
-                [styles.show3]: !isPlaceholderShowing && diceNumber === 3,
-                [styles.show4]: !isPlaceholderShowing && diceNumber === 4,
-                [styles.show5]: !isPlaceholderShowing && diceNumber === 5,
-                [styles.show6]: !isPlaceholderShowing && diceNumber === 6,
+                [styles.show1]: !isPlaceholderShowing && displayDiceNumber === 1,
+                [styles.show2]: !isPlaceholderShowing && displayDiceNumber === 2,
+                [styles.show3]: !isPlaceholderShowing && displayDiceNumber === 3,
+                [styles.show4]: !isPlaceholderShowing && displayDiceNumber === 4,
+                [styles.show5]: !isPlaceholderShowing && displayDiceNumber === 5,
+                [styles.show6]: !isPlaceholderShowing && displayDiceNumber === 6,
               })}
             >
               <div className={clsx(styles.face, styles.front)}>
@@ -328,7 +375,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           </div>
         </>
       )}
-      {showRollArrow && (
+      {canShowArrow && (
         <div className={styles.woodenArrowWrapper}>
           <svg
             className={styles.woodenArrow}

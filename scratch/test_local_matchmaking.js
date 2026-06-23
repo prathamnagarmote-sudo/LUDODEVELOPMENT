@@ -47,8 +47,16 @@ async function test() {
       console.log(`[${name}] RECEIVED OP_CODE ${result.op_code}:`, data);
       if (result.op_code === 200) {
         console.log(`[${name}] Received STATE_SYNC! Match successfully started.`);
-        matchmakerCompleted = true;
+        // Don't mark matchmakerCompleted immediately, let it run so we observe turn timeout
       }
+    };
+
+    socket.ondisconnect = (evt) => {
+      console.log(`[${name}] DISCONNECTED:`, evt);
+    };
+
+    socket.onerror = (err) => {
+      console.error(`[${name}] ERROR:`, err);
     };
   };
 
@@ -63,9 +71,8 @@ async function test() {
   const ticket2 = await socket2.addMatchmaker(query, 2, 2, stringProps);
   console.log("Tickets added:", ticket1.ticket, ticket2.ticket);
 
-  // Poll wait for 15 seconds
-  for (let i = 0; i < 15; i++) {
-    if (matchmakerCompleted) break;
+  console.log("Waiting 25 seconds to observe match and turn timeout events...");
+  for (let i = 0; i < 25; i++) {
     await new Promise(r => setTimeout(r, 1000));
   }
 
