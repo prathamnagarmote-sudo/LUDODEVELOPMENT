@@ -15,10 +15,8 @@ export const initialState: TDiceState = {
   forcedRoll: null,
 };
 
-export function getDice(state: TDiceState, colour: TPlayerColour): TDice {
-  const dice = state.dice.find((d) => d.colour === colour);
-  if (!dice) throw new Error(ERRORS.diceDoesNotExist(colour));
-  return dice;
+export function getDice(state: TDiceState, colour: TPlayerColour): TDice | undefined {
+  return state.dice.find((d) => d.colour === colour);
 }
 
 export function generateRollBag(): number[] {
@@ -43,24 +41,30 @@ const reducers = {
     action: PayloadAction<{ colour: TPlayerColour; isPlaceholderShowing: boolean }>
   ) => {
     const dice = getDice(state, action.payload.colour);
-    dice.isPlaceholderShowing = action.payload.isPlaceholderShowing;
+    if (dice) {
+      dice.isPlaceholderShowing = action.payload.isPlaceholderShowing;
+    }
   },
   setIsVisualRolling: (
     state: TDiceState,
     action: PayloadAction<{ colour: TPlayerColour; isVisualRolling: boolean }>
   ) => {
     const dice = getDice(state, action.payload.colour);
-    dice.isVisualRolling = action.payload.isVisualRolling;
+    if (dice) {
+      dice.isVisualRolling = action.payload.isVisualRolling;
+    }
   },
   setDiceNumber: (
     state: TDiceState,
     action: PayloadAction<{ colour: TPlayerColour; randomIndex: number }>
   ) => {
     const dice = getDice(state, action.payload.colour);
-    dice.diceNumber = state.rollBag[action.payload.colour][action.payload.randomIndex];
-    state.rollBag[action.payload.colour] = state.rollBag[action.payload.colour].filter(
-      (_, i) => i !== action.payload.randomIndex
-    );
+    if (dice) {
+      dice.diceNumber = state.rollBag[action.payload.colour][action.payload.randomIndex];
+      state.rollBag[action.payload.colour] = state.rollBag[action.payload.colour].filter(
+        (_, i) => i !== action.payload.randomIndex
+      );
+    }
   },
   renewRollBag: (state: TDiceState, action: PayloadAction<TPlayerColour>) => {
     state.rollBag[action.payload] = generateRollBag();
@@ -70,7 +74,9 @@ const reducers = {
     action: PayloadAction<{ colour: TPlayerColour; diceNumber: number }>
   ) => {
     const dice = getDice(state, action.payload.colour);
-    dice.diceNumber = action.payload.diceNumber;
+    if (dice) {
+      dice.diceNumber = action.payload.diceNumber;
+    }
   },
   setForcedRoll: (state: TDiceState, action: PayloadAction<number | null>) => {
     state.forcedRoll = action.payload;
