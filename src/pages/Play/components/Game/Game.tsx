@@ -596,6 +596,7 @@ function Game({
 
       if (opCode === 200) {
         // STATE_SYNC
+        optimisticTokenMovesRef.current.clear();
         if (playersRegisteredInitiallyRef.current) {
           initializeGame(parsed.players);
         } else {
@@ -690,6 +691,7 @@ function Game({
       } else if (opCode === 203) {
         // TURN_CHANGE — processed sequentially so the turn arrow and timer only
         // update AFTER the token animation completes.
+        optimisticTokenMovesRef.current.clear();
         if (typeof parsed.deadlineMs === 'number') {
           setTurnDeadlineMs(parsed.deadlineMs);
         } else if (typeof parsed.turnDeadlineMs === 'number') {
@@ -803,6 +805,10 @@ function Game({
 
           if (movingToken) {
             const moveKey = `${movingColour}_${earlyTokenId}`;
+            if (optimisticTokenMovesRef.current.has(moveKey)) {
+              console.log(`[TOKEN MOVE START] Fast-path duplicate check: Already animating/moving token ${moveKey}. Ignoring duplicate.`);
+              return;
+            }
             optimisticTokenMovesRef.current.add(moveKey);
             console.log(`[TOKEN MOVE START] Fast-path early animation: ${movingColour} token ${earlyTokenId} steps=${earlyStepCount} (isUnlock=${earlyIsUnlock})`);
 

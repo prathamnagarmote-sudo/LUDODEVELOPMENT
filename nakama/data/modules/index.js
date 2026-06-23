@@ -554,15 +554,18 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         nextTurn(state, dispatcher);
     }
 }
-function executeRoll(state, dispatcher, colour, forcedRoll) {
+function executeRoll(state, dispatcher, colour, forcedRoll, skipBroadcast206) {
+    if (skipBroadcast206 === void 0) { skipBroadcast206 = false; }
     // DICE_ROLL_START — broadcast as the very first action so ALL call paths
     // (player roll, auto-move, turn-timeout roll) immediately notify every device.
     // The matchLoop also sends this for the normal player-roll path; a duplicate
     // 206 on the client is harmless (client ignores it if already rolling).
-    dispatcher.broadcastMessage(206, JSON.stringify({
-        colour: colour,
-        rollStartedAtMs: Date.now()
-    }));
+    if (!skipBroadcast206) {
+        dispatcher.broadcastMessage(206, JSON.stringify({
+            colour: colour,
+            rollStartedAtMs: Date.now()
+        }));
+    }
     if (!state.rollBags) {
         state.rollBags = {
             blue: generateRollBag(),
@@ -662,7 +665,7 @@ function executeRoll(state, dispatcher, colour, forcedRoll) {
             isUnlock: autoToken.isLocked && roll === 6,
             moveStartedAtMs: Date.now()
         }));
-        executeMove(state, dispatcher, colour, autoToken.id);
+        executeMove(state, dispatcher, colour, autoToken.id, true);
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -995,7 +998,8 @@ function selectBestBotToken(player, roll, allTokens) {
     var randIndex = Math.floor(Math.random() * bestTokens.length);
     return bestTokens[randIndex];
 }
-function executeMove(state, dispatcher, colour, tokenId) {
+function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
+    if (skipBroadcast207 === void 0) { skipBroadcast207 = false; }
     var player = null;
     for (var i = 0; i < state.players.length; i++) {
         if (state.players[i].colour === colour) {
@@ -1014,6 +1018,7 @@ function executeMove(state, dispatcher, colour, tokenId) {
     }
     if (!token)
         return;
+    var roll = state.diceNumber;
     // TOKEN_MOVE_START — broadcast as the very first action before any state
     // mutations so all devices (player + observer) begin the animation at the
     // exact same moment. stepCount lets the observer animate the correct number
@@ -1021,30 +1026,31 @@ function executeMove(state, dispatcher, colour, tokenId) {
     // The matchLoop and the auto-move path in executeRoll may also send 207;
     // a duplicate on the client is harmless (second 207 for the same token is
     // ignored if the animation is already running).
-    var roll = state.diceNumber;
-    var earlyAllTokens = [];
-    for (var ep = 0; ep < state.players.length; ep++) {
-        var epl = state.players[ep];
-        if (epl.tokens) {
-            for (var et = 0; et < epl.tokens.length; et++) {
-                earlyAllTokens.push(epl.tokens[et]);
+    if (!skipBroadcast207) {
+        var earlyAllTokens = [];
+        for (var ep = 0; ep < state.players.length; ep++) {
+            var epl = state.players[ep];
+            if (epl.tokens) {
+                for (var et = 0; et < epl.tokens.length; et++) {
+                    earlyAllTokens.push(epl.tokens[et]);
+                }
             }
         }
+        var isUnlockEarly = token.isLocked && roll === 6;
+        var earlyStepCount = 1;
+        if (!isUnlockEarly) {
+            var earlyPath = computeMoveResult(token, roll, state.players).path;
+            earlyStepCount = earlyPath.length;
+        }
+        dispatcher.broadcastMessage(207, JSON.stringify({
+            colour: colour,
+            tokenId: tokenId,
+            diceNumber: roll,
+            stepCount: earlyStepCount,
+            isUnlock: isUnlockEarly,
+            moveStartedAtMs: Date.now()
+        }));
     }
-    var isUnlockEarly = token.isLocked && roll === 6;
-    var earlyStepCount = 1;
-    if (!isUnlockEarly) {
-        var earlyPath = computeMoveResult(token, roll, state.players).path;
-        earlyStepCount = earlyPath.length;
-    }
-    dispatcher.broadcastMessage(207, JSON.stringify({
-        colour: colour,
-        tokenId: tokenId,
-        diceNumber: roll,
-        stepCount: earlyStepCount,
-        isUnlock: isUnlockEarly,
-        moveStartedAtMs: Date.now()
-    }));
     var wasLocked = token.isLocked;
     var allTokens = [];
     for (var p = 0; p < state.players.length; p++) {
@@ -1463,7 +1469,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     }
                 }
                 catch (e) { }
-                executeRoll(s, dispatcher, currentColour_2, forcedRoll);
+                executeRoll(s, dispatcher, currentColour_2, forcedRoll, true);
             }
             else if (opCode === 101) { // INPUT_MOVE_TOKEN
                 if (!s.hasRolled) {
@@ -1512,7 +1518,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     isUnlock: token.isLocked && s.diceNumber === 6,
                     moveStartedAtMs: Date.now()
                 }));
-                executeMove(s, dispatcher, currentColour_2, tokenId);
+                executeMove(s, dispatcher, currentColour_2, tokenId, true);
             }
         }
         catch (e) {
@@ -1541,7 +1547,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 s.botRollTick = tick + 30; // ~500ms think time at 60Hz
             }
             else if (tick >= s.botRollTick) {
-                executeRoll(s, dispatcher, currentColour);
+                executeRoll(s, dispatcher, currentColour, undefined, true);
                 s.botRollTick = null;
             }
         }
@@ -1607,7 +1613,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
                 }
                 if (bestToken) {
-                    executeMove(s, dispatcher, currentColour, bestToken.id);
+                    executeMove(s, dispatcher, currentColour, bestToken.id, true);
                 }
                 else {
                     nextTurn(s, dispatcher);
