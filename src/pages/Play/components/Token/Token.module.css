@@ -79,7 +79,7 @@
 }
 
 .activePlayerHighlight {
-  animation: activeTokenPulse 1.2s infinite alternate ease-in-out;
+  animation: activeTokenPulse 0.4s infinite alternate ease-in-out;
 }
 
 @keyframes activeTokenPulse {

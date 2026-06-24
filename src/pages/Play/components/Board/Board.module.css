@@ -40,14 +40,13 @@
 
 .paddockGlow.active {
   opacity: 1;
-  animation: pulseGlow 1.2s infinite alternate ease-in-out;
+  animation: pulseGlow 0.4s infinite alternate ease-in-out;
 }
 
 .paddockGlow.red {
   top: 0;
   left: 0;
-  background-color: rgba(239, 68, 68, 0.25);
-  box-shadow: inset 0 0 80px rgba(239, 68, 68, 1), inset 0 0 30px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.8);
+  box-shadow: inset 0 0 50px rgba(239, 68, 68, 1), inset 0 0 20px rgba(239, 68, 68, 0.8);
   border: 4px solid rgba(239, 68, 68, 1);
   border-top-left-radius: 0px;
 }
@@ -55,8 +54,7 @@
 .paddockGlow.green {
   top: 0;
   right: 0;
-  background-color: rgba(34, 197, 94, 0.25);
-  box-shadow: inset 0 0 80px rgba(34, 197, 94, 1), inset 0 0 30px rgba(34, 197, 94, 0.8), 0 0 20px rgba(34, 197, 94, 0.8);
+  box-shadow: inset 0 0 50px rgba(34, 197, 94, 1), inset 0 0 20px rgba(34, 197, 94, 0.8);
   border: 4px solid rgba(34, 197, 94, 1);
   border-top-right-radius: 0px;
 }
@@ -64,8 +62,7 @@
 .paddockGlow.yellow {
   bottom: 0;
   right: 0;
-  background-color: rgba(234, 179, 8, 0.25);
-  box-shadow: inset 0 0 80px rgba(234, 179, 8, 1), inset 0 0 30px rgba(234, 179, 8, 0.8), 0 0 20px rgba(234, 179, 8, 0.8);
+  box-shadow: inset 0 0 50px rgba(234, 179, 8, 1), inset 0 0 20px rgba(234, 179, 8, 0.8);
   border: 4px solid rgba(234, 179, 8, 1);
   border-bottom-right-radius: 0px;
 }
@@ -73,8 +70,7 @@
 .paddockGlow.blue {
   bottom: 0;
   left: 0;
-  background-color: rgba(59, 130, 246, 0.25);
-  box-shadow: inset 0 0 80px rgba(59, 130, 246, 1), inset 0 0 30px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.8);
+  box-shadow: inset 0 0 50px rgba(59, 130, 246, 1), inset 0 0 20px rgba(59, 130, 246, 0.8);
   border: 4px solid rgba(59, 130, 246, 1);
   border-bottom-left-radius: 0px;
 }

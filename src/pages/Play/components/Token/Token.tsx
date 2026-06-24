@@ -209,7 +209,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   return (
     <button
       id={getTokenDOMId(colour, id)}
-      className={clsx(styles.token, isCurrentPlayerTurn && styles.activePlayerHighlight)}
+      className={clsx(styles.token, isCurrentPlayerTurn && !hasTokenReachedHome && styles.activePlayerHighlight)}
       tabIndex={isActive ? undefined : -1}
       onFocus={() => setIsCurrentlyFocused(true)}
       onBlur={() => setIsCurrentlyFocused(false)}

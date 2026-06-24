@@ -151,7 +151,7 @@ function Game({
 
   useEffect(() => {
     if (initData.length === 0) return;
-    
+
     // Set match duration based on player count: 5 mins for 2P, 10 mins for 4P
     const matchDurationMs = initData.length === 2 ? 300000 : 600000;
     dispatch(setMatchDuration(matchDurationMs));
@@ -259,7 +259,7 @@ function Game({
     let socket: ReturnType<typeof getNakamaSocket>;
     try {
       socket = getNakamaSocket();
-    } catch(e) {
+    } catch (e) {
       navigate('/setup');
       return;
     }
@@ -299,12 +299,12 @@ function Game({
           const parsed = JSON.parse(storedUser);
           localUserName = parsed.userName;
           localUserId = parsed.userId;
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const mappedSequence = playersList.map((p: any) => p.colour || p.color);
       const effectivePlayerId = getEffectivePlayerId();
-      
+
       const myMatchPlayer = playersList.find((p: any) => {
         if (p.id && effectivePlayerId && p.id === effectivePlayerId) return true;
         if (p.userId && (p.userId === myUserId || p.userId === localUserId || p.userId === `usr_${localUserId}`)) return true;
@@ -490,7 +490,7 @@ function Game({
         if (data.hasMovableTokens && colour === myPlayerColourRef.current) {
           dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
         }
-        
+
         onComplete?.();
       };
 
@@ -538,12 +538,12 @@ function Game({
         if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
           try {
             dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
-          } catch (e) {}
+          } catch (e) { }
         }
         if (data.hasTokenReachedHome) {
           try {
             dispatch(markTokenAsReachedHome({ colour, id: data.id }));
-          } catch (e) {}
+          } catch (e) { }
         }
       };
 
@@ -628,14 +628,14 @@ function Game({
             if (isStableState) {
               p.tokens.forEach((t: any) => {
                 if (t.hasTokenReachedHome) {
-                  try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch(e) {}
+                  try { dispatch(markTokenAsReachedHome({ colour: p.colour, id: t.id })); } catch (e) { }
                   dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
                 } else {
                   dispatch(changeCoordsOfToken({ colour: p.colour, id: t.id, newCoords: t.coordinates }));
                   if (t.isLocked) {
-                    try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                    try { dispatch(lockToken({ colour: p.colour, id: t.id })); } catch (e) { }
                   } else {
-                    try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch(e) {}
+                    try { dispatch(unlockToken({ colour: p.colour, id: t.id })); } catch (e) { }
                   }
                 }
               });
@@ -748,7 +748,7 @@ function Game({
     socket.onmatchdata = (result: MatchData) => {
       const data = new TextDecoder().decode(result.data);
       let parsed: any;
-      try { parsed = JSON.parse(data); } catch(e) { return; }
+      try { parsed = JSON.parse(data); } catch (e) { return; }
 
       const opCode = result.op_code;
       console.log(`[SOCKET] Received OpCode ${opCode}`, parsed);
@@ -899,7 +899,7 @@ function Game({
         requestInterval = setInterval(() => {
           try {
             getNakamaSocket().sendMatchState(joinedMatchId, 102, JSON.stringify({ clientTime: Date.now() }));
-          } catch (e) {}
+          } catch (e) { }
         }, 4000);
       } catch (e: any) {
         matchJoinedRef.current = false;
@@ -914,7 +914,7 @@ function Game({
     joinMatchAsync();
 
     return () => {
-      socket.onmatchdata = () => {};
+      socket.onmatchdata = () => { };
       socket.ondisconnect = originalOnDisconnect;
       socket.onerror = originalOnError;
       socket.sendMatchState = originalSendMatchState; // Restore original sendMatchState
@@ -922,7 +922,7 @@ function Game({
       if (stateSyncRetryInterval) clearInterval(stateSyncRetryInterval);
       toast.dismiss();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, matchedToken, matchId, myPlayerId, myUserId]);
 
   const handleDiceRoll = (colour: TPlayerColour, diceNumber: number) => {
@@ -940,7 +940,7 @@ function Game({
     if (isOnline && roomId) {
       try {
         getNakamaSocket().sendMatchState(roomId, 7, JSON.stringify({ colour: colourToQuit }));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (colourToQuit) {
@@ -1015,7 +1015,7 @@ function Game({
             <img src={menuIcon} alt="Menu" className={styles.menuIconImg} />
           </button>
         </div>
-        
+
         {isMenuOpen && (
           <div className={styles.miniMenuBoard}>
             <div className={styles.miniMenuItem} onClick={toggleMusic}>
@@ -1051,7 +1051,7 @@ function Game({
                 transition={{ duration: 0.2 }}
                 className={styles.quitBackdrop}
               />
-              <motion.div 
+              <motion.div
                 className={styles.quitModal}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
