@@ -283,7 +283,10 @@ function GameFinishedScreen({ players }: Props) {
         >
 
           {showSplash ? (
-            <ResultSplashScreen text={splashText} />
+            <ResultSplashScreen 
+              text={splashText} 
+              playerColour={onlineContext ? onlineContext.myPlayerColour : players[0].colour} 
+            />
           ) : (
             <>
               <div style={{ 

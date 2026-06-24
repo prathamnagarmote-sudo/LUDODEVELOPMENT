@@ -363,7 +363,7 @@ function PlayerSetup() {
       if (ticket) {
         try {
           getNakamaSocket().removeMatchmaker(ticket);
-        } catch (e) {}
+        } catch (e) { }
       }
     };
   }, [isSearching, currentUser, navigate]);
@@ -390,7 +390,7 @@ function PlayerSetup() {
     if (ticket) {
       try {
         await getNakamaSocket().removeMatchmaker(ticket);
-      } catch (e) {}
+      } catch (e) { }
     }
     setMatchmakerTicket('');
     ticketRef.current = '';
@@ -595,25 +595,25 @@ function PlayerSetup() {
         <button
           type="button"
           onClick={(e) => {
-             e.preventDefault();
-             if (playerCount === null) {
-               toast.info('Please select 2 Players or 4 Players first.');
-               return;
-             }
-             const initData = playerCount === 2
-               ? [
-                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-                 ]
-               : [
-                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-                   { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
-                   { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
-                 ];
-             navigate('/play', { 
-               state: { initData } 
-             });
+            e.preventDefault();
+            if (playerCount === null) {
+              toast.info('Please select 2 Players or 4 Players first.');
+              return;
+            }
+            const initData = playerCount === 2
+              ? [
+                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+              ]
+              : [
+                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+                { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
+                { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
+              ];
+            navigate('/play', {
+              state: { initData }
+            });
           }}
           className={styles.tempQuickPlayBtn}
         >
@@ -622,9 +622,9 @@ function PlayerSetup() {
 
         {/* Buttons (Play / Cancel) */}
         {!isSearching ? (
-          <button 
-            className={styles.playButtonWrapper} 
-            onClick={handlePlayBtnClick} 
+          <button
+            className={styles.playButtonWrapper}
+            onClick={handlePlayBtnClick}
             disabled={playerCount === null || isConnectingSocket}
           >
             <img src={playBtnImg} alt="Play" className={styles.playBtnImage} />
