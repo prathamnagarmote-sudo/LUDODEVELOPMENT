@@ -349,7 +349,8 @@ function PlayerSetup() {
         ticketRef.current = res.ticket;
       } catch (err: any) {
         console.error("Matchmaking error:", err);
-        toast.error("Failed to start matchmaking: " + err.message);
+        const errMsg = err?.message || err?.error || (typeof err === 'string' ? err : JSON.stringify(err)) || 'Unknown error';
+        toast.error("Failed to start matchmaking: " + errMsg);
         setIsSearching(false);
       }
     };
