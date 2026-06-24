@@ -483,7 +483,7 @@
 .loadingTrack {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: fill;
 }
 
 .loadingFillWrapper {
@@ -520,22 +520,21 @@
 
 @keyframes fillProgress {
   0% { transform: translate3d(-100%, 0, 0); }
-  10% { transform: translate3d(-60%, 0, 0); }
-  30% { transform: translate3d(-40%, 0, 0); }
-  60% { transform: translate3d(-20%, 0, 0); }
-  90% { transform: translate3d(-5%, 0, 0); }
-  100% { transform: translate3d(-2%, 0, 0); }
+  20% { transform: translate3d(-85%, 0, 0); }
+  50% { transform: translate3d(-65%, 0, 0); }
+  80% { transform: translate3d(-40%, 0, 0); }
+  95% { transform: translate3d(-20%, 0, 0); }
+  100% { transform: translate3d(-15%, 0, 0); }
 }
 
 @keyframes glowMove {
   0% { transform: translate3d(-19px, -50%, 0); opacity: 0; }
   2% { opacity: 1; }
-  10% { transform: translate3d(101px, -50%, 0); opacity: 1; }
-  30% { transform: translate3d(161px, -50%, 0); opacity: 1; }
-  60% { transform: translate3d(221px, -50%, 0); opacity: 1; }
-  90% { transform: translate3d(266px, -50%, 0); opacity: 1; }
-  98% { transform: translate3d(275px, -50%, 0); opacity: 1; }
-  100% { transform: translate3d(275px, -50%, 0); opacity: 0; }
+  20% { transform: translate3d(26px, -50%, 0); opacity: 1; }
+  50% { transform: translate3d(86px, -50%, 0); opacity: 1; }
+  80% { transform: translate3d(161px, -50%, 0); opacity: 1; }
+  95% { transform: translate3d(221px, -50%, 0); opacity: 1; }
+  100% { transform: translate3d(236px, -50%, 0); opacity: 1; }
 }
 
 .matchmakingArea {
@@ -911,6 +910,7 @@
   overflow: hidden;
   border-radius: 50%;
   z-index: 4;
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .scrollingAvatarsContainer {
@@ -930,6 +930,7 @@
   object-fit: cover;
   flex-shrink: 0;
   border-radius: 50%;
+  background: transparent;
 }
 
 @keyframes avatarScrollUp {
@@ -1034,13 +1035,14 @@
 
 .scrollingAvatarsWrapperSmall {
   position: absolute;
-  top: 12.5%;
-  left: 12.5%;
-  width: 75%;
-  height: 75%;
+  top: 8.5px;
+  left: 8.5px;
+  width: 48px;
+  height: 48px;
   overflow: hidden;
   border-radius: 50%;
   z-index: 4;
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .scrollingAvatarsContainerSmall {
@@ -1056,10 +1058,11 @@
 
 .scrollingAvatarItemSmall {
   width: 100%;
-  height: 48.75px; /* 75% of 65px */
+  height: 48px;
   object-fit: cover;
   flex-shrink: 0;
   border-radius: 50%;
+  background: transparent;
 }
 
 @keyframes avatarScrollUpSmall {
@@ -1067,7 +1070,7 @@
     transform: translateY(0);
   }
   100% {
-    transform: translateY(-975px); /* 20 avatars * 48.75px = 975px */
+    transform: translateY(-960px); /* 20 avatars * 48px = 960px */
   }
 }
 
