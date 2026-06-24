@@ -1691,7 +1691,7 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
                 id: m.presence.sessionId,
                 userId: m.presence.userId,
                 isBot: false,
-                name: m.presence.username || ('Player ' + (matchPlayers_1.length + 1)),
+                name: props.name || props.userName || m.presence.username || ('Player ' + (matchPlayers_1.length + 1)),
                 avatarUrl: rawAvatarUrl,
                 level: 1
             });

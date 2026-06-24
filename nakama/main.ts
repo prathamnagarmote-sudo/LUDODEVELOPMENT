@@ -49,7 +49,7 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
         id: m.presence.sessionId,
         userId: m.presence.userId,
         isBot: false,
-        name: m.presence.username || ('Player ' + (matchPlayers.length + 1)),
+        name: (props as any).name || (props as any).userName || m.presence.username || ('Player ' + (matchPlayers.length + 1)),
         avatarUrl: rawAvatarUrl,
         level: 1
       });
