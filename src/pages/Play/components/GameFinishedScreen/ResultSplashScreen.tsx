@@ -1,26 +1,29 @@
 import { motion } from 'framer-motion';
 import styles from './GameFinishedScreen.module.css';
 import crownImage from '../../../../Atlas_Lobby/images/win crown.png';
+import TokenImage from '../../../../assets/token.svg?react';
 
 type Props = {
   text: string;
+  playerColour?: string;
 };
 
-const LoseStarsGraphic = () => (
-  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '6px', marginBottom: '15px' }}>
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="#a0a0a0" stroke="#ffffff" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="#a0a0a0" stroke="#ffffff" strokeWidth="2" style={{ marginBottom: '12px' }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-    <svg width="72" height="72" viewBox="0 0 24 24" fill="#e0e0e0" stroke="#ffffff" strokeWidth="2" style={{ marginBottom: '24px' }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="#a0a0a0" stroke="#ffffff" strokeWidth="2" style={{ marginBottom: '12px' }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="#a0a0a0" stroke="#ffffff" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-  </div>
-);
+const woodStainColours: Record<string, string> = {
+  red: 'url(#token-grad-red)',
+  green: 'url(#token-grad-green)',
+  blue: 'url(#token-grad-blue)',
+  yellow: 'url(#token-grad-yellow)',
+};
 
-function ResultSplashScreen({ text }: Props) {
+function ResultSplashScreen({ text, playerColour }: Props) {
   const isLose = text.toLowerCase().includes('lose');
   const isWin = text.toLowerCase().includes('win');
 
   if (isLose) {
+    let activeColour = playerColour || 'red';
+    if (activeColour === 'blue') {
+      activeColour = 'red';
+    }
     return (
       <motion.div
         className={styles.splashScreen}
@@ -30,8 +33,47 @@ function ResultSplashScreen({ text }: Props) {
         transition={{ duration: 0.3 }}
         style={{ zIndex: 9999 }}
       >
+        <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+          <defs>
+            <linearGradient id="token-grad-blue" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#003b73"/>
+              <stop offset="100%" stopColor="#00a2e8"/>
+            </linearGradient>
+            <linearGradient id="token-grad-red" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#800a00"/>
+              <stop offset="100%" stopColor="#f24b3f"/>
+            </linearGradient>
+            <linearGradient id="token-grad-green" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#034d19"/>
+              <stop offset="100%" stopColor="#24d658"/>
+            </linearGradient>
+            <linearGradient id="token-grad-yellow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#996000"/>
+              <stop offset="100%" stopColor="#ffb700"/>
+            </linearGradient>
+          </defs>
+        </svg>
         <div className={styles.losePopupCard}>
-          <LoseStarsGraphic />
+          <div className={styles.brokenTokenContainer}>
+            <TokenImage
+              className={styles.brokenTokenLeft}
+              style={{
+                '--fill-colour': woodStainColours[activeColour]
+              } as React.CSSProperties}
+            />
+            <TokenImage
+              className={styles.brokenTokenRight}
+              style={{
+                '--fill-colour': woodStainColours[activeColour]
+              } as React.CSSProperties}
+            />
+            <TokenImage
+              className={styles.brokenTokenShard}
+              style={{
+                '--fill-colour': woodStainColours[activeColour]
+              } as React.CSSProperties}
+            />
+          </div>
           <h1 className={styles.losePopupText}>YOU LOSE!</h1>
         </div>
       </motion.div>
@@ -57,6 +99,7 @@ function ResultSplashScreen({ text }: Props) {
   }
 
   if (isWin) {
+    const activeColour = playerColour || 'red';
     return (
       <motion.div
         className={styles.splashScreen}
@@ -66,8 +109,40 @@ function ResultSplashScreen({ text }: Props) {
         transition={{ duration: 0.3 }}
         style={{ zIndex: 9999 }}
       >
+        <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+          <defs>
+            <linearGradient id="token-grad-blue" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#003b73"/>
+              <stop offset="100%" stopColor="#00a2e8"/>
+            </linearGradient>
+            <linearGradient id="token-grad-red" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#800a00"/>
+              <stop offset="100%" stopColor="#f24b3f"/>
+            </linearGradient>
+            <linearGradient id="token-grad-green" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#034d19"/>
+              <stop offset="100%" stopColor="#24d658"/>
+            </linearGradient>
+            <linearGradient id="token-grad-yellow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#996000"/>
+              <stop offset="100%" stopColor="#ffb700"/>
+            </linearGradient>
+          </defs>
+        </svg>
         <div className={`${styles.losePopupCard} ${styles.winPopupCard}`}>
-          <img src={crownImage} alt="Crown" className={styles.splashCrown} />
+          <div className={styles.winningTokenContainer}>
+            <motion.img 
+              src={crownImage} 
+              alt="Crown" 
+              className={styles.splashCrownAboveToken} 
+            />
+            <TokenImage
+              className={styles.winningToken}
+              style={{
+                '--fill-colour': woodStainColours[activeColour]
+              } as React.CSSProperties}
+            />
+          </div>
           <h1 className={styles.losePopupText}>YOU WIN !</h1>
         </div>
       </motion.div>

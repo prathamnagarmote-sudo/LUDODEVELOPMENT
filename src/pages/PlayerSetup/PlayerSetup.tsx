@@ -193,14 +193,14 @@ function PlayerSetup() {
           const opponent = matched.users.find(
             (u) => u.presence.session_id !== matched.self.presence.session_id
           );
-          const opName = opponent?.string_properties?.name || 
-                         opponent?.string_properties?.userName || 
-                         opponent?.presence.username || 
-                         "Opponent";
-          const opAvatar = opponent?.string_properties?.avatarurl || 
-                           opponent?.string_properties?.avatarUrl || 
-                           opponent?.string_properties?.avatar_url || 
-                           lobbyAvatarsList[0] || '';
+          const opName = opponent?.string_properties?.name ||
+            opponent?.string_properties?.userName ||
+            opponent?.presence.username ||
+            "Opponent";
+          const opAvatar = opponent?.string_properties?.avatarurl ||
+            opponent?.string_properties?.avatarUrl ||
+            opponent?.string_properties?.avatar_url ||
+            lobbyAvatarsList[0] || '';
 
           setOpponentName(opName);
           setOpponentAvatar(opAvatar);
@@ -267,7 +267,7 @@ function PlayerSetup() {
       if (ticket) {
         try {
           getNakamaSocket().removeMatchmaker(ticket);
-        } catch (e) {}
+        } catch (e) { }
       }
     };
   }, [isSearching, currentUser, navigate]);
@@ -283,7 +283,7 @@ function PlayerSetup() {
       toast.info("4 Players matchmaking is coming soon! Please select 2 Players.");
       return;
     }
-    
+
     // Start search
     setOpponentName('Searching...');
     setMatchFound(false);
@@ -296,7 +296,7 @@ function PlayerSetup() {
     if (ticket) {
       try {
         await getNakamaSocket().removeMatchmaker(ticket);
-      } catch (e) {}
+      } catch (e) { }
     }
     setMatchmakerTicket('');
     ticketRef.current = '';
@@ -444,25 +444,25 @@ function PlayerSetup() {
         <button
           type="button"
           onClick={(e) => {
-             e.preventDefault();
-             if (playerCount === null) {
-               toast.info('Please select 2 Players or 4 Players first.');
-               return;
-             }
-             const initData = playerCount === 2
-               ? [
-                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-                 ]
-               : [
-                   { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                   { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-                   { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
-                   { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
-                 ];
-             navigate('/play', { 
-               state: { initData } 
-             });
+            e.preventDefault();
+            if (playerCount === null) {
+              toast.info('Please select 2 Players or 4 Players first.');
+              return;
+            }
+            const initData = playerCount === 2
+              ? [
+                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+              ]
+              : [
+                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+                { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
+                { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
+              ];
+            navigate('/play', {
+              state: { initData }
+            });
           }}
           style={{ display: 'block', width: '100%', maxWidth: '280px', margin: '20px auto', padding: '15px', backgroundColor: '#e53935', color: '#fff', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', border: 'none', textAlign: 'center', position: 'relative', zIndex: 1000 }}
         >
@@ -471,9 +471,9 @@ function PlayerSetup() {
 
         {/* Buttons (Play / Cancel) */}
         {!isSearching ? (
-          <button 
-            className={styles.playButtonWrapper} 
-            onClick={handlePlayBtnClick} 
+          <button
+            className={styles.playButtonWrapper}
+            onClick={handlePlayBtnClick}
             disabled={playerCount === null || isConnectingSocket}
           >
             <img src={playBtnImg} alt="Play" className={styles.playBtnImage} />
