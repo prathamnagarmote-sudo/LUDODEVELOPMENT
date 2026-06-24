@@ -20,6 +20,9 @@ import vsAfterEffectImg from '../../Atlas_Lobby/images/vs_after_effect_2.png';
 import logoImg from '../../Atlas_Lobby/images/logo.png';
 import playBtnImg from '../../Atlas_Lobby/images/Playblue.png';
 import timerIconImg from '../../Atlas_Lobby/images/timmer.png';
+import loadingBarFill from '../../Atlas_Lobby/images/lodding_bar.png';
+import loadingBarBg from '../../Atlas_Lobby/images/lodding_bar_bg.png';
+import loadingBarEffect from '../../Atlas_Lobby/images/lodding_effect.png';
 
 type TUserProfile = {
   userId: string;
@@ -71,6 +74,7 @@ function PlayerSetup() {
   const [visibleOpponentsCount, setVisibleOpponentsCount] = useState(0);
   const [countdown, setCountdown] = useState<number | string | null>(null);
   const [isConnectingSocket, setIsConnectingSocket] = useState(false);
+  const [showNoOpponentsPopup, setShowNoOpponentsPopup] = useState(false);
 
   const ticketRef = useRef<string>('');
   const navigate = useNavigate();
@@ -415,7 +419,10 @@ function PlayerSetup() {
         if (prev <= 1) {
           clearInterval(interval);
           handleCancelSearch();
-          toast.warning('Matchmaking timed out. No players found. Please try again.');
+          setShowNoOpponentsPopup(true);
+          setTimeout(() => {
+            setShowNoOpponentsPopup(false);
+          }, 2000);
           return 0;
         }
         return prev - 1;
@@ -631,36 +638,61 @@ function PlayerSetup() {
         )}
 
         {/* Temporary Quick Play Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            if (playerCount === null) {
-              toast.info('Please select 2 Players or 4 Players first.');
-              return;
-            }
-            const initData = playerCount === 2
-              ? [
-                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-              ]
-              : [
-                { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
-                { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
-                { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
-                { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
-              ];
-            navigate('/play', {
-              state: { initData }
-            });
-          }}
-          className={styles.tempQuickPlayBtn}
-        >
-          QUICK PLAY (TEMP MANUAL)
-        </button>
+        {!isSearching && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (playerCount === null) {
+                toast.info('Please select 2 Players or 4 Players first.');
+                return;
+              }
+              const initData = playerCount === 2
+                ? [
+                  { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                  { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+                ]
+                : [
+                  { name: currentUser?.userName || 'Player 1', isBot: false, avatarUrl: currentUser?.avatar_url },
+                  { name: 'PLAYER', isBot: false, avatarUrl: lobbyAvatarsList[1] || '' },
+                  { name: 'ZENO', isBot: false, avatarUrl: lobbyAvatarsList[2] || '' },
+                  { name: 'REX', isBot: false, avatarUrl: lobbyAvatarsList[3] || '' },
+                ];
+              navigate('/play', {
+                state: { initData }
+              });
+            }}
+            className={styles.tempQuickPlayBtn}
+          >
+            QUICK PLAY (TEMP MANUAL)
+          </button>
+        )}
+
+        {/* Searching Loading Bar */}
+        {isSearching && !matchFound && (
+          <div 
+            className={styles.loadingContainer}
+            style={{ '--loading-duration': playerCount === 4 ? '45s' : '30s' } as React.CSSProperties}
+          >
+            <div className={styles.loadingBarWrapper}>
+              <img src={loadingBarBg} className={styles.loadingTrack} alt="Loading Track" />
+              <div className={styles.loadingFillWrapper}>
+                <img src={loadingBarFill} className={styles.loadingFill} alt="Loading Fill" />
+              </div>
+              <img src={loadingBarEffect} className={styles.loadingEffect} alt="Loading Glow" />
+            </div>
+          </div>
+        )}
+
+        {/* No Opponents Found Popup */}
+        {showNoOpponentsPopup && (
+          <div className={styles.noOpponentsPopupContainer}>
+            <span className={styles.noOpponentsText}>No Opponents Found</span>
+          </div>
+        )}
 
         {/* Buttons (Play / Cancel) */}
-        {!isSearching ? (
+        {!isSearching && !showNoOpponentsPopup ? (
           <button
             className={styles.playButtonWrapper}
             onClick={handlePlayBtnClick}
@@ -673,7 +705,7 @@ function PlayerSetup() {
             <div className={styles.shiningEffect}></div>
           </button>
         ) : (
-          !matchFound && (
+          isSearching && !matchFound && (
             <button className={styles.cancelSearchBtn} onClick={handleCancelSearch}>
               CANCEL SEARCH
             </button>
