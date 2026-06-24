@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
 import { authenticate, getNakamaSocket, getSession, disconnectSocket, ensureSocketConnected } from '../../services/nakama';
@@ -19,6 +19,7 @@ import vsAfterEffectImg from '../../Atlas_Lobby/images/vs_after_effect_2.png';
 
 import logoImg from '../../Atlas_Lobby/images/logo.png';
 import playBtnImg from '../../Atlas_Lobby/images/Playblue.png';
+import timerIconImg from '../../Atlas_Lobby/images/timmer.png';
 
 type TUserProfile = {
   userId: string;
@@ -62,13 +63,13 @@ function PlayerSetup() {
 
   const [playerCount, setPlayerCount] = useState<number | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchTimer, setSearchTimer] = useState<number | null>(null);
   const [matchFound, setMatchFound] = useState(false);
   const [opponentName, setOpponentName] = useState('Searching...');
   const [opponentAvatar, setOpponentAvatar] = useState('');
   const [opponents, setOpponents] = useState<{ name: string; avatarUrl: string }[]>([]);
   const [visibleOpponentsCount, setVisibleOpponentsCount] = useState(0);
   const [countdown, setCountdown] = useState<number | string | null>(null);
-  const [matchmakerTicket, setMatchmakerTicket] = useState<string>('');
   const [isConnectingSocket, setIsConnectingSocket] = useState(false);
 
   const ticketRef = useRef<string>('');
@@ -274,7 +275,6 @@ function PlayerSetup() {
           // CRITICAL: Clear ticket BEFORE navigating so the useEffect cleanup
           // does NOT call removeMatchmaker (which would break the server match)
           ticketRef.current = '';
-          setMatchmakerTicket('');
 
           const runCountdown = () => {
             let counter = 3;
@@ -346,7 +346,6 @@ function PlayerSetup() {
           }
         );
 
-        setMatchmakerTicket(res.ticket);
         ticketRef.current = res.ticket;
       } catch (err: any) {
         console.error("Matchmaking error:", err);
@@ -385,19 +384,50 @@ function PlayerSetup() {
     setIsSearching(true);
   };
 
-  const handleCancelSearch = async () => {
-    const ticket = matchmakerTicket || ticketRef.current;
+  const handleCancelSearch = useCallback(async () => {
+    const ticket = ticketRef.current;
     if (ticket) {
       try {
         await getNakamaSocket().removeMatchmaker(ticket);
       } catch (e) { }
     }
-    setMatchmakerTicket('');
     ticketRef.current = '';
     setIsSearching(false);
     setMatchFound(false);
     setOpponents([]);
     setVisibleOpponentsCount(0);
+  }, []);
+
+  // Matchmaking timer countdown effect
+  useEffect(() => {
+    if (!isSearching || matchFound) {
+      setSearchTimer(null);
+      return;
+    }
+
+    const initialTime = playerCount === 4 ? 45 : 30;
+    setSearchTimer(initialTime);
+
+    const interval = setInterval(() => {
+      setSearchTimer((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleCancelSearch();
+          toast.warning('Matchmaking timed out. No players found. Please try again.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSearching, matchFound, playerCount, handleCancelSearch]);
+
+  const formatTimer = (seconds: number | null): string => {
+    if (seconds === null) return '';
+    const secsStr = seconds < 10 ? `0${seconds}` : `${seconds}`;
+    return `00:${secsStr}`;
   };
 
   const handleLogout = () => {
@@ -426,6 +456,14 @@ function PlayerSetup() {
       <div className={styles.spotlight}></div>
 
       <main className={styles.playerSetupDialog}>
+        {/* Matchmaking Timer */}
+        {isSearching && searchTimer !== null && (
+          <div className={styles.lobbyTimerContainer}>
+            <img src={timerIconImg} alt="Timer Icon" className={styles.lobbyTimerIcon} />
+            <span className={styles.lobbyTimerText}>{formatTimer(searchTimer)}</span>
+          </div>
+        )}
+
         {/* Logo */}
         <div className={styles.logoContainer}>
           <img src={logoImg} alt="Looser Ludo Logo" className={styles.logoImage} />

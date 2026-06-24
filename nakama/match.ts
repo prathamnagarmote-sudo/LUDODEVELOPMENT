@@ -28,6 +28,8 @@ interface TPlayer {
   userId?: string;
   missedTurns: number;
   hasQuit: boolean;
+  avatarUrl?: string;
+  level?: number;
 }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -390,7 +392,9 @@ function matchInit(
         id: p.id || "",
         userId: p.userId || "",
         missedTurns: 0,
-        hasQuit: false
+        hasQuit: false,
+        avatarUrl: p.avatarUrl || "",
+        level: typeof p.level === 'number' ? p.level : 1
       });
     }
 

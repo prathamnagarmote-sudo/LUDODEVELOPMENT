@@ -51,7 +51,7 @@ const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function(
         isBot: false,
         name: (props as any).name || (props as any).userName || m.presence.username || ('Player ' + (matchPlayers.length + 1)),
         avatarUrl: rawAvatarUrl,
-        level: 1
+        level: parseInt((props as any).level || '1') || 1
       });
     });
 

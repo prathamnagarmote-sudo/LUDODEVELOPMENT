@@ -330,7 +330,9 @@ function matchInit(ctx, logger, nk, params) {
                 id: p.id || "",
                 userId: p.userId || "",
                 missedTurns: 0,
-                hasQuit: false
+                hasQuit: false,
+                avatarUrl: p.avatarUrl || "",
+                level: typeof p.level === 'number' ? p.level : 1
             });
         }
         var playerSequence = [];
@@ -1693,7 +1695,7 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
                 isBot: false,
                 name: props.name || props.userName || m.presence.username || ('Player ' + (matchPlayers_1.length + 1)),
                 avatarUrl: rawAvatarUrl,
-                level: 1
+                level: parseInt(props.level || '1') || 1
             });
         });
         var colors_1 = ['blue', 'green', 'red', 'yellow'];
