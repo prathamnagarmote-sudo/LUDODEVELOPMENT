@@ -1030,6 +1030,42 @@
   z-index: 1000;
 }
 
+.lobbyTimerContainer {
+  position: absolute;
+  top: 30px;
+  right: 25px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  animation: fadeInTimer 0.3s ease-out;
+}
+
+.lobbyTimerIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.lobbyTimerText {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffd700; /* Bold digital yellow */
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+  letter-spacing: 1px;
+}
+
+@keyframes fadeInTimer {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 480px), (max-height: 740px) {
   .playerSetupDialog {
     padding: 35px 15px 15px; /* Reduced top and side padding */
@@ -1150,5 +1186,21 @@
     padding: 10px;
     font-size: 13px;
     max-width: 240px;
+  }
+
+  .lobbyTimerContainer {
+    top: 15px;
+    right: 15px;
+    padding: 4px 10px;
+    gap: 6px;
+  }
+
+  .lobbyTimerIcon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .lobbyTimerText {
+    font-size: 16px;
   }
 }

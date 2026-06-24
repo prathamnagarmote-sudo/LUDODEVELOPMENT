@@ -1,7 +1,7 @@
 import type { TPlayerColour, TPlayer, TCoordinate } from '../../types';
 import type { TToken } from '../../types';
-import { areCoordsEqual, getDistanceInTokenPath, getHomeCoordForColour, isCoordASafeSpot } from '../coords/logic';
-import { tokenPaths } from './paths';
+import { areCoordsEqual, getDistanceInTokenPath, getHomeCoordForColour } from '../coords/logic';
+
 
 export function isAnyTokenActiveOfColour(colour: TPlayerColour, players: TPlayer[]): boolean {
   const player = players.find((p) => p.colour === colour);
@@ -18,7 +18,7 @@ export function getAvailableSteps({ colour, coordinates }: TToken): number {
   return getDistanceInTokenPath(colour, coordinates, getHomeCoordForColour(colour));
 }
 
-export function isTokenMovable(token: TToken, diceNumber?: number, allTokens?: TToken[]): boolean {
+export function isTokenMovable(token: TToken, diceNumber?: number, _allTokens?: TToken[]): boolean {
   if (token.hasTokenReachedHome) return false;
   if (!diceNumber) return !token.isLocked;
   if (token.isLocked) {
@@ -28,36 +28,7 @@ export function isTokenMovable(token: TToken, diceNumber?: number, allTokens?: T
     return false;
   }
 
-  if (allTokens) {
-    const tokenPath = tokenPaths[token.colour];
-    const currentCoordIndex = tokenPath.findIndex((c) => areCoordsEqual(token.coordinates, c));
-    if (currentCoordIndex !== -1) {
-      for (let i = 1; i <= diceNumber; i++) {
-        const stepIndex = currentCoordIndex + i;
-        if (stepIndex >= tokenPath.length) break;
-        const stepCoord = tokenPath[stepIndex];
-
-        const opponentColours = (['blue', 'red', 'green', 'yellow'] as TPlayerColour[]).filter(
-          (c) => c !== token.colour
-        );
-
-        for (const oppColour of opponentColours) {
-          if (!isCoordASafeSpot(stepCoord, oppColour)) {
-            const tokensAtCoord = allTokens.filter(
-              (t) =>
-                t.colour === oppColour &&
-                !t.isLocked &&
-                !t.hasTokenReachedHome &&
-                areCoordsEqual(t.coordinates, stepCoord)
-            );
-            if (tokensAtCoord.length >= 2) {
-              return false;
-            }
-          }
-        }
-      }
-    }
-  }
+  // Block logic was removed to allow capturing multiple opponent tokens
 
   return true;
 }
