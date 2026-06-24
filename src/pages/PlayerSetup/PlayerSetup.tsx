@@ -455,15 +455,15 @@ function PlayerSetup() {
       {/* Background Spotlight */}
       <div className={styles.spotlight}></div>
 
-      <main className={styles.playerSetupDialog}>
-        {/* Matchmaking Timer */}
-        {isSearching && searchTimer !== null && (
-          <div className={styles.lobbyTimerContainer}>
-            <img src={timerIconImg} alt="Timer Icon" className={styles.lobbyTimerIcon} />
-            <span className={styles.lobbyTimerText}>{formatTimer(searchTimer)}</span>
-          </div>
-        )}
+      {/* Matchmaking Timer */}
+      {isSearching && searchTimer !== null && (
+        <div className={styles.lobbyTimerContainer}>
+          <img src={timerIconImg} alt="Timer Icon" className={styles.lobbyTimerIcon} />
+          <span className={styles.lobbyTimerText}>{formatTimer(searchTimer)}</span>
+        </div>
+      )}
 
+      <main className={styles.playerSetupDialog}>
         {/* Logo */}
         <div className={styles.logoContainer}>
           <img src={logoImg} alt="Looser Ludo Logo" className={styles.logoImage} />
