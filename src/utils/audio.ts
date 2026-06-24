@@ -9,6 +9,7 @@ import gameStartMp3 from '../sound animations/GME START.mp3';
 import gameWinMp3 from '../sound animations/game win.mp3';
 import ludoTieMp3 from '../sound animations/ludo tie.mp3';
 import gameLostMp3 from '../sound animations/game lost.mp3';
+import timerWarningMp3 from '../sound animations/Timer.mp3';
 
 function isMusicEnabled(): boolean {
   if (typeof window === 'undefined') return true;
@@ -24,7 +25,11 @@ export function triggerVibration(pattern: number | number[]) {
 }
 
 export function onTimerWarning() {
-  // Future hook for warning sound integration during the last 10 seconds
+  playSound(timerWarningMp3, false, 1.0);
+}
+
+export function stopTimerWarning() {
+  stopSound(timerWarningMp3);
 }
 
 const audioCache: Record<string, HTMLAudioElement> = {};

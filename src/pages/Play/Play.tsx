@@ -3,7 +3,6 @@ import Game from './components/Game/Game';
 import { useEffect } from 'react';
 import { useCleanup } from '../../hooks/useCleanup';
 import type { TPlayerInitData } from '../../types';
-import { playGameStartSound } from '../../utils/audio';
 
 function Play() {
   const cleanup = useCleanup();
@@ -12,7 +11,6 @@ function Play() {
   const { initData } = state;
   useEffect(() => {
     document.title = 'Play LibreLudo';
-    playGameStartSound();
     return () => cleanup();
   }, [cleanup]);
   return (initData && initData?.length !== 0) || state.isOnline ? (

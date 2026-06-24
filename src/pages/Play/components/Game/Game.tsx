@@ -330,7 +330,7 @@ function Game({
       dispatch(setPlayerSequenceDirect(mappedSequence));
       dispatch(setGameStartTime(Date.now()));
 
-      const matchDurationMs = playersList.length === 2 ? 300000 : 600000;
+      const matchDurationMs = playersList.length === 2 ? 300000 : 600000
       dispatch(setMatchDuration(matchDurationMs));
 
       for (let i = 0; i < playersList.length; i++) {

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../../state/store';
 import styles from './ScoreBoard.module.css';
-import { triggerVibration, onTimerWarning } from '../../../../utils/audio';
+import { triggerVibration, onTimerWarning, stopTimerWarning } from '../../../../utils/audio';
 import clsx from 'clsx';
 
 function formatTime(ms: number) {
@@ -26,6 +26,8 @@ export default function ScoreBoard() {
       triggerVibration(50);
     } else if (prevSeconds !== currentSeconds && (currentSeconds === 5 || currentSeconds === 3)) {
       triggerVibration(50);
+    } else if ((prevSeconds <= 10 && currentSeconds > 10) || currentSeconds === 0) {
+      stopTimerWarning();
     }
 
     prevTimeRef.current = timeRemainingMs;
