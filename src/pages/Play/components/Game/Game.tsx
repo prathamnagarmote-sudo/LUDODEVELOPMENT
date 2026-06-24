@@ -512,6 +512,7 @@ function Game({
       hasPlayerWon: boolean;
       capturedTokenColour?: string;
       capturedTokenId?: number;
+      capturedTokens?: { colour: string; id: number }[];
     }) => {
       const colour = data.colour;
       const state = store.getState();
@@ -535,10 +536,18 @@ function Game({
           const finalCoord = data.path[data.path.length - 1];
           dispatch(changeCoordsOfToken({ colour, id: data.id, newCoords: finalCoord }));
         }
-        if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
-          try {
-            dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
-          } catch (e) { }
+        if (data.isCaptured) {
+          if (data.capturedTokens && Array.isArray(data.capturedTokens)) {
+            data.capturedTokens.forEach((t: { colour: string; id: number }) => {
+              try {
+                dispatch(lockToken({ colour: t.colour as TPlayerColour, id: t.id }));
+              } catch (e) { }
+            });
+          } else if (data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
+            try {
+              dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
+            } catch (e) { }
+          }
         }
         if (data.hasTokenReachedHome) {
           try {

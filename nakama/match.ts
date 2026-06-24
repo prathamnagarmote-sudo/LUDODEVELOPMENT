@@ -1260,6 +1260,7 @@ function executeMove(
 
   let capturedTokenColour: string | undefined = undefined;
   let capturedTokenId: number | undefined = undefined;
+  const capturedTokensList: { colour: string; id: number }[] = [];
 
   if (isCaptured) {
     const dest = token.coordinates;
@@ -1268,9 +1269,13 @@ function executeMove(
       if (oppToken.colour !== colour && !oppToken.isLocked && !oppToken.hasTokenReachedHome && areCoordsEqual(oppToken.coordinates, dest)) {
         oppToken.isLocked = true;
         oppToken.coordinates = { x: oppToken.initialCoords.x, y: oppToken.initialCoords.y };
-        capturedTokenColour = oppToken.colour;
-        capturedTokenId = oppToken.id;
-        break;
+        capturedTokensList.push({ colour: oppToken.colour, id: oppToken.id });
+        
+        // Backward compatibility
+        if (capturedTokenColour === undefined) {
+          capturedTokenColour = oppToken.colour;
+          capturedTokenId = oppToken.id;
+        }
       }
     }
   }
@@ -1286,6 +1291,7 @@ function executeMove(
     hasPlayerWon: hasPlayerWon,
     capturedTokenColour: capturedTokenColour,
     capturedTokenId: capturedTokenId,
+    capturedTokens: capturedTokensList,
     serverNowMs: Date.now()
   }));
 

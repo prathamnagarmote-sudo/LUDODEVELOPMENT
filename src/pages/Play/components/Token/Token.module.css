@@ -4,7 +4,6 @@
   left: 0;
   z-index: 10;
   will-change: transform;
-  contain: layout paint; /* Optimize rendering boundaries */
   height: calc(var(--token-height));
   background: none;
   border: none;
@@ -31,7 +30,6 @@
   height: 100%;
   position: relative;
   will-change: transform;
-  contain: layout paint;
 }
 
 .bouncer.active {
