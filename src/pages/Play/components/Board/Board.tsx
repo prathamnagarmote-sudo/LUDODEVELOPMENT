@@ -150,14 +150,17 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
             </div>
           );
         })}
-      {dice.map((d) => (
-        <Dice
-          colour={d.colour}
-          onDiceClick={onDiceRoll}
-          playerName={players.find((p) => p.colour === d.colour)?.name as string}
-          key={d.colour}
-        />
-      ))}
+      {dice.map((d) => {
+        const pName = players.find((p) => p.colour === d.colour)?.name as string;
+        return (
+          <Dice
+            colour={d.colour}
+            onDiceClick={onDiceRoll}
+            playerName={d.colour === myPlayerColour ? 'You' : pName}
+            key={d.colour}
+          />
+        );
+      })}
     </div>
   );
 }
