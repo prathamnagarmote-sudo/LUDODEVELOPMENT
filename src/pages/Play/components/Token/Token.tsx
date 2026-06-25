@@ -39,7 +39,7 @@ type Props = {
 
 function Token({ colour, id, tokenClickData }: Props) {
   const dispatch = useDispatch<AppDispatch>();
-  const { tokenHeight, tokenWidth } = useSelector((state: RootState) => state.board);
+  const { boardTileSize, tokenHeight, tokenWidth } = useSelector((state: RootState) => state.board);
   const player = useSelector((state: RootState) =>
     state.players.players.find((p) => p.colour === colour)
   );
@@ -64,6 +64,17 @@ function Token({ colour, id, tokenClickData }: Props) {
 
   const [showCelebration, setShowCelebration] = useState(false);
   const prevReachedHome = useRef(hasTokenReachedHome);
+
+  const [isTransitionDisabled, setIsTransitionDisabled] = useState(true);
+
+  useEffect(() => {
+    if (boardTileSize > 0) {
+      // Wait a tiny bit after the board size is known before enabling transitions
+      // so the initial snap to position happens instantly without flying across the board.
+      const timer = setTimeout(() => setIsTransitionDisabled(false), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [boardTileSize]);
 
   useEffect(() => {
     if (hasTokenReachedHome && !prevReachedHome.current) {
@@ -277,6 +288,8 @@ function Token({ colour, id, tokenClickData }: Props) {
           '--fill-colour': woodStainColours[visualColour],
           '--bounce-height': `-${localBouncePx}px`,
           '--hop-height': `-${localHopPx}px`,
+          zIndex: isActive ? 20 : 10,
+          ...(isTransitionDisabled ? { '--token-transition-time': '0ms' } : {}),
           transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
           opacity: player.hasQuit ? 0.55 : 1,
           filter: player.hasQuit ? 'grayscale(35%)' : undefined,
