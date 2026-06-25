@@ -420,8 +420,8 @@ function GameFinishedScreen({ players }: Props) {
                       <p className={styles.rematchText}>Do you want to play a rematch?</p>
                       <div className={styles.rematchTimer}>{rematchTimer} Seconds Remaining</div>
                       <div className={styles.rematchBtnGroup}>
-                        <button className={styles.acceptBtn} onClick={handleAcceptRematch}>Accept</button>
                         <button className={styles.rejectBtn} onClick={handleRejectRematch}>Reject</button>
+                        <button className={styles.acceptBtn} onClick={handleAcceptRematch}>Accept</button>
                       </div>
                     </div>
                   </motion.div>
