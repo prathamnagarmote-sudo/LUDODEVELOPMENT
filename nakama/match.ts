@@ -568,15 +568,27 @@ function matchLeave(
   for (let p = 0; p < presences.length; p++) {
     const presence = presences[p];
     logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
-    
+
     for (let i = 0; i < s.players.length; i++) {
       if (s.players[i].userId === presence.userId) {
-        s.players[i].hasQuit = true;
-        s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== s.players[i].colour; });
+        // Check if this was an explicit quit (OpCode 7 already set hasQuit=true)
+        if (s.players[i].hasQuit) {
+          // Player already explicitly quit via the quit button — process immediately
+          logger.info("matchLeave: player %v already explicitly quit. Removing immediately.", presence.userId);
+          s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== s.players[i].colour; });
+        } else {
+          // Socket disconnected without explicit quit (page transition, HMR, network hiccup).
+          // Give the player a 10-second grace period to reconnect before treating as a quit.
+          // If they reconnect (matchJoin), the grace timer is cleared.
+          logger.info("matchLeave: player %v socket disconnected. Starting 10s reconnect grace period.", presence.userId);
+          s.botTakeoverTicks[presence.userId] = tick + 600; // 10 seconds at 60Hz
+        }
       }
     }
   }
 
+  // Only check for match end if an explicit quit removed someone from the sequence
+  // Grace-period disconnects are handled in matchLoop when the timer expires
   if (s.playerSequence.length > 0) {
     s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
   }
@@ -590,7 +602,14 @@ function matchLeave(
     }
   }
 
-  if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+  // Only end the match if a player EXPLICITLY quit (hasQuit=true set by OpCode 7).
+  // Don't end on socket disconnects — grace period handles those.
+  const hasExplicitQuit = presences.some(function(pres) {
+    const pl = s.players.find(function(p: any) { return p.userId === pres.userId; });
+    return pl && pl.hasQuit;
+  });
+
+  if (hasExplicitQuit && (activeHumanCount <= 1 || s.playerSequence.length <= 1)) {
     s.status = 'ended';
     s.winnerColour = winnerColour;
     s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
@@ -608,7 +627,7 @@ function matchLeave(
       winnerColour: winnerColour,
       quitterColour: quitterColour
     }));
-  } else {
+  } else if (hasExplicitQuit) {
     // If turn changed because active player left, change turn
     const turnColour = s.playerSequence[s.currentTurnIndex];
     const leftColours = presences.map(function(pres) {
@@ -718,7 +737,6 @@ function executeRoll(
     roll = bag[index];
     state.rollBags[colour] = bag.filter(function(_: number, i: number) { return i !== index; });
   }
-
   state.diceNumber = roll;
   state.hasRolled = true;
 
@@ -1260,6 +1278,7 @@ function executeMove(
 
   let capturedTokenColour: string | undefined = undefined;
   let capturedTokenId: number | undefined = undefined;
+  const capturedTokensList: { colour: string; id: number }[] = [];
 
   if (isCaptured) {
     const dest = token.coordinates;
@@ -1268,9 +1287,13 @@ function executeMove(
       if (oppToken.colour !== colour && !oppToken.isLocked && !oppToken.hasTokenReachedHome && areCoordsEqual(oppToken.coordinates, dest)) {
         oppToken.isLocked = true;
         oppToken.coordinates = { x: oppToken.initialCoords.x, y: oppToken.initialCoords.y };
-        capturedTokenColour = oppToken.colour;
-        capturedTokenId = oppToken.id;
-        break;
+        capturedTokensList.push({ colour: oppToken.colour, id: oppToken.id });
+        
+        // Backward compatibility
+        if (capturedTokenColour === undefined) {
+          capturedTokenColour = oppToken.colour;
+          capturedTokenId = oppToken.id;
+        }
       }
     }
   }
@@ -1286,6 +1309,7 @@ function executeMove(
     hasPlayerWon: hasPlayerWon,
     capturedTokenColour: capturedTokenColour,
     capturedTokenId: capturedTokenId,
+    capturedTokens: capturedTokensList,
     serverNowMs: Date.now()
   }));
 
@@ -1422,6 +1446,65 @@ function matchLoop(
       nextTurn(s, dispatcher);
     }
     return { state };
+  }
+
+  // 2a. Reconnect grace period expiry — process players who disconnected without
+  // explicitly quitting (via OpCode 7) and failed to reconnect within the grace period.
+  // matchLeave sets botTakeoverTicks[userId] = tick + 600 (10s). matchJoin clears it.
+  // If the timer expires here, the player is truly gone → mark as quit and end match if needed.
+  const expiredUserIds: string[] = [];
+  for (const userId in s.botTakeoverTicks) {
+    if (s.botTakeoverTicks[userId] <= tick) {
+      expiredUserIds.push(userId);
+    }
+  }
+  for (let ei = 0; ei < expiredUserIds.length; ei++) {
+    const expUserId = expiredUserIds[ei];
+    delete s.botTakeoverTicks[expUserId];
+    logger.info("matchLoop: reconnect grace expired for userId=%v. Marking as quit.", expUserId);
+    for (let i = 0; i < s.players.length; i++) {
+      if (s.players[i].userId === expUserId && !s.players[i].hasQuit) {
+        s.players[i].hasQuit = true;
+        s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== s.players[i].colour; });
+      }
+    }
+  }
+  if (expiredUserIds.length > 0) {
+    // Recheck match status after grace period expiry
+    if (s.playerSequence.length > 0) {
+      s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+    }
+    let activeHumanCount = 0;
+    let winnerColour: TPlayerColour = s.playerSequence[0];
+    for (let i = 0; i < s.players.length; i++) {
+      if (!s.players[i].isBot && !s.players[i].hasQuit) {
+        activeHumanCount++;
+        winnerColour = s.players[i].colour;
+      }
+    }
+    if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+      s.status = 'ended';
+      s.winnerColour = winnerColour;
+      s.terminateAfterTicks = tick + 3600;
+      s.rematchAccepted = [];
+      const quitterColour = s.players.find(function(p: any) { return p.hasQuit; })?.colour;
+      dispatcher.broadcastMessage(204, JSON.stringify({
+        winnerColour: winnerColour,
+        quitterColour: quitterColour
+      }));
+      return { state: s };
+    } else {
+      // If the disconnected player's turn, advance
+      const turnColour = s.playerSequence[s.currentTurnIndex];
+      const quitColours = expiredUserIds.map(function(uid) {
+        const pl = s.players.find(function(p: any) { return p.userId === uid; });
+        return pl ? pl.colour : null;
+      }).filter(Boolean);
+      if (quitColours.indexOf(turnColour) !== -1) {
+        nextTurn(s, dispatcher);
+      }
+      broadcastStateSync(dispatcher, s);
+    }
   }
 
   // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
@@ -1676,7 +1759,6 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
-
         // Broadcast DICE_ROLL_START immediately to sync start times on all devices
         dispatcher.broadcastMessage(206, JSON.stringify({
           colour: currentColour,

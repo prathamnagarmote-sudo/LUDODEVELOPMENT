@@ -106,7 +106,7 @@ function Game({
   const [myPlayerColour, setMyPlayerColour] = useState<TPlayerColour>(canonicalColour || 'blue');
   const [isMatchJoined, setIsMatchJoined] = useState(!isOnline);
   const [bypassLeaveBlocker, setBypassLeaveBlocker] = useState(false);
-  usePageLeaveBlocker(isMatchJoined && !isGameEnded && !bypassLeaveBlocker && import.meta.env.PROD);
+  usePageLeaveBlocker(isMatchJoined && !isGameEnded && !bypassLeaveBlocker);
   const [localSessionId, setLocalSessionId] = useState<string>('');
   const [turnDeadlineMs, setTurnDeadlineMs] = useState<number>(Date.now() + 15000);
   const matchJoinedRef = useRef(false);
@@ -122,6 +122,29 @@ function Game({
       setShowFinishedScreen(false);
     }
   }, [isGameEnded]);
+
+  // Intercept browser back button: push a dummy history entry so pressing
+  // back fires popstate instead of navigating away. Show the custom quit
+  // confirmation popup when back is pressed during an active match.
+  useEffect(() => {
+    const shouldBlock = isMatchJoined && !isGameEnded && !bypassLeaveBlocker;
+    if (!shouldBlock) return;
+
+    // Push a dummy entry so the first back press stays on this page
+    window.history.pushState({ ludoGame: true }, '');
+
+    const handlePopState = () => {
+      // User pressed browser back → show custom quit confirmation
+      setShowQuitConfirm(true);
+      // Re-push so subsequent back presses also get intercepted
+      window.history.pushState({ ludoGame: true }, '');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isMatchJoined, isGameEnded, bypassLeaveBlocker]);
 
   const [music, setMusic] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -512,6 +535,7 @@ function Game({
       hasPlayerWon: boolean;
       capturedTokenColour?: string;
       capturedTokenId?: number;
+      capturedTokens?: { colour: string; id: number }[];
     }) => {
       const colour = data.colour;
       const state = store.getState();
@@ -535,10 +559,18 @@ function Game({
           const finalCoord = data.path[data.path.length - 1];
           dispatch(changeCoordsOfToken({ colour, id: data.id, newCoords: finalCoord }));
         }
-        if (data.isCaptured && data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
-          try {
-            dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
-          } catch (e) { }
+        if (data.isCaptured) {
+          if (data.capturedTokens && Array.isArray(data.capturedTokens)) {
+            data.capturedTokens.forEach((t: { colour: string; id: number }) => {
+              try {
+                dispatch(lockToken({ colour: t.colour as TPlayerColour, id: t.id }));
+              } catch (e) { }
+            });
+          } else if (data.capturedTokenColour && typeof data.capturedTokenId === 'number') {
+            try {
+              dispatch(lockToken({ colour: data.capturedTokenColour as TPlayerColour, id: data.capturedTokenId }));
+            } catch (e) { }
+          }
         }
         if (data.hasTokenReachedHome) {
           try {
@@ -895,12 +927,17 @@ function Game({
           sendStateSyncRequest();
         }, 2000);
 
-        // Periodically ping host to maintain connection
-        requestInterval = setInterval(() => {
+        // Send first ping IMMEDIATELY to bootstrap the clock offset before the first dice roll.
+        // Without this, serverToLocal() uses offset=0 for the first ~4s, causing the observer's
+        // dice animation remainingDelay to be computed incorrectly — producing visible lag on the
+        // opponent's screen even on the same network/device.
+        const sendPing = () => {
           try {
             getNakamaSocket().sendMatchState(joinedMatchId, 102, JSON.stringify({ clientTime: Date.now() }));
           } catch (e) { }
-        }, 4000);
+        };
+        sendPing(); // bootstrap clock offset immediately
+        requestInterval = setInterval(sendPing, 4000);
       } catch (e: any) {
         matchJoinedRef.current = false;
         if (requestInterval) clearInterval(requestInterval);

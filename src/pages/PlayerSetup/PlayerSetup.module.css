@@ -419,43 +419,122 @@
 
 /* Loading Bar */
 .loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  margin-bottom: 25px;
+  width: 100%;
+}
+
+.searchingText {
+  color: #ffca28; /* Gold/yellow text */
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  animation: pulseText 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseText {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.noOpponentsPopupContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 15px;
+  margin-bottom: 25px;
+  width: 100%;
+  animation: fadeInPopup 0.3s ease-out forwards;
+}
+
+.noOpponentsText {
+  color: #ff4444; /* Bright alert red */
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.4), 0 2px 4px rgba(0, 0, 0, 0.6);
+  animation: pulseNoOpponents 1.5s infinite ease-in-out;
+}
+
+@keyframes fadeInPopup {
+  0% { opacity: 0; transform: scale3d(0.9, 0.9, 1); }
+  100% { opacity: 1; transform: scale3d(1, 1, 1); }
+}
+
+@keyframes pulseNoOpponents {
+  0%, 100% { transform: scale3d(0.98, 0.98, 1); opacity: 0.9; }
+  50% { transform: scale3d(1.02, 1.02, 1); opacity: 1; }
+}
+
+.loadingBarWrapper {
   position: relative;
-  width: 80%;
-  max-width: 300px;
+  width: 300px;
   height: 20px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
 }
 
 .loadingTrack {
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: fill;
 }
 
 .loadingFillWrapper {
   position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(100% - 6px);
   overflow: hidden;
-  /* Crops the fill image based on width */
-  transition: width 0.1s linear;
+  border-radius: 8px;
   display: flex;
-  justify-content: flex-start;
   align-items: center;
 }
 
 .loadingFill {
   height: 100%;
-  width: 300px;
-  /* Fixed width matching max-width to not stretch, just reveal */
-  object-fit: cover;
-  object-position: left;
+  width: 100%;
+  object-fit: fill;
+  transform: translate3d(-100%, 0, 0);
+  animation: fillProgress var(--loading-duration, 30s) linear forwards;
+}
+
+.loadingEffect {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 38px; /* Bigger than 20px height of the bar to pop out */
+  width: 38px;
+  transform: translate3d(-19px, -50%, 0);
+  object-fit: contain;
+  animation: glowMove var(--loading-duration, 30s) linear forwards;
+  pointer-events: none;
+}
+
+@keyframes fillProgress {
+  0% { transform: translate3d(-100%, 0, 0); }
+  20% { transform: translate3d(-85%, 0, 0); }
+  50% { transform: translate3d(-65%, 0, 0); }
+  80% { transform: translate3d(-40%, 0, 0); }
+  95% { transform: translate3d(-20%, 0, 0); }
+  100% { transform: translate3d(-15%, 0, 0); }
+}
+
+@keyframes glowMove {
+  0% { transform: translate3d(-16px, -50%, 0); opacity: 0; }
+  2% { opacity: 1; }
+  20% { transform: translate3d(28px, -50%, 0); opacity: 1; }
+  50% { transform: translate3d(87px, -50%, 0); opacity: 1; }
+  80% { transform: translate3d(160px, -50%, 0); opacity: 1; }
+  95% { transform: translate3d(219px, -50%, 0); opacity: 1; }
+  100% { transform: translate3d(234px, -50%, 0); opacity: 1; }
 }
 
 .matchmakingArea {
@@ -831,6 +910,7 @@
   overflow: hidden;
   border-radius: 50%;
   z-index: 4;
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .scrollingAvatarsContainer {
@@ -850,6 +930,7 @@
   object-fit: cover;
   flex-shrink: 0;
   border-radius: 50%;
+  background: transparent;
 }
 
 @keyframes avatarScrollUp {
@@ -954,13 +1035,14 @@
 
 .scrollingAvatarsWrapperSmall {
   position: absolute;
-  top: 12.5%;
-  left: 12.5%;
-  width: 75%;
-  height: 75%;
+  top: 8.5px;
+  left: 8.5px;
+  width: 48px;
+  height: 48px;
   overflow: hidden;
   border-radius: 50%;
   z-index: 4;
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .scrollingAvatarsContainerSmall {
@@ -976,10 +1058,11 @@
 
 .scrollingAvatarItemSmall {
   width: 100%;
-  height: 48.75px; /* 75% of 65px */
+  height: 48px;
   object-fit: cover;
   flex-shrink: 0;
   border-radius: 50%;
+  background: transparent;
 }
 
 @keyframes avatarScrollUpSmall {
@@ -987,7 +1070,7 @@
     transform: translateY(0);
   }
   100% {
-    transform: translateY(-975px); /* 20 avatars * 48.75px = 975px */
+    transform: translateY(-960px); /* 20 avatars * 48px = 960px */
   }
 }
 
@@ -1032,33 +1115,30 @@
 
 .lobbyTimerContainer {
   position: absolute;
-  top: 30px;
-  right: 25px;
+  top: 40px;
+  right: 25px; /* Shifted slightly to the right */
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 14px;
-  border-radius: 20px;
-  border: 1.5px solid rgba(255, 215, 0, 0.3);
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+  gap: 8px; /* Reduced gap to shift watch icon near the digits */
   z-index: 100;
-  backdrop-filter: blur(4px);
   animation: fadeInTimer 0.3s ease-out;
 }
 
 .lobbyTimerIcon {
-  width: 20px;
-  height: 20px;
+  width: 32px; /* Balanced icon size */
+  height: 32px;
   object-fit: contain;
+  transform: translateY(-2px); /* Shift clock icon slightly upwards */
 }
 
 .lobbyTimerText {
-  font-size: 20px;
+  font-size: 24px; /* Reduced digits size */
   font-weight: bold;
-  color: #ffd700; /* Bold digital yellow */
-  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
-  letter-spacing: 1px;
+  color: #ffd200;
+  font-family: 'Jua', sans-serif;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.5px;
+  line-height: 1;
 }
 
 @keyframes fadeInTimer {
@@ -1189,18 +1269,22 @@
   }
 
   .lobbyTimerContainer {
-    top: 15px;
-    right: 15px;
-    padding: 4px 10px;
+    top: 25px;
+    right: 15px; /* Shifted slightly to the right on mobile */
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
     gap: 6px;
   }
 
   .lobbyTimerIcon {
-    width: 16px;
-    height: 16px;
+    width: 22px;
+    height: 22px;
+    transform: translateY(-1px); /* Shift clock icon slightly upwards on mobile */
   }
 
   .lobbyTimerText {
-    font-size: 16px;
+    font-size: 18px; /* Reduced mobile digits size */
   }
 }

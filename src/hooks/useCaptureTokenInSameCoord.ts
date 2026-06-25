@@ -24,6 +24,7 @@ import { tokenPaths } from '../game/tokens/paths';
 import { sleep } from '../utils/sleep';
 import { registerCaptureCancelFn } from './useMoveTokenForward';
 import { playReverseSound, stopReverseSound, stopReverseSoundWithFade } from '../utils/audio';
+import styles from '../pages/Play/components/Token/Token.module.css';
 
 export function useCaptureTokenInSameCoord() {
   const dispatch = useDispatch();
@@ -88,6 +89,10 @@ export function useCaptureTokenInSameCoord() {
                 tokenEl.removeEventListener('transitionend', handleTransitionEnd);
                 dispatch(setIsAnyTokenMoving(false));
                 stopReverseSound();
+                const bouncerEl = tokenEl.querySelector('span');
+                if (bouncerEl) {
+                  bouncerEl.classList.remove(styles.hopper);
+                }
                 return;
               }
               index--;
@@ -99,10 +104,24 @@ export function useCaptureTokenInSameCoord() {
                 // Use the new fade out logic, ensuring a min 500ms playtime
                 stopReverseSoundWithFade(startTime);
                 
+                const bouncerEl = tokenEl.querySelector('span');
+                if (bouncerEl) {
+                  bouncerEl.classList.remove(styles.hopper);
+                }
+
                 tokensSuccessfullyCaptured++;
                 if (tokensSuccessfullyCaptured === capturableTokens.length) resolve(true);
                 return;
               }
+
+              // Trigger hop animation on the bouncer element for this backward step
+              const bouncerEl = tokenEl.querySelector('span');
+              if (bouncerEl) {
+                bouncerEl.classList.remove(styles.hopper);
+                void bouncerEl.offsetWidth; // Force layout reflow to restart animation keyframes
+                bouncerEl.classList.add(styles.hopper);
+              }
+
               const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
               tokenEl.style.transform = `translate(${x}, ${y})`;
             };
@@ -115,6 +134,15 @@ export function useCaptureTokenInSameCoord() {
             playReverseSound(initialCoordinateIndex);
             
             index--;
+
+            // Trigger hop animation on the bouncer element for the first backward step
+            const bouncerEl = tokenEl.querySelector('span');
+            if (bouncerEl) {
+              bouncerEl.classList.remove(styles.hopper);
+              void bouncerEl.offsetWidth; // Force layout reflow to restart animation keyframes
+              bouncerEl.classList.add(styles.hopper);
+            }
+
             const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
             tokenEl.style.transform = `translate(${x}, ${y})`;
             tokenEl.addEventListener('transitionend', handleTransitionEnd);
