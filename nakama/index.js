@@ -330,9 +330,7 @@ function matchInit(ctx, logger, nk, params) {
                 id: p.id || "",
                 userId: p.userId || "",
                 missedTurns: 0,
-                hasQuit: false,
-                avatarUrl: p.avatarUrl || "",
-                level: typeof p.level === 'number' ? p.level : 1
+                hasQuit: false
             });
         }
         var playerSequence = [];
@@ -410,8 +408,7 @@ function sendStateSync(dispatcher, state, presence) {
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
         turnRemainingMs: turnRemainingMs,
-        status: state.status,
-        serverNowMs: Date.now()
+        status: state.status
     }), [presence]);
 }
 function broadcastStateSync(dispatcher, state) {
@@ -426,8 +423,7 @@ function broadcastStateSync(dispatcher, state) {
         consecutiveSixes: state.consecutiveSixes,
         turnDeadlineMs: state.turnDeadlineMs,
         turnRemainingMs: turnRemainingMs,
-        status: state.status,
-        serverNowMs: Date.now()
+        status: state.status
     }));
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
@@ -468,27 +464,14 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
         logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
         var _loop_1 = function (i) {
             if (s.players[i].userId === presence.userId) {
-                // Check if this was an explicit quit (OpCode 7 already set hasQuit=true)
-                if (s.players[i].hasQuit) {
-                    // Player already explicitly quit via the quit button — process immediately
-                    logger.info("matchLeave: player %v already explicitly quit. Removing immediately.", presence.userId);
-                    s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
-                }
-                else {
-                    // Socket disconnected without explicit quit (page transition, HMR, network hiccup).
-                    // Give the player a 10-second grace period to reconnect before treating as a quit.
-                    // If they reconnect (matchJoin), the grace timer is cleared.
-                    logger.info("matchLeave: player %v socket disconnected. Starting 10s reconnect grace period.", presence.userId);
-                    s.botTakeoverTicks[presence.userId] = tick + 600; // 10 seconds at 60Hz
-                }
+                s.players[i].hasQuit = true;
+                s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
             }
         };
         for (var i = 0; i < s.players.length; i++) {
             _loop_1(i);
         }
     }
-    // Only check for match end if an explicit quit removed someone from the sequence
-    // Grace-period disconnects are handled in matchLoop when the timer expires
     if (s.playerSequence.length > 0) {
         s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
     }
@@ -500,13 +483,7 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
             winnerColour = s.players[i].colour;
         }
     }
-    // Only end the match if a player EXPLICITLY quit (hasQuit=true set by OpCode 7).
-    // Don't end on socket disconnects — grace period handles those.
-    var hasExplicitQuit = presences.some(function (pres) {
-        var pl = s.players.find(function (p) { return p.userId === pres.userId; });
-        return pl && pl.hasQuit;
-    });
-    if (hasExplicitQuit && (activeHumanCount <= 1 || s.playerSequence.length <= 1)) {
+    if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
         s.status = 'ended';
         s.winnerColour = winnerColour;
         s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
@@ -523,7 +500,7 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
             quitterColour: quitterColour
         }));
     }
-    else if (hasExplicitQuit) {
+    else {
         // If turn changed because active player left, change turn
         var turnColour = s.playerSequence[s.currentTurnIndex];
         var leftColours = presences.map(function (pres) {
@@ -555,8 +532,7 @@ function broadcastTurnChange(state, dispatcher, nextColour) {
     dispatcher.broadcastMessage(203, JSON.stringify({
         nextTurnColour: nextColour,
         deadlineMs: newDeadlineMs,
-        turnRemainingMs: turnRemainingMs,
-        serverNowMs: Date.now()
+        turnRemainingMs: turnRemainingMs
     }));
 }
 function nextTurn(state, dispatcher) {
@@ -575,18 +551,7 @@ function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTo
         nextTurn(state, dispatcher);
     }
 }
-function executeRoll(state, dispatcher, colour, forcedRoll, skipBroadcast206) {
-    if (skipBroadcast206 === void 0) { skipBroadcast206 = false; }
-    // DICE_ROLL_START — broadcast as the very first action so ALL call paths
-    // (player roll, auto-move, turn-timeout roll) immediately notify every device.
-    // The matchLoop also sends this for the normal player-roll path; a duplicate
-    // 206 on the client is harmless (client ignores it if already rolling).
-    if (!skipBroadcast206) {
-        dispatcher.broadcastMessage(206, JSON.stringify({
-            colour: colour,
-            rollStartedAtMs: Date.now()
-        }));
-    }
+function executeRoll(state, dispatcher, colour, forcedRoll) {
     if (!state.rollBags) {
         state.rollBags = {
             blue: generateRollBag(),
@@ -650,8 +615,7 @@ function executeRoll(state, dispatcher, colour, forcedRoll, skipBroadcast206) {
     dispatcher.broadcastMessage(201, JSON.stringify({
         roll: roll,
         colour: colour,
-        hasMovableTokens: hasMovableTokens,
-        serverNowMs: Date.now()
+        hasMovableTokens: hasMovableTokens
     }));
     var shouldAutoMove = false;
     var autoMoveToken = null;
@@ -668,26 +632,12 @@ function executeRoll(state, dispatcher, colour, forcedRoll, skipBroadcast206) {
     if (state.consecutiveSixes === 3) {
         state.consecutiveSixes = 0;
         state.noMovableTokensTimer = Date.now() + 400;
-        state.rollBags[colour] = generateRollBag();
     }
     else if (!hasMovableTokens) {
         state.noMovableTokensTimer = Date.now() + 400;
     }
     else if (shouldAutoMove && autoMoveToken) {
-        // Broadcast TOKEN_MOVE_START (207) before executing auto-move so observer
-        // devices can start the token animation at the exact same moment.
-        var autoToken = autoMoveToken;
-        var autoPath = computeMoveResult(autoToken, roll, state.players).path;
-        var autoStepCount = (autoToken.isLocked && roll === 6) ? 1 : autoPath.length;
-        dispatcher.broadcastMessage(207, JSON.stringify({
-            colour: colour,
-            tokenId: autoToken.id,
-            diceNumber: roll,
-            stepCount: autoStepCount,
-            isUnlock: autoToken.isLocked && roll === 6,
-            moveStartedAtMs: Date.now()
-        }));
-        executeMove(state, dispatcher, colour, autoToken.id, true);
+        executeMove(state, dispatcher, colour, autoMoveToken.id);
     }
     else {
         state.turnDeadlineMs = Date.now() + 15000;
@@ -1020,8 +970,7 @@ function selectBestBotToken(player, roll, allTokens) {
     var randIndex = Math.floor(Math.random() * bestTokens.length);
     return bestTokens[randIndex];
 }
-function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
-    if (skipBroadcast207 === void 0) { skipBroadcast207 = false; }
+function executeMove(state, dispatcher, colour, tokenId) {
     var player = null;
     for (var i = 0; i < state.players.length; i++) {
         if (state.players[i].colour === colour) {
@@ -1040,40 +989,8 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     }
     if (!token)
         return;
-    var roll = state.diceNumber;
-    // TOKEN_MOVE_START — broadcast as the very first action before any state
-    // mutations so all devices (player + observer) begin the animation at the
-    // exact same moment. stepCount lets the observer animate the correct number
-    // of steps without waiting for OpCode 202 to confirm the final position.
-    // The matchLoop and the auto-move path in executeRoll may also send 207;
-    // a duplicate on the client is harmless (second 207 for the same token is
-    // ignored if the animation is already running).
-    if (!skipBroadcast207) {
-        var earlyAllTokens = [];
-        for (var ep = 0; ep < state.players.length; ep++) {
-            var epl = state.players[ep];
-            if (epl.tokens) {
-                for (var et = 0; et < epl.tokens.length; et++) {
-                    earlyAllTokens.push(epl.tokens[et]);
-                }
-            }
-        }
-        var isUnlockEarly = token.isLocked && roll === 6;
-        var earlyStepCount = 1;
-        if (!isUnlockEarly) {
-            var earlyPath = computeMoveResult(token, roll, state.players).path;
-            earlyStepCount = earlyPath.length;
-        }
-        dispatcher.broadcastMessage(207, JSON.stringify({
-            colour: colour,
-            tokenId: tokenId,
-            diceNumber: roll,
-            stepCount: earlyStepCount,
-            isUnlock: isUnlockEarly,
-            moveStartedAtMs: Date.now()
-        }));
-    }
     var wasLocked = token.isLocked;
+    var roll = state.diceNumber;
     var allTokens = [];
     for (var p = 0; p < state.players.length; p++) {
         var pl = state.players[p];
@@ -1102,7 +1019,6 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     }
     var capturedTokenColour = undefined;
     var capturedTokenId = undefined;
-    var capturedTokensList = [];
     if (isCaptured) {
         var dest = token.coordinates;
         for (var k = 0; k < allTokens.length; k++) {
@@ -1110,12 +1026,9 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
             if (oppToken.colour !== colour && !oppToken.isLocked && !oppToken.hasTokenReachedHome && areCoordsEqual(oppToken.coordinates, dest)) {
                 oppToken.isLocked = true;
                 oppToken.coordinates = { x: oppToken.initialCoords.x, y: oppToken.initialCoords.y };
-                capturedTokensList.push({ colour: oppToken.colour, id: oppToken.id });
-                // Backward compatibility
-                if (capturedTokenColour === undefined) {
-                    capturedTokenColour = oppToken.colour;
-                    capturedTokenId = oppToken.id;
-                }
+                capturedTokenColour = oppToken.colour;
+                capturedTokenId = oppToken.id;
+                break;
             }
         }
     }
@@ -1129,9 +1042,7 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
         isCaptured: isCaptured,
         hasPlayerWon: hasPlayerWon,
         capturedTokenColour: capturedTokenColour,
-        capturedTokenId: capturedTokenId,
-        capturedTokens: capturedTokensList,
-        serverNowMs: Date.now()
+        capturedTokenId: capturedTokenId
     }));
     if (hasPlayerWon) {
         state.status = 'ended';
@@ -1148,7 +1059,6 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
-    var _a;
     var s = state;
     s.tickCount = tick;
     // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
@@ -1248,68 +1158,6 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: state };
     }
-    // 2a. Reconnect grace period expiry — process players who disconnected without
-    // explicitly quitting (via OpCode 7) and failed to reconnect within the grace period.
-    // matchLeave sets botTakeoverTicks[userId] = tick + 600 (10s). matchJoin clears it.
-    // If the timer expires here, the player is truly gone → mark as quit and end match if needed.
-    var expiredUserIds = [];
-    for (var userId in s.botTakeoverTicks) {
-        if (s.botTakeoverTicks[userId] <= tick) {
-            expiredUserIds.push(userId);
-        }
-    }
-    for (var ei = 0; ei < expiredUserIds.length; ei++) {
-        var expUserId = expiredUserIds[ei];
-        delete s.botTakeoverTicks[expUserId];
-        logger.info("matchLoop: reconnect grace expired for userId=%v. Marking as quit.", expUserId);
-        var _loop_2 = function (i) {
-            if (s.players[i].userId === expUserId && !s.players[i].hasQuit) {
-                s.players[i].hasQuit = true;
-                s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
-            }
-        };
-        for (var i = 0; i < s.players.length; i++) {
-            _loop_2(i);
-        }
-    }
-    if (expiredUserIds.length > 0) {
-        // Recheck match status after grace period expiry
-        if (s.playerSequence.length > 0) {
-            s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
-        }
-        var activeHumanCount = 0;
-        var winnerColour = s.playerSequence[0];
-        for (var i = 0; i < s.players.length; i++) {
-            if (!s.players[i].isBot && !s.players[i].hasQuit) {
-                activeHumanCount++;
-                winnerColour = s.players[i].colour;
-            }
-        }
-        if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
-            s.status = 'ended';
-            s.winnerColour = winnerColour;
-            s.terminateAfterTicks = tick + 3600;
-            s.rematchAccepted = [];
-            var quitterColour = (_a = s.players.find(function (p) { return p.hasQuit; })) === null || _a === void 0 ? void 0 : _a.colour;
-            dispatcher.broadcastMessage(204, JSON.stringify({
-                winnerColour: winnerColour,
-                quitterColour: quitterColour
-            }));
-            return { state: s };
-        }
-        else {
-            // If the disconnected player's turn, advance
-            var turnColour = s.playerSequence[s.currentTurnIndex];
-            var quitColours = expiredUserIds.map(function (uid) {
-                var pl = s.players.find(function (p) { return p.userId === uid; });
-                return pl ? pl.colour : null;
-            }).filter(Boolean);
-            if (quitColours.indexOf(turnColour) !== -1) {
-                nextTurn(s, dispatcher);
-            }
-            broadcastStateSync(dispatcher, s);
-        }
-    }
     // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
     // Kept as a safety net: if any code path accidentally sets pendingTurnChange,
     // broadcast it immediately rather than holding it.
@@ -1326,11 +1174,11 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // 3. Process turn deadlines (timeout)
     var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
     if (anyHumanNotJoined) {
-        if (Date.now() - s.matchInitTime < 45000) {
+        if (Date.now() - s.matchInitTime < 10000) {
             s.turnDeadlineMs = Date.now() + 15000;
         }
         else {
-            var _loop_3 = function (i) {
+            var _loop_2 = function (i) {
                 var p = s.players[i];
                 if (!p.isBot && p.id === "" && !p.hasQuit) {
                     p.hasQuit = true;
@@ -1339,7 +1187,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             };
             // Eliminate human players who failed to join initially
             for (var i = 0; i < s.players.length; i++) {
-                _loop_3(i);
+                _loop_2(i);
             }
             if (s.playerSequence.length > 0) {
                 s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
@@ -1548,8 +1396,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 }
                 // Broadcast DICE_ROLL_START immediately to sync start times on all devices
                 dispatcher.broadcastMessage(206, JSON.stringify({
-                    colour: currentColour_2,
-                    rollStartedAtMs: Date.now()
+                    colour: currentColour_2
                 }));
                 var forcedRoll = undefined;
                 try {
@@ -1559,7 +1406,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                     }
                 }
                 catch (e) { }
-                executeRoll(s, dispatcher, currentColour_2, forcedRoll, true);
+                executeRoll(s, dispatcher, currentColour_2, forcedRoll);
             }
             else if (opCode === 101) { // INPUT_MOVE_TOKEN
                 if (!s.hasRolled) {
@@ -1596,19 +1443,15 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                 // ─── TOKEN_MOVE_START (OpCode 207) ────────────────────────────────────────
                 // Broadcast BEFORE executing the move so observer devices can begin the
                 // token animation at the EXACT same moment the roller sees it move.
-                // stepCount is the authoritative path length so the observer animation
-                // matches exactly what OpCode 202 will confirm — no stutter on reconcile.
-                var previewPath = computeMoveResult(token, s.diceNumber, s.players).path;
-                var stepCount = (token.isLocked && s.diceNumber === 6) ? 1 : previewPath.length;
+                // This eliminates the full network RTT gap that existed before OpCode 202
+                // arrived on the observer's device — mirroring what OpCode 206 does for dice.
                 dispatcher.broadcastMessage(207, JSON.stringify({
                     colour: currentColour_2,
                     tokenId: tokenId,
                     diceNumber: s.diceNumber,
-                    stepCount: stepCount,
-                    isUnlock: token.isLocked && s.diceNumber === 6,
-                    moveStartedAtMs: Date.now()
+                    isUnlock: token.isLocked && s.diceNumber === 6
                 }));
-                executeMove(s, dispatcher, currentColour_2, tokenId, true);
+                executeMove(s, dispatcher, currentColour_2, tokenId);
             }
         }
         catch (e) {
@@ -1627,53 +1470,16 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (currentPlayer && currentPlayer.isBot && s.noMovableTokensTimer === null) {
         if (!s.hasRolled) {
             if (!s.botRollTick) {
-                // Immediately broadcast DICE_ROLL_START so the human opponent sees the
-                // bot's dice begin spinning right now — the actual roll executes after
-                // the think-time delay and the animation hides the wait entirely.
-                dispatcher.broadcastMessage(206, JSON.stringify({
-                    colour: currentColour,
-                    rollStartedAtMs: Date.now()
-                }));
-                s.botRollTick = tick + 30; // ~500ms think time at 60Hz
+                s.botRollTick = tick + 30; // 500ms think time at 60Hz
             }
             else if (tick >= s.botRollTick) {
-                executeRoll(s, dispatcher, currentColour, undefined, true);
+                executeRoll(s, dispatcher, currentColour);
                 s.botRollTick = null;
             }
         }
         else {
             if (!s.botMoveTick) {
-                // Pre-select the best token at decision time and store it so the
-                // chosen token ID is stable when we actually execute the move.
-                var allTokensForBot = [];
-                for (var p = 0; p < s.players.length; p++) {
-                    var pl = s.players[p];
-                    if (pl.tokens) {
-                        for (var t = 0; t < pl.tokens.length; t++) {
-                            allTokensForBot.push(pl.tokens[t]);
-                        }
-                    }
-                }
-                var preSelectedToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokensForBot);
-                if (preSelectedToken) {
-                    // Compute step count for authoritative observer animation
-                    var botPreviewPath = computeMoveResult(preSelectedToken, s.diceNumber, s.players).path;
-                    var botStepCount = (preSelectedToken.isLocked && s.diceNumber === 6) ? 1 : botPreviewPath.length;
-                    // Broadcast TOKEN_MOVE_START immediately so human sees animation start now
-                    dispatcher.broadcastMessage(207, JSON.stringify({
-                        colour: currentColour,
-                        tokenId: preSelectedToken.id,
-                        diceNumber: s.diceNumber,
-                        stepCount: botStepCount,
-                        isUnlock: preSelectedToken.isLocked && s.diceNumber === 6,
-                        moveStartedAtMs: Date.now()
-                    }));
-                    s.botSelectedTokenId = preSelectedToken.id;
-                }
-                else {
-                    s.botSelectedTokenId = null;
-                }
-                s.botMoveTick = tick + 30; // ~500ms think time at 60Hz
+                s.botMoveTick = tick + 30; // 500ms think time at 60Hz
             }
             else if (tick >= s.botMoveTick) {
                 var allTokens = [];
@@ -1685,38 +1491,20 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
                         }
                     }
                 }
-                // Use pre-selected token ID if still valid; fall back to fresh selection
-                var bestToken = null;
-                if (typeof s.botSelectedTokenId === 'number') {
-                    var candidate = null;
-                    for (var bi = 0; bi < allTokens.length; bi++) {
-                        if (allTokens[bi].id === s.botSelectedTokenId && allTokens[bi].colour === currentColour) {
-                            candidate = allTokens[bi];
-                            break;
-                        }
-                    }
-                    if (candidate && isTokenMovable(candidate, s.diceNumber, allTokens)) {
-                        bestToken = candidate;
-                    }
-                }
-                if (!bestToken) {
-                    bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
-                }
+                var bestToken = selectBestBotToken(currentPlayer, s.diceNumber, allTokens);
                 if (bestToken) {
-                    executeMove(s, dispatcher, currentColour, bestToken.id, true);
+                    executeMove(s, dispatcher, currentColour, bestToken.id);
                 }
                 else {
                     nextTurn(s, dispatcher);
                 }
                 s.botMoveTick = null;
-                s.botSelectedTokenId = null;
             }
         }
     }
     else {
         s.botRollTick = null;
         s.botMoveTick = null;
-        s.botSelectedTokenId = null;
     }
     // 6. Clean empty match check
     var isMatchEmpty = true;
@@ -1756,16 +1544,8 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
     try {
         logger.info("=== MATCHMAKER MATCHED CALLED === matched count: %v", matches.length);
         var matchPlayers_1 = [];
-        // Dynamically resolve size based on properties from the matchmaker search
+        // Always use the number of matched users as size (2 for 1v1)
         var size = 2;
-        if (matches.length > 0) {
-            var firstMatch = matches[0];
-            var props = firstMatch.properties || {};
-            var requestedSize = parseInt(props.matchSize || '2');
-            if (requestedSize === 4) {
-                size = 4;
-            }
-        }
         logger.info("Building player list from %v real players, target size: %v", matches.length, size);
         if (matches.length < size) {
             logger.warn("Matchmaker matched fewer than %v players (got %v). Rejecting match creation to avoid bots.", size, matches.length);
@@ -1780,9 +1560,9 @@ var matchmakerMatched = function (ctx, logger, nk, matches) {
                 id: m.presence.sessionId,
                 userId: m.presence.userId,
                 isBot: false,
-                name: props.name || props.userName || m.presence.username || ('Player ' + (matchPlayers_1.length + 1)),
+                name: m.presence.username || ('Player ' + (matchPlayers_1.length + 1)),
                 avatarUrl: rawAvatarUrl,
-                level: parseInt(props.level || '1') || 1
+                level: 1
             });
         });
         var colors_1 = ['blue', 'green', 'red', 'yellow'];

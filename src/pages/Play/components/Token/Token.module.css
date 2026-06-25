@@ -19,17 +19,31 @@
   touch-action: manipulation;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  /* Isolate compositing layer so highlight glow doesn't bleed into sibling tokens */
+  isolation: isolate;
 }
 .token * {
   user-select: none;
 }
+
 
 .bouncer {
   display: block;
   width: 100%;
   height: 100%;
   position: relative;
-  will-change: transform;
+  /* Removed will-change: transform — .bouncer has no dynamic transforms,
+     only CSS keyframe animations. Wasted GPU layer removed. */
+}
+
+.bouncer::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  bottom: -20px;
+  left: -20px;
+  right: -20px;
+  z-index: 1;
 }
 
 .bouncer.active {
@@ -82,13 +96,4 @@
   100% {
     transform: translate3d(0, 0, 0);
   }
-}
-
-.activePlayerHighlight {
-  animation: activeTokenPulse 0.4s infinite alternate ease-in-out;
-}
-
-@keyframes activeTokenPulse {
-  0% { filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.4)) brightness(1); }
-  100% { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) brightness(1.25); }
 }

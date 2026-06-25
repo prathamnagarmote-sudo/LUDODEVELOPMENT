@@ -44,8 +44,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   const numberOfConsecutiveSix = useSelector((state: RootState) =>
     state.players.players.find((p) => p.colour === colour)?.numberOfConsecutiveSix ?? 0
   );
-  const currentPlayerColour = useSelector((state: RootState) => state.players.currentPlayerColour);
-  const isCurrentPlayerTurn = currentPlayerColour === colour;
+
   const tokenClickDataRef = useRef(tokenClickData);
   const [isCurrentlyFocused, setIsCurrentlyFocused] = useState(false);
   const tokenElRef = useRef<HTMLButtonElement | null>(null);
@@ -65,11 +64,39 @@ function Token({ colour, id, tokenClickData }: Props) {
   }, [hasTokenReachedHome]);
 
   const prevCoordsRef = useRef(coordinates);
+  const hopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
+    const prev = prevCoordsRef.current;
+    if (coordinates.x !== prev.x || coordinates.y !== prev.y) {
+      // Coordinates changed: trigger hop animation.
+      const bouncerEl = tokenElRef.current?.querySelector('span');
+      if (bouncerEl) {
+        // Clear any existing hop timeout to prevent stacking.
+        if (hopTimeoutRef.current !== null) {
+          clearTimeout(hopTimeoutRef.current);
+        }
+        
+        // Remove the class, force a reflow, and add it back to guarantee keyframe restart
+        bouncerEl.classList.remove(styles.hopper);
+        void bouncerEl.offsetWidth; // Force layout reflow
+        bouncerEl.classList.add(styles.hopper);
+        
+        hopTimeoutRef.current = setTimeout(() => {
+          bouncerEl.classList.remove(styles.hopper);
+          hopTimeoutRef.current = null;
+        }, FORWARD_TOKEN_TRANSITION_TIME + 50);
+      }
+    }
     prevCoordsRef.current = coordinates;
   }, [coordinates]);
 
-  const hasMoved = coordinates.x !== prevCoordsRef.current.x || coordinates.y !== prevCoordsRef.current.y;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (hopTimeoutRef.current !== null) clearTimeout(hopTimeoutRef.current);
+    };
+  }, []);
 
   const { scaleFactor } = tokenAlignmentData;
   const getPosition = useCoordsToPosition();
@@ -209,7 +236,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   return (
     <button
       id={getTokenDOMId(colour, id)}
-      className={clsx(styles.token, isCurrentPlayerTurn && !hasTokenReachedHome && styles.activePlayerHighlight)}
+      className={clsx(styles.token)}
       tabIndex={isActive ? undefined : -1}
       onFocus={() => setIsCurrentlyFocused(true)}
       onBlur={() => setIsCurrentlyFocused(false)}
@@ -227,12 +254,10 @@ function Token({ colour, id, tokenClickData }: Props) {
     >
       <TokenCelebration show={showCelebration} />
       <span
-        key={`${coordinates.x}-${coordinates.y}`}
-        className={clsx(styles.bouncer, {
-          [styles.active]: isActive && !isCurrentlyFocused,
-          [styles.hopper]: hasMoved,
-        })}
-      >
+          className={clsx(styles.bouncer, {
+            [styles.active]: isActive && !isCurrentlyFocused,
+          })}
+        >
         <TokenImage
           className={styles.svg}
           aria-hidden="true"
