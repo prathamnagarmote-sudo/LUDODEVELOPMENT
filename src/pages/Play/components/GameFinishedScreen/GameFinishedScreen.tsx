@@ -45,10 +45,11 @@ function GameFinishedScreen({ players }: Props) {
   // If the game ended early (all missed turns), it's a loss.
   const isTie = standings.length >= 2 && standings[0].score === standings[1].score && !standings[0].hasQuit && !standings[1].hasQuit;
   
+  const myPlayerColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
+
   let splashText = '';
   if (isGameOver) {
-    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
-    const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
+    const amITiedForFirst = isTie && (standings[0].colour === myPlayerColour || standings[1].colour === myPlayerColour);
     if (amITiedForFirst) {
       splashText = "It's a Tie!";
     } else {
@@ -99,9 +100,8 @@ function GameFinishedScreen({ players }: Props) {
   const resultType = useMemo<'win' | 'lose' | 'tie' | null>(() => {
     if (standings.length === 0) return null;
     if (isTie) return 'tie';
-    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
-    return standings[0].colour === myColour ? 'win' : 'lose';
-  }, [isTie, onlineContext, players, standings]);
+    return standings[0].colour === myPlayerColour ? 'win' : 'lose';
+  }, [isTie, myPlayerColour, standings]);
 
   // Play the appropriate result sound when resultType is calculated/changes.
   // We do NOT stop the sound in this effect's cleanup, which prevents
@@ -299,7 +299,7 @@ function GameFinishedScreen({ players }: Props) {
                 <LeaderboardScreen standings={standings} isTie={isTie} onRequestRematch={handleRequestRematch} />
                 {isGameOver && inactivePlayer && (
                   <div className={styles.gameOverSubtext}>
-                    <p className={styles.inactiveReason}>{inactivePlayer.name} missed 3 chances to roll!</p>
+                    <p className={styles.inactiveReason}>{inactivePlayer.colour === myPlayerColour ? 'You' : inactivePlayer.name} missed 3 chances to roll!</p>
                   </div>
                 )}
               </div>
