@@ -390,6 +390,8 @@
   width: 100%;
   height: 100%;
   z-index: 2;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 .dice {
@@ -406,7 +408,9 @@
   outline: none !important;
   box-shadow: none !important;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   touch-action: manipulation;
+  pointer-events: none;
 }
 
 .dice::after {
@@ -430,6 +434,7 @@
 
 .dice.active {
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .dice.active:hover .scene {
@@ -445,11 +450,13 @@
   width: var(--cube-size);
   height: var(--cube-size);
   perspective: 600px;
+  -webkit-perspective: 600px;
   display: flex;
   align-items: center;
   justify-content: center;
   transform: rotateX(0deg) rotateY(0deg) translate3d(0, 0, 0) scale(1);
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
   transition: filter 0.15s ease, transform 0.15s ease;
 }
@@ -463,7 +470,9 @@
   height: 100%;
   position: relative;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   transition: transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1.1);
+  will-change: transform;
 }
 
 .rollingCube {
@@ -488,6 +497,7 @@
     inset -3px -3px 8px rgba(0, 0, 0, 0.15),
     inset 3px 3px 8px rgba(255, 255, 255, 0.9);
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .face img {

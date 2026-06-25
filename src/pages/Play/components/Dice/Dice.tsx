@@ -34,10 +34,9 @@ type Props = {
   colour: TPlayerColour;
   playerName: string;
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
-  positionColour?: TPlayerColour;
 };
 
-function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
+function Dice({ colour, onDiceClick, playerName }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const store = useStore<RootState>();
   const onlineContext = useContext(OnlineGameContext);
@@ -158,7 +157,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const avatarUrl = playerObj?.avatarUrl;
   const hasAvatar = !!avatarUrl;
 
-  const actualPosition = positionColour || colour;
+  const actualPosition = visualColour;
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
@@ -267,7 +266,6 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           })}
           tabIndex={isDiceDisabled ? -1 : undefined}
           title={!isDiceDisabled ? 'Roll Dice (Press D or Space)' : undefined}
-          disabled={isDiceDisabled}
           style={{ '--player-colour': playerColours[visualColour] } as React.CSSProperties}
           type="button"
           onClick={handleDiceClick}
@@ -321,7 +319,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     <div
       className={clsx(
         styles.diceContainer,
-        styles[positionColour || colour],
+        styles[visualColour],
         styles[`phase${phase}`],
         isLeftOriented ? styles.leftOriented : styles.rightOriented,
         {
