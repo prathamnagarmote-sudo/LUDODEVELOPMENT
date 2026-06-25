@@ -20,6 +20,7 @@ import { getVisualColour } from '../../../../utils/colourMapping';
 import styles from './Token.module.css';
 import clsx from 'clsx';
 import { getTokenDOMId } from '../../../../game/tokens/logic';
+import { isCoordASafeSpot } from '../../../../game/coords/logic';
 
 const woodStainColours: Record<TPlayerColour, string> = {
   red: 'url(#token-grad-red)',
@@ -100,6 +101,19 @@ function Token({ colour, id, tokenClickData }: Props) {
   }, []);
 
   const { scaleFactor } = tokenAlignmentData;
+  const isSafeSpot = isCoordASafeSpot(coordinates);
+  
+  let localBouncePx = 8;
+  let localHopPx = 20;
+
+  // The user specifically requested the increased/scaled hopping ONLY for 
+  // groups of tokens (scaleFactor < 1) resting on star safe spots.
+  // Tokens at home or outside should just use standard unscaled 8px/20px hops.
+  if (isSafeSpot && scaleFactor < 1) {
+    localBouncePx = 16 / scaleFactor;
+    localHopPx = 20 / scaleFactor;
+  }
+
   const getPosition = useCoordsToPosition();
   const { x, y } = getPosition(coordinates, tokenAlignmentData, hasTokenReachedHome, colour);
   const diceNumber = useSelector((state: RootState) =>
@@ -250,6 +264,8 @@ function Token({ colour, id, tokenClickData }: Props) {
           '--token-height': `${tokenHeight}px`,
           '--token-width': `${tokenWidth}px`,
           '--fill-colour': woodStainColours[visualColour],
+          '--bounce-height': `-${localBouncePx}px`,
+          '--hop-height': `-${localHopPx}px`,
           transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
         } as React.CSSProperties
       }

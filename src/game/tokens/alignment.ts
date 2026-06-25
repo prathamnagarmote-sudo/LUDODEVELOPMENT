@@ -742,6 +742,38 @@ export function getHomeTokenAlignmentData(numberOfTokens: number): TTokenAlignme
 }
 
 import { tokenPaths } from './paths';
+import { isCoordASafeSpot } from '../coords/logic';
+
+export function getSafeSpotTokenAlignmentData(numberOfTokens: number): TTokenAlignmentData[] {
+  if (numberOfTokens > 16 || numberOfTokens <= 0)
+    throw new Error('Invalid numberOfTokens');
+
+  if (numberOfTokens === 1) return [{ xOffset: 0, yOffset: 0, scaleFactor: 1 }];
+
+  const data: TTokenAlignmentData[] = [];
+  
+  // Align identically to home winning area: perfectly side-by-side horizontal row.
+  // Scale down dynamically as tokens increase to fit them neatly.
+  const scale = Math.max(0.35, 0.75 - ((numberOfTokens - 4) * 0.03));
+  
+  // Max spread from center: limits how far left/right tokens go to prevent overflowing the box.
+  const maxSpread = Math.min(0.4, numberOfTokens * 0.075);
+  
+  // Calculate vertical shift to properly center the token tips horizontally!
+  // CSS transform-origin: 50% 50% pulls the visual bottom tip upwards when scaling down.
+  const yShift = 0.525 * (1 - scale);
+
+  for (let i = 0; i < numberOfTokens; i++) {
+    const x = -maxSpread + (i * (2 * maxSpread) / (numberOfTokens - 1));
+    data.push({
+      xOffset: x,
+      yOffset: yShift,
+      scaleFactor: scale
+    });
+  }
+
+  return data;
+}
 
 export function applyAlignmentData(tokens: TToken[], dispatch: Dispatch<UnknownAction>) {
   if (!tokens.every((t) => areCoordsEqual(t.coordinates, tokens[0].coordinates)))
@@ -751,10 +783,16 @@ export function applyAlignmentData(tokens: TToken[], dispatch: Dispatch<UnknownA
   const colour = tokens[0].colour;
   const homeCoord = tokenPaths[colour][tokenPaths[colour].length - 1];
   const isAtHome = areCoordsEqual(coord, homeCoord);
+  const isSafeSpot = isCoordASafeSpot(coord);
 
-  const alignmentData = isAtHome 
-    ? getHomeTokenAlignmentData(tokens.length)
-    : getTokenAlignmentData(tokens.length);
+  let alignmentData;
+  if (isAtHome) {
+    alignmentData = getHomeTokenAlignmentData(tokens.length);
+  } else if (isSafeSpot) {
+    alignmentData = getSafeSpotTokenAlignmentData(tokens.length);
+  } else {
+    alignmentData = getTokenAlignmentData(tokens.length);
+  }
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
