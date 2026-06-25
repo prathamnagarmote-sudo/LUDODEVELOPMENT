@@ -357,7 +357,7 @@ function matchInit(ctx, logger, nk, params) {
                 isBot: !!p.isBot,
                 numberOfConsecutiveSix: 0,
                 tokens: genInitialTokens(colour),
-                id: p.id || "",
+                id: "",
                 userId: p.userId || "",
                 missedTurns: 0,
                 hasQuit: false,
