@@ -1,4 +1,5 @@
 import boardSvg from '../../../../assets/board.svg';
+import winCrownImg from '../../../../Atlas_Lobby/images/win crown.png';
 import Token from '../Token/Token';
 import clsx from 'clsx';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,12 +15,14 @@ import styles from './Board.module.css';
 import { useResizeObserver } from '../../../../hooks/useResizeObserver';
 import { OnlineGameContext } from '../Game/Game';
 
+import { getVisualColour, getLogicalCoordinates } from '../../../../utils/colourMapping';
+
 type Props = {
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
 };
 
 function Board({ onDiceClick: onDiceRoll }: Props) {
-  const { players, currentPlayerColour } = useSelector((state: RootState) => state.players);
+  const { players, currentPlayerColour, playerFinishOrder } = useSelector((state: RootState) => state.players);
   const { boardSideLength, boardTileSize } = useSelector((state: RootState) => state.board);
   const { dice } = useSelector((state: RootState) => state.dice);
   const [tokenClickData, setTokenClickData] = useState<TTokenClickData | null>(null);
@@ -29,6 +32,19 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
   const onlineContext = useContext(OnlineGameContext);
   const isOnline = !!onlineContext?.isOnline;
   const myPlayerColour = onlineContext?.myPlayerColour || 'blue';
+
+  const posClasses: Record<TPlayerColour, string> = {
+    red: styles.posRed,
+    green: styles.posGreen,
+    yellow: styles.posYellow,
+    blue: styles.posBlue,
+  };
+  const glowClasses: Record<TPlayerColour, string> = {
+    red: styles.glowRed,
+    green: styles.glowGreen,
+    yellow: styles.glowYellow,
+    blue: styles.glowBlue,
+  };
 
   const onBoardResize = useCallback(() => {
     if (!boardNode) throw new Error(ERRORS.boardDoesNotExist());
@@ -51,8 +67,9 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
     const coordY = Math.max(0, Math.min(14, Math.floor(boardY / boardTileSize)));
 
     const coords: TCoordinate = { x: coordX, y: coordY };
+    const logicalCoords = getLogicalCoordinates(coords, isOnline, onlineContext?.myPlayerColour);
 
-    const tokenToMove = tokensWithCoord(coords, players).filter(
+    const tokenToMove = tokensWithCoord(logicalCoords, players).filter(
       (t) => t.colour === currentPlayerColour
     )[0];
 
@@ -92,16 +109,20 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
       </svg>
       <img src={boardSvg} className={styles.boardImage} aria-hidden="true" />
 
-      {['red', 'green', 'yellow', 'blue'].map((color) => (
-        <div
-          key={color}
-          className={clsx(
-            styles.paddockGlow,
-            styles[color],
-            currentPlayerColour === color && styles.active
-          )}
-        />
-      ))}
+      {['red', 'green', 'yellow', 'blue'].map((color) => {
+        const visualColour = getVisualColour(color as TPlayerColour, isOnline, onlineContext?.myPlayerColour);
+        return (
+          <div
+            key={color}
+            className={clsx(
+              styles.paddockGlow,
+              posClasses[visualColour],
+              glowClasses[visualColour],
+              currentPlayerColour === color && styles.active
+            )}
+          />
+        );
+      })}
 
       {players.map((p) =>
         p.tokens.map((t) => (
@@ -113,6 +134,22 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
           />
         ))
       )}
+
+      {players.length === 4 && playerFinishOrder &&
+        players.map((p) => {
+          const rankIndex = playerFinishOrder.findIndex((f) => f.colour === p.colour);
+          if (rankIndex === -1) return null;
+          const rank = rankIndex + 1;
+          if (rank >= 4) return null;
+          const visualColour = getVisualColour(p.colour, isOnline, onlineContext?.myPlayerColour);
+
+          return (
+            <div key={`rank-${p.colour}`} className={clsx(styles.rankIndicator, styles[visualColour])}>
+              <span className={styles.rankNumber}>{rank}</span>
+              {rank === 1 && <img src={winCrownImg} className={styles.crownImage} alt="Winner Crown" />}
+            </div>
+          );
+        })}
       {dice.map((d) => (
         <Dice
           colour={d.colour}

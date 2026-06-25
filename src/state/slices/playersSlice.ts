@@ -148,17 +148,17 @@ const reducers = {
 
   unlockToken: (state: TPlayerState, action: PayloadAction<TTokenColourAndId>) => {
     const token = getToken(state, action.payload.colour, action.payload.id);
-    if (!token.isLocked)
-      throw new Error(ERRORS.tokenAlreadyUnlocked(action.payload.colour, action.payload.id));
-    token.isLocked = false;
-    token.coordinates = TOKEN_START_COORDINATES[action.payload.colour];
+    if (token.isLocked) {
+      token.isLocked = false;
+      token.coordinates = TOKEN_START_COORDINATES[action.payload.colour];
+    }
   },
   lockToken: (state: TPlayerState, action: PayloadAction<TTokenColourAndId>) => {
     const token = getToken(state, action.payload.colour, action.payload.id);
-    if (token.isLocked)
-      throw new Error(ERRORS.tokenAlreadyLocked(action.payload.colour, action.payload.id));
-    token.isLocked = true;
-    token.coordinates = { ...token.initialCoords };
+    if (!token.isLocked) {
+      token.isLocked = true;
+      token.coordinates = { ...token.initialCoords };
+    }
   },
 
   incrementNumberOfConsecutiveSix: (state: TPlayerState, action: PayloadAction<TPlayerColour>) => {

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useContext, useRef } from 'react';
 import { type TPlayerColour } from '../../../../types';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import { OnlineGameContext } from '../Game/Game';
+import { getVisualColour } from '../../../../utils/colourMapping';
 import { getNakamaSocket } from '../../../../services/nakama';
 import type { AppDispatch, RootState } from '../../../../state/store';
 import { rollDiceThunk } from '../../../../state/thunks/rollDiceThunk';
@@ -33,13 +34,13 @@ type Props = {
   colour: TPlayerColour;
   playerName: string;
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
-  positionColour?: TPlayerColour;
 };
 
-function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
+function Dice({ colour, onDiceClick, playerName }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const store = useStore<RootState>();
   const onlineContext = useContext(OnlineGameContext);
+  const visualColour = getVisualColour(colour, !!onlineContext?.isOnline, onlineContext?.myPlayerColour);
   const isAnyTokenMoving = useSelector((state: RootState) => state.players.isAnyTokenMoving);
   const isGameEnded = useSelector((state: RootState) => state.players.isGameEnded);
   const currentPlayer = useSelector((state: RootState) => state.players.currentPlayerColour);
@@ -156,7 +157,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   const avatarUrl = playerObj?.avatarUrl;
   const hasAvatar = !!avatarUrl;
 
-  const actualPosition = positionColour || colour;
+  const actualPosition = visualColour;
   const isLeftOriented = actualPosition === 'red' || actualPosition === 'blue';
 
   const timerColor = phase === 1 ? '#32cd32' : phase === 2 ? '#ff9800' : '#ff4d4d';
@@ -183,7 +184,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
 
   const avatarContent = (
     <div className={styles.avatarContainerWrapper}>
-      <div className={clsx(styles.avatarFrameWrapper, styles[colour])}>
+      <div className={clsx(styles.avatarFrameWrapper, styles[visualColour])}>
         {hasAvatar ? (
           <img
             src={avatarUrl}
@@ -197,7 +198,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
             aria-hidden="true"
             style={
               {
-                '--fill-colour': woodStainColours[colour],
+                '--fill-colour': woodStainColours[visualColour],
               } as React.CSSProperties
             }
           />
@@ -255,7 +256,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
   );
 
   const diceContent = (
-    <div className={clsx(styles.diceFrameContainer, styles[colour], { [styles.activeFrame]: isVisualCurrentPlayer })}>
+    <div className={clsx(styles.diceFrameContainer, styles[visualColour], { [styles.activeFrame]: isVisualCurrentPlayer })}>
       <div className={styles.diceWrapper}>
         <button
           id={`dice-btn-${colour}`}
@@ -265,8 +266,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
           })}
           tabIndex={isDiceDisabled ? -1 : undefined}
           title={!isDiceDisabled ? 'Roll Dice (Press D or Space)' : undefined}
-          disabled={isDiceDisabled}
-          style={{ '--player-colour': playerColours[colour] } as React.CSSProperties}
+          style={{ '--player-colour': playerColours[visualColour] } as React.CSSProperties}
           type="button"
           onClick={handleDiceClick}
         >
@@ -319,7 +319,7 @@ function Dice({ colour, onDiceClick, playerName, positionColour }: Props) {
     <div
       className={clsx(
         styles.diceContainer,
-        styles[positionColour || colour],
+        styles[visualColour],
         styles[`phase${phase}`],
         isLeftOriented ? styles.leftOriented : styles.rightOriented,
         {
