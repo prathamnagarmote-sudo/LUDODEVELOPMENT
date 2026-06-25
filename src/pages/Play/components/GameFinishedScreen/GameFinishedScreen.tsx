@@ -2,7 +2,7 @@ import type { TPlayer } from '../../../../types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../../state/store';
-import { getLeaderboardStandings } from '../../../../game/score/logic';
+import { getLeaderboardStandings, getPlayerScore } from '../../../../game/score/logic';
 import styles from './GameFinishedScreen.module.css';
 
 import ResultSplashScreen from './ResultSplashScreen';
@@ -23,12 +23,63 @@ type Props = {
 
 function GameFinishedScreen({ players }: Props) {
   const [ref, { width, height }] = useMeasure<HTMLDivElement>();
-  const { isGameOver } = useSelector((state: RootState) => state.players);
-  const standings = getLeaderboardStandings(players);
+  const { isGameOver, playerFinishOrder, isGameEnded } = useSelector((state: RootState) => state.players);
+  const onlineContext = useContext(OnlineGameContext);
+  const is4PlayerLiveMatch = !!onlineContext?.isOnline && players.length === 4;
+
+  const standings = useMemo(() => {
+    if (players.length === 4) {
+      const finishedStandings = playerFinishOrder.map((f, index) => {
+        const pObj = players.find(p => p.colour === f.colour);
+        return {
+          rank: index + 1,
+          name: pObj ? pObj.name : f.name,
+          colour: f.colour,
+          score: pObj ? getPlayerScore(pObj) : 0,
+          isBot: pObj ? pObj.isBot : false,
+          hasQuit: pObj ? pObj.hasQuit : false,
+          avatarUrl: pObj ? pObj.avatarUrl : undefined,
+        };
+      });
+
+      const myColour = onlineContext ? onlineContext.myPlayerColour : (players.find(p => !p.isBot)?.colour || players[0]?.colour || 'blue');
+      const myRankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
+
+      if (myRankIndex === 0) {
+        return finishedStandings.slice(0, 1);
+      } else if (myRankIndex === 1) {
+        return finishedStandings.slice(0, 2);
+      } else if (myRankIndex === 2) {
+        return finishedStandings.slice(0, 3);
+      } else {
+        const remainingPlayers = players.filter(p => !playerFinishOrder.some(f => f.colour === p.colour));
+        const sortedRemaining = remainingPlayers.map(player => ({
+          name: player.name,
+          colour: player.colour,
+          score: getPlayerScore(player),
+          isBot: player.isBot,
+          hasQuit: player.hasQuit,
+          avatarUrl: player.avatarUrl,
+        })).sort((a, b) => b.score - a.score);
+
+        const finalStandings = [...finishedStandings];
+        sortedRemaining.forEach((standing, index) => {
+          if (!finalStandings.some(fs => fs.colour === standing.colour)) {
+            finalStandings.push({
+              ...standing,
+              rank: finishedStandings.length + index + 1,
+            });
+          }
+        });
+        return finalStandings;
+      }
+    }
+    return getLeaderboardStandings(players);
+  }, [players, playerFinishOrder, isGameEnded, onlineContext]);
+
   const inactivePlayer = players.find(p => p.missedTurns >= 3);
   const [showSplash, setShowSplash] = useState(true);
 
-  const onlineContext = useContext(OnlineGameContext);
   const dispatch = useDispatch<AppDispatch>();
 
   type RematchState = 'idle' | 'waiting_for_others' | 'popup_visible' | 'countdown';
@@ -41,39 +92,47 @@ function GameFinishedScreen({ players }: Props) {
   const activePlayers = useMemo(() => players.filter(p => !p.hasQuit && !p.isBot), [players]);
   const requiredAccepts = activePlayers.length;
 
-  // In local pass-and-play, if Player 1 (Red) wins, show "You Win!", else show "You Lose!"
-  // If the game ended early (all missed turns), it's a loss.
   const isTie = standings.length >= 2 && standings[0].score === standings[1].score && !standings[0].hasQuit && !standings[1].hasQuit;
   
+  const myColour = onlineContext ? onlineContext.myPlayerColour : (players.find(p => !p.isBot)?.colour || players[0]?.colour || 'blue');
   let splashText = '';
-  if (isGameOver) {
-    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
-    const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
-    if (amITiedForFirst) {
-      splashText = "It's a Tie!";
+  if (players.length === 4) {
+    const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
+    if (rankIndex === 0) {
+      splashText = 'You Win!';
+    } else if (rankIndex === 1) {
+      splashText = 'Congratulations! You secured 2nd Position.';
+    } else if (rankIndex === 2) {
+      splashText = 'Congratulations! You secured 3rd Position.';
     } else {
-      splashText = 'GAME OVER!';
+      splashText = 'You Lose!';
     }
   } else {
-    const someoneQuit = standings.some(p => p.hasQuit);
-    if (someoneQuit) {
-      if (onlineContext) {
-        const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
-        splashText = isMyWin ? 'You Win!' : 'You Lose!';
-      } else {
-        splashText = 'You Lose!';
-      }
-    } else {
-      // If online, use the assigned colour. If offline, assume players[0] is the primary local user.
-      const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
-      
-      const isMyWin = standings[0].colour === myColour;
+    if (isGameOver) {
       const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
-
       if (amITiedForFirst) {
         splashText = "It's a Tie!";
       } else {
-        splashText = isMyWin ? 'You Win!' : 'You Lose!';
+        splashText = 'GAME OVER!';
+      }
+    } else {
+      const someoneQuit = standings.some(p => p.hasQuit);
+      if (someoneQuit) {
+        if (onlineContext) {
+          const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
+          splashText = isMyWin ? 'You Win!' : 'You Lose!';
+        } else {
+          splashText = 'You Lose!';
+        }
+      } else {
+        const isMyWin = standings[0].colour === myColour;
+        const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
+
+        if (amITiedForFirst) {
+          splashText = "It's a Tie!";
+        } else {
+          splashText = isMyWin ? 'You Win!' : 'You Lose!';
+        }
       }
     }
   }
@@ -81,11 +140,15 @@ function GameFinishedScreen({ players }: Props) {
   // Determine if local player is the winner for confetti effects
   let isLocalWinner = false;
   if (!isGameOver && standings.length > 0) {
-    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
-    if (isTie) {
-       isLocalWinner = false;
+    if (players.length === 4) {
+      const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
+      isLocalWinner = rankIndex >= 0 && rankIndex <= 2;
     } else {
-       isLocalWinner = standings[0].colour === myColour;
+      if (isTie) {
+        isLocalWinner = false;
+      } else {
+        isLocalWinner = standings[0].colour === myColour;
+      }
     }
   }
 
@@ -98,10 +161,17 @@ function GameFinishedScreen({ players }: Props) {
 
   const resultType = useMemo<'win' | 'lose' | 'tie' | null>(() => {
     if (standings.length === 0) return null;
+    if (players.length === 4) {
+      const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
+      if (rankIndex >= 0 && rankIndex <= 2) {
+        return 'win';
+      } else {
+        return 'lose';
+      }
+    }
     if (isTie) return 'tie';
-    const myColour = onlineContext ? onlineContext.myPlayerColour : players[0].colour;
     return standings[0].colour === myColour ? 'win' : 'lose';
-  }, [isTie, onlineContext, players, standings]);
+  }, [isTie, players, standings, playerFinishOrder, myColour]);
 
   // Play the appropriate result sound when resultType is calculated/changes.
   // We do NOT stop the sound in this effect's cleanup, which prevents
@@ -126,6 +196,7 @@ function GameFinishedScreen({ players }: Props) {
 
   // Custom Event Listener for Nakama Rematch OpCodes
   useEffect(() => {
+    if (is4PlayerLiveMatch) return;
     const handleNakamaRematch = (e: Event) => {
       const customEvent = e as CustomEvent;
       const { opCode, parsed } = customEvent.detail;
@@ -157,7 +228,7 @@ function GameFinishedScreen({ players }: Props) {
     };
     document.addEventListener('nakama-rematch-event', handleNakamaRematch);
     return () => document.removeEventListener('nakama-rematch-event', handleNakamaRematch);
-  }, [requiredAccepts]);
+  }, [requiredAccepts, is4PlayerLiveMatch]);
 
   // 15-second timer
   useEffect(() => {
@@ -296,7 +367,13 @@ function GameFinishedScreen({ players }: Props) {
                 pointerEvents: rematchState === 'popup_visible' ? 'none' : 'auto',
                 transition: 'filter 0.3s ease'
               }}>
-                <LeaderboardScreen standings={standings} isTie={isTie} onRequestRematch={handleRequestRematch} />
+                <LeaderboardScreen 
+                  standings={standings} 
+                  isTie={isTie} 
+                  onRequestRematch={handleRequestRematch} 
+                  isOngoing={players.length === 4 && !isGameEnded}
+                  is4PlayerLiveMatch={is4PlayerLiveMatch}
+                />
                 {isGameOver && inactivePlayer && (
                   <div className={styles.gameOverSubtext}>
                     <p className={styles.inactiveReason}>{inactivePlayer.name} missed 3 chances to roll!</p>

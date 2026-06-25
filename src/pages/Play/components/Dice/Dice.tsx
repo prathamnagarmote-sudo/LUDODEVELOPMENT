@@ -325,6 +325,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
         {
           [styles.activeContainer]: !isDiceDisabled,
           [styles.criticalShake]: isCritical,
+          [styles.faded]: currentPlayer && !isCurrentPlayer && !isGameEnded,
         }
       )}
     >

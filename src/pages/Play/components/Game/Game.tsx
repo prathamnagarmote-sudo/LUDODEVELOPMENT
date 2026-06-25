@@ -19,6 +19,7 @@ import {
   convertPlayerToBot,
   quitMatch,
   setPlayerMissedTurns,
+  setPlayerFinishOrder,
 } from '../../../../state/slices/playersSlice';
 import { type TPlayerColour } from '../../../../types';
 import Board from '../Board/Board';
@@ -94,7 +95,7 @@ function Game({
   const dispatch = useDispatch<AppDispatch>();
   const store = useStore<RootState>();
   const boardTileSize = useSelector((state: RootState) => state.board.boardTileSize);
-  const { playerSequence, isGameEnded, currentPlayerColour, players } =
+  const { playerSequence, isGameEnded, currentPlayerColour, players, playerFinishOrder } =
     useSelector((state: RootState) => state.players);
   const playersRegisteredInitiallyRef = useRef(true);
   const gameInactiveStartTime = useRef(0);
@@ -113,15 +114,17 @@ function Game({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showFinishedScreen, setShowFinishedScreen] = useState(false);
+  const [hasUserManuallyQuit, setHasUserManuallyQuit] = useState(false);
 
   useEffect(() => {
-    if (isGameEnded) {
+    if (isGameEnded || hasUserManuallyQuit) {
       const timer = setTimeout(() => setShowFinishedScreen(true), 0);
       return () => clearTimeout(timer);
     } else {
       setShowFinishedScreen(false);
+      setHasUserManuallyQuit(false);
     }
-  }, [isGameEnded]);
+  }, [isGameEnded, hasUserManuallyQuit]);
 
   // Intercept browser back button: push a dummy history entry so pressing
   // back fires popstate instead of navigating away. Show the custom quit
@@ -675,6 +678,9 @@ function Game({
           });
           dispatch(setPlayerSequenceDirect(parsed.playerSequence));
           dispatch(setCurrentPlayerColour(parsed.currentTurnColour));
+          if (parsed.playerFinishOrder) {
+            dispatch(setPlayerFinishOrder(parsed.playerFinishOrder));
+          }
         }
 
         if (typeof parsed.turnDeadlineMs === 'number') {
@@ -739,6 +745,9 @@ function Game({
       } else if (opCode === 204) {
         // MATCH_END — processed sequentially after final winning token animation settles.
         toast.success(`Match ended! Winner: ${parsed.winnerColour}`);
+        if (parsed.playerFinishOrder) {
+          dispatch(setPlayerFinishOrder(parsed.playerFinishOrder));
+        }
         if (parsed.quitterColour) {
           dispatch(quitMatch(parsed.quitterColour));
         }
@@ -972,7 +981,32 @@ function Game({
   const handleExitBtnClick = () => {
     setShowQuitConfirm(false);
 
-    const colourToQuit = isOnline ? (myPlayerColour || currentPlayerColour) : currentPlayerColour;
+    const getColourToQuit = () => {
+      if (isOnline) {
+        return myPlayerColour || currentPlayerColour || 'blue';
+      }
+      const humanPlayer = players.find(p => !p.isBot);
+      if (humanPlayer) {
+        return humanPlayer.colour;
+      }
+      return currentPlayerColour || 'blue';
+    };
+    const colourToQuit = getColourToQuit();
+    const hasSecuredRank = playerFinishOrder.some(f => f.colour === colourToQuit);
+
+    if (players.length === 4 && hasSecuredRank) {
+      if (isOnline && roomId) {
+        try {
+          getNakamaSocket().sendMatchState(roomId, 7, JSON.stringify({ colour: colourToQuit }));
+        } catch (e) { }
+      }
+      if (colourToQuit) {
+        dispatch(quitMatchThunk(colourToQuit, moveAndCapture));
+      }
+      setHasUserManuallyQuit(true);
+      setShowFinishedScreen(true);
+      return;
+    }
 
     if (isOnline && roomId) {
       try {

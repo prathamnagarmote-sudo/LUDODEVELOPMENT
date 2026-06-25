@@ -32,6 +32,38 @@ interface TPlayer {
   level?: number;
 }
 
+function shouldEndMatch(state: any): boolean {
+  if (state.playerSequence.length <= 1) {
+    return true;
+  }
+  // Check if any human is still playing (is in playerSequence)
+  let activeHumanPlaying = 0;
+  for (let i = 0; i < state.players.length; i++) {
+    const p = state.players[i];
+    if (!p.isBot && !p.hasQuit && state.playerSequence.indexOf(p.colour) !== -1) {
+      activeHumanPlaying++;
+    }
+  }
+  if (activeHumanPlaying === 0) {
+    return true;
+  }
+  return false;
+}
+
+function getWinnerColour(state: any): TPlayerColour {
+  if (state.playerFinishOrder && state.playerFinishOrder.length > 0) {
+    return state.playerFinishOrder[0].colour;
+  }
+  // Fallback: first active human, or first in sequence
+  for (let i = 0; i < state.players.length; i++) {
+    const p = state.players[i];
+    if (!p.isBot && !p.hasQuit) {
+      return p.colour;
+    }
+  }
+  return state.playerSequence[0] || 'blue';
+}
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const GENERAL_TOKEN_PATH = [
   { startCoords: { x: 6, y: 13 }, endCoords: { x: 6, y: 9 } },
@@ -430,6 +462,7 @@ function matchInit(
       terminateAfterTicks: null as number | null,
       lastStateSyncTick: 0,  // track when we last broadcast periodic STATE_SYNC
       matchInitTime: Date.now(),
+      playerFinishOrder: [] as { name: string; colour: TPlayerColour }[],
       // Pending turn-change: the server schedules OpCode 203 to be broadcast
       // AFTER the token animation duration so clients receive it once the
       // animation is visually complete. This eliminates the latency desync
@@ -491,7 +524,8 @@ function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presen
     turnDeadlineMs: state.turnDeadlineMs,
     turnRemainingMs: turnRemainingMs,
     status: state.status,
-    serverNowMs: Date.now()
+    serverNowMs: Date.now(),
+    playerFinishOrder: state.playerFinishOrder
   }), [presence]);
 }
 
@@ -508,7 +542,8 @@ function broadcastStateSync(dispatcher: nkruntime.MatchDispatcher, state: any) {
     turnDeadlineMs: state.turnDeadlineMs,
     turnRemainingMs: turnRemainingMs,
     status: state.status,
-    serverNowMs: Date.now()
+    serverNowMs: Date.now(),
+    playerFinishOrder: state.playerFinishOrder
   }));
 }
 
@@ -593,15 +628,6 @@ function matchLeave(
     s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
   }
 
-  let activeHumanCount = 0;
-  let winnerColour: TPlayerColour = s.playerSequence[0];
-  for (let i = 0; i < s.players.length; i++) {
-    if (!s.players[i].isBot && !s.players[i].hasQuit) {
-      activeHumanCount++;
-      winnerColour = s.players[i].colour;
-    }
-  }
-
   // Only end the match if a player EXPLICITLY quit (hasQuit=true set by OpCode 7).
   // Don't end on socket disconnects — grace period handles those.
   const hasExplicitQuit = presences.some(function(pres) {
@@ -609,9 +635,10 @@ function matchLeave(
     return pl && pl.hasQuit;
   });
 
-  if (hasExplicitQuit && (activeHumanCount <= 1 || s.playerSequence.length <= 1)) {
+  if (hasExplicitQuit && shouldEndMatch(s)) {
     s.status = 'ended';
-    s.winnerColour = winnerColour;
+    const computedWinner = getWinnerColour(s);
+    s.winnerColour = computedWinner;
     s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
     s.rematchAccepted = [];
     
@@ -623,9 +650,19 @@ function matchLeave(
       }
     }
 
+    if (s.players.length === 4) {
+      const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+      remainingPlayers.forEach((standing: any) => {
+        if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+          s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+        }
+      });
+    }
+
     dispatcher.broadcastMessage(204, JSON.stringify({
-      winnerColour: winnerColour,
-      quitterColour: quitterColour
+      winnerColour: computedWinner,
+      quitterColour: quitterColour,
+      playerFinishOrder: s.playerFinishOrder
     }));
   } else if (hasExplicitQuit) {
     // If turn changed because active player left, change turn
@@ -1314,14 +1351,57 @@ function executeMove(
   }));
 
   if (hasPlayerWon) {
-    state.status = 'ended';
-    state.winnerColour = colour;
-    state.terminateAfterTicks = state.tickCount + 3600; // 60 seconds at 60Hz for rematch window
-    state.rematchAccepted = [];
-    dispatcher.broadcastMessage(204, JSON.stringify({
-      winnerColour: colour
-    }));
-    return;
+    if (state.players.length === 2) {
+      state.status = 'ended';
+      state.winnerColour = colour;
+      state.terminateAfterTicks = state.tickCount + 3600; // 60 seconds at 60Hz for rematch window
+      state.rematchAccepted = [];
+      dispatcher.broadcastMessage(204, JSON.stringify({
+        winnerColour: colour
+      }));
+      return;
+    } else {
+      // 4-Player Mode Ranking Progression
+      if (!state.playerFinishOrder.some((f: any) => f.colour === colour)) {
+        const player = state.players.find((p: any) => p.colour === colour);
+        state.playerFinishOrder.push({ name: player ? player.name : colour, colour: colour });
+      }
+
+      // Remove from playerSequence
+      state.playerSequence = state.playerSequence.filter((col: string) => col !== colour);
+
+      // Check if match should end (i.e. only 1 player left playing, meaning 3 have finished)
+      if (state.playerSequence.length <= 1) {
+        // Find remaining 4th player
+        const remainingColour = state.playerSequence[0];
+        const remainingPlayer = state.players.find((p: any) => p.colour === remainingColour);
+        if (remainingPlayer && !state.playerFinishOrder.some((f: any) => f.colour === remainingColour)) {
+          state.playerFinishOrder.push({ name: remainingPlayer.name, colour: remainingColour });
+        }
+
+        state.status = 'ended';
+        state.winnerColour = state.playerFinishOrder[0].colour; // 1st place is winner
+        state.terminateAfterTicks = state.tickCount + 3600;
+        state.rematchAccepted = [];
+        dispatcher.broadcastMessage(204, JSON.stringify({
+          winnerColour: state.playerFinishOrder[0].colour,
+          playerFinishOrder: state.playerFinishOrder
+        }));
+        return;
+      } else {
+        // Match continues for other players.
+        // Handoff turn to next player in sequence without incrementing currentTurnIndex
+        // because the current player was removed, shifting index elements left.
+        state.consecutiveSixes = 0;
+        state.currentTurnIndex = state.currentTurnIndex % state.playerSequence.length;
+        
+        // Broadcast STATE_SYNC immediately so clients are aware of player removal and rank updates.
+        broadcastStateSync(dispatcher, state);
+        
+        nextTurn(state, dispatcher);
+        return;
+      }
+    }
   }
 
   // Broadcast turn change immediately — no animation delay needed.
@@ -1474,23 +1554,27 @@ function matchLoop(
     if (s.playerSequence.length > 0) {
       s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
     }
-    let activeHumanCount = 0;
-    let winnerColour: TPlayerColour = s.playerSequence[0];
-    for (let i = 0; i < s.players.length; i++) {
-      if (!s.players[i].isBot && !s.players[i].hasQuit) {
-        activeHumanCount++;
-        winnerColour = s.players[i].colour;
-      }
-    }
-    if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+    if (shouldEndMatch(s)) {
       s.status = 'ended';
-      s.winnerColour = winnerColour;
+      const computedWinner = getWinnerColour(s);
+      s.winnerColour = computedWinner;
       s.terminateAfterTicks = tick + 3600;
       s.rematchAccepted = [];
       const quitterColour = s.players.find(function(p: any) { return p.hasQuit; })?.colour;
+
+      if (s.players.length === 4) {
+        const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+        remainingPlayers.forEach((standing: any) => {
+          if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+            s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+          }
+        });
+      }
+
       dispatcher.broadcastMessage(204, JSON.stringify({
-        winnerColour: winnerColour,
-        quitterColour: quitterColour
+        winnerColour: computedWinner,
+        quitterColour: quitterColour,
+        playerFinishOrder: s.playerFinishOrder
       }));
       return { state: s };
     } else {
@@ -1539,18 +1623,10 @@ function matchLoop(
         s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
       }
       
-      let activeHumanCount = 0;
-      let winnerColour: TPlayerColour = s.playerSequence[0];
-      for (let i = 0; i < s.players.length; i++) {
-        if (!s.players[i].isBot && !s.players[i].hasQuit) {
-          activeHumanCount++;
-          winnerColour = s.players[i].colour;
-        }
-      }
-
-      if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+      if (shouldEndMatch(s)) {
         s.status = 'ended';
-        s.winnerColour = winnerColour;
+        const computedWinner = getWinnerColour(s);
+        s.winnerColour = computedWinner;
         s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
         s.rematchAccepted = [];
         let quitterColour: TPlayerColour | undefined;
@@ -1558,9 +1634,20 @@ function matchLoop(
         if (failedPlayer) {
           quitterColour = failedPlayer.colour;
         }
+
+        if (s.players.length === 4) {
+          const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+          remainingPlayers.forEach((standing: any) => {
+            if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+              s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+            }
+          });
+        }
+
         dispatcher.broadcastMessage(204, JSON.stringify({
-          winnerColour: winnerColour,
-          quitterColour: quitterColour
+          winnerColour: computedWinner,
+          quitterColour: quitterColour,
+          playerFinishOrder: s.playerFinishOrder
         }));
         return { state: s };
       }
@@ -1590,23 +1677,26 @@ function matchLoop(
         }
 
         // Check if match should end
-        let activeHumanCount = 0;
-        let winnerColour: TPlayerColour = s.playerSequence[0];
-        for (let i = 0; i < s.players.length; i++) {
-          if (!s.players[i].isBot && !s.players[i].hasQuit) {
-            activeHumanCount++;
-            winnerColour = s.players[i].colour;
-          }
-        }
-
-        if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+        if (shouldEndMatch(s)) {
           s.status = 'ended';
-          s.winnerColour = winnerColour;
+          const computedWinner = getWinnerColour(s);
+          s.winnerColour = computedWinner;
           s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
           s.rematchAccepted = [];
+
+          if (s.players.length === 4) {
+            const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+            remainingPlayers.forEach((standing: any) => {
+              if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+                s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+              }
+            });
+          }
+
           dispatcher.broadcastMessage(204, JSON.stringify({
-            winnerColour: winnerColour,
-            quitterColour: currentColour
+            winnerColour: computedWinner,
+            quitterColour: currentColour,
+            playerFinishOrder: s.playerFinishOrder
           }));
           return { state: s };
         } else {
@@ -1672,24 +1762,26 @@ function matchLoop(
             s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
           }
 
-          // Check if match should end (e.g. only 1 player left)
-          let activeHumanCount = 0;
-          let winnerColour: TPlayerColour = s.playerSequence[0];
-          for (let i = 0; i < s.players.length; i++) {
-            if (!s.players[i].isBot && !s.players[i].hasQuit) {
-              activeHumanCount++;
-              winnerColour = s.players[i].colour;
-            }
-          }
-
-          if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+          if (shouldEndMatch(s)) {
             s.status = 'ended';
-            s.winnerColour = winnerColour;
+            const computedWinner = getWinnerColour(s);
+            s.winnerColour = computedWinner;
             s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
             s.rematchAccepted = [];
+
+            if (s.players.length === 4) {
+              const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+              remainingPlayers.forEach((standing: any) => {
+                if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+                  s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+                }
+              });
+            }
+
             dispatcher.broadcastMessage(204, JSON.stringify({
-              winnerColour: winnerColour,
-              quitterColour: senderColour
+              winnerColour: computedWinner,
+              quitterColour: senderColour,
+              playerFinishOrder: s.playerFinishOrder
             }));
           } else {
             // Broadcast state sync to notify others

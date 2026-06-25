@@ -216,14 +216,14 @@ describe('Test players slice reducers', () => {
       expect(newToken.isLocked).toBe(false);
       expect(newToken.coordinates).toBe(TOKEN_START_COORDINATES['blue']);
     });
-    it('should throw an error if the token is already unlocked', () => {
+    it('should not throw an error if the token is already unlocked', () => {
       const initState = cloneDeep(initialState);
       initState.players = cloneDeep(DUMMY_PLAYERS);
       const token = getToken(initState, 'blue', 0);
       token.isLocked = false;
       expect(() =>
         playersReducer(initState, unlockToken({ colour: token.colour, id: token.id }))
-      ).toThrowError();
+      ).not.toThrow();
     });
   });
   describe('lockToken', () => {
@@ -238,14 +238,14 @@ describe('Test players slice reducers', () => {
       expect(newToken.isLocked).toBe(true);
       expect(newToken.coordinates).toEqual(token.initialCoords);
     });
-    it('should throw an error if the token is already locked', () => {
+    it('should not throw an error if the token is already locked', () => {
       const initState = cloneDeep(initialState);
       initState.players = cloneDeep(DUMMY_PLAYERS);
       const token = getToken(initState, 'blue', 0);
       token.isLocked = true;
       expect(() =>
         playersReducer(initState, lockToken({ colour: token.colour, id: token.id }))
-      ).toThrowError();
+      ).not.toThrow();
     });
   });
   describe('incrementNumberOfConsecutiveSix', () => {

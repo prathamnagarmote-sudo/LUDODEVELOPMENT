@@ -241,6 +241,12 @@ const reducers = {
   ) => {
     state.playerSequence = action.payload;
   },
+  setPlayerFinishOrder: (
+    state: TPlayerState,
+    action: PayloadAction<TPlayerNameAndColour[]>
+  ) => {
+    state.playerFinishOrder = action.payload;
+  },
   convertPlayerToBot: (
     state: TPlayerState,
     action: PayloadAction<{ colour: TPlayerColour }>
@@ -354,6 +360,7 @@ export const {
   markTokenAsReachedHome,
   setTokenAlignmentData,
   setPlayerSequenceDirect,
+  setPlayerFinishOrder,
   convertPlayerToBot,
   setCurrentPlayerColour,
   declareForfeit,

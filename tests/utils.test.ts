@@ -52,13 +52,17 @@ describe('Test utility functions', () => {
       gameDiv.remove();
     });
 
-    it('sets the CSS variable on the .game element', () => {
+    it('sets the CSS variable on the specific token element', () => {
+      const tokenDiv = document.createElement('div');
+      tokenDiv.id = `${DUMMY_TOKEN.colour}_${DUMMY_TOKEN.id}`;
+      document.body.appendChild(tokenDiv);
+
       setTokenTransitionTime(500, DUMMY_TOKEN);
-      expect(gameDiv.style.getPropertyValue('--token-transition-time')).toBe('500ms');
+      expect(tokenDiv.style.getPropertyValue('--token-transition-time')).toBe('500ms');
+      tokenDiv.remove();
     });
 
-    it('does nothing if .game is not present', () => {
-      gameDiv.remove();
+    it('does nothing if the token element is not present', () => {
       expect(() => setTokenTransitionTime(255, DUMMY_TOKEN)).not.toThrow();
     });
   });

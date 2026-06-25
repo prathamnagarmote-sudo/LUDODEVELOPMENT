@@ -411,6 +411,7 @@
   -webkit-transform-style: preserve-3d;
   touch-action: manipulation;
   pointer-events: none;
+  transition: filter 0.3s ease;
 }
 
 .dice::after {
@@ -717,5 +718,9 @@
 .green .playerScore {
   transform: translateY(3px);
   margin-bottom: 2px;
+}
+
+.diceContainer.faded .dice {
+  filter: brightness(0.45) grayscale(15%);
 }
 

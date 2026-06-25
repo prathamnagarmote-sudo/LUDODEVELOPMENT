@@ -19,6 +19,8 @@ type Props = {
   standings: TLeaderboardStanding[];
   isTie?: boolean;
   onRequestRematch?: () => void;
+  isOngoing?: boolean;
+  is4PlayerLiveMatch?: boolean;
 };
 
 const woodStainColours: Record<string, string> = {
@@ -28,7 +30,7 @@ const woodStainColours: Record<string, string> = {
   yellow: '#c28b17',
 };
 
-function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
+function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4PlayerLiveMatch }: Props) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const onlineContext = useContext(OnlineGameContext);
@@ -112,15 +114,23 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
           ))}
         </div>
 
+        {isOngoing && (
+          <div className={styles.ongoingMessage} style={{ alignSelf: 'center' }}>
+            Other players' match is still in progress.
+          </div>
+        )}
+
         <div className={styles.buttonGroup}>
           <Link to="/setup" className={styles.actionButton}>
             <img src={homeBtnImg} alt="Home" />
             <span className={styles.btnText}>Home</span>
           </Link>
-          <button type="button" onClick={handleRematch} className={styles.actionButton}>
-            <img src={rematchBtnImg} alt="Rematch" />
-            <span className={styles.btnText}>Rematch</span>
-          </button>
+          {!is4PlayerLiveMatch && (
+            <button type="button" onClick={handleRematch} className={styles.actionButton}>
+              <img src={rematchBtnImg} alt="Rematch" />
+              <span className={styles.btnText}>Rematch</span>
+            </button>
+          )}
         </div>
       </div>
     </motion.div>

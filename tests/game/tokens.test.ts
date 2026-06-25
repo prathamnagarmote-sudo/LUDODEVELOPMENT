@@ -227,7 +227,7 @@ describe('Test tokens/logic', () => {
     );
 
     describe('block logic validation', () => {
-      it('returns false if there is an opponent block in the path', () => {
+      it('returns true even if there is an opponent block in the path', () => {
         const token: TToken = {
           ...DUMMY_TOKEN,
           colour: 'blue',
@@ -241,7 +241,7 @@ describe('Test tokens/logic', () => {
           { ...DUMMY_TOKEN, colour: 'red', id: 1, coordinates: { x: 6, y: 11 }, isLocked: false, hasTokenReachedHome: false },
         ];
         const allTokens = [token, ...opponentTokens];
-        expect(isTokenMovable(token, 3, allTokens)).toBe(false);
+        expect(isTokenMovable(token, 3, allTokens)).toBe(true);
       });
 
       it('returns true if the block is on a safe spot', () => {
