@@ -1083,6 +1083,7 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     }
     var capturedTokenColour = undefined;
     var capturedTokenId = undefined;
+    var capturedTokensList = [];
     if (isCaptured) {
         var dest = token.coordinates;
         for (var k = 0; k < allTokens.length; k++) {
@@ -1090,9 +1091,12 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
             if (oppToken.colour !== colour && !oppToken.isLocked && !oppToken.hasTokenReachedHome && areCoordsEqual(oppToken.coordinates, dest)) {
                 oppToken.isLocked = true;
                 oppToken.coordinates = { x: oppToken.initialCoords.x, y: oppToken.initialCoords.y };
-                capturedTokenColour = oppToken.colour;
-                capturedTokenId = oppToken.id;
-                break;
+                capturedTokensList.push({ colour: oppToken.colour, id: oppToken.id });
+                // Backward compatibility
+                if (capturedTokenColour === undefined) {
+                    capturedTokenColour = oppToken.colour;
+                    capturedTokenId = oppToken.id;
+                }
             }
         }
     }
@@ -1107,6 +1111,7 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
         hasPlayerWon: hasPlayerWon,
         capturedTokenColour: capturedTokenColour,
         capturedTokenId: capturedTokenId,
+        capturedTokens: capturedTokensList,
         serverNowMs: Date.now()
     }));
     if (hasPlayerWon) {
