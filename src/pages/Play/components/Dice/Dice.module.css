@@ -276,6 +276,17 @@
   line-height: 1;
 }
 
+.badgeLeft {
+  font-size: 8px;
+  background: #757575;
+  color: white;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
 /* Dice Frame & Scene */
 .diceFrameContainer {
   position: relative;

@@ -245,6 +245,9 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
         {isBot && (
           <span className={styles.badgeBot}>BOT</span>
         )}
+        {playerObj?.hasQuit && (
+          <span className={styles.badgeLeft}>LEFT</span>
+        )}
       </div>
       <div className={styles.playerScore}>
         {(() => {

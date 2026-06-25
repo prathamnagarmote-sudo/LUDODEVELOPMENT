@@ -40,6 +40,9 @@ type Props = {
 function Token({ colour, id, tokenClickData }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const { tokenHeight, tokenWidth } = useSelector((state: RootState) => state.board);
+  const player = useSelector((state: RootState) =>
+    state.players.players.find((p) => p.colour === colour)
+  );
   const token = useSelector((state: RootState) =>
     state.players.players.find((p) => p.colour === colour)?.tokens.find((t) => t.id === id)
   ) as TToken;
@@ -51,7 +54,13 @@ function Token({ colour, id, tokenClickData }: Props) {
   const [isCurrentlyFocused, setIsCurrentlyFocused] = useState(false);
   const tokenElRef = useRef<HTMLButtonElement | null>(null);
 
-  const { coordinates, isActive, isLocked, tokenAlignmentData, hasTokenReachedHome } = token;
+  const { coordinates, isActive, isLocked, tokenAlignmentData, hasTokenReachedHome } = token || {
+    coordinates: { x: 0, y: 0 },
+    isActive: false,
+    isLocked: false,
+    tokenAlignmentData: { scaleFactor: 1 },
+    hasTokenReachedHome: false,
+  };
 
   const [showCelebration, setShowCelebration] = useState(false);
   const prevReachedHome = useRef(hasTokenReachedHome);
@@ -249,6 +258,8 @@ function Token({ colour, id, tokenClickData }: Props) {
     }
   };
 
+  if (!player) return null;
+
   return (
     <button
       id={getTokenDOMId(colour, id)}
@@ -267,6 +278,9 @@ function Token({ colour, id, tokenClickData }: Props) {
           '--bounce-height': `-${localBouncePx}px`,
           '--hop-height': `-${localHopPx}px`,
           transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
+          opacity: player.hasQuit ? 0.55 : 1,
+          filter: player.hasQuit ? 'grayscale(35%)' : undefined,
+          pointerEvents: player.hasQuit ? 'none' : undefined,
         } as React.CSSProperties
       }
     >

@@ -95,21 +95,25 @@ function GameFinishedScreen({ players }: Props) {
   const isTie = standings.length >= 2 && standings[0].score === standings[1].score && !standings[0].hasQuit && !standings[1].hasQuit;
   
   const myColour = onlineContext ? onlineContext.myPlayerColour : (players.find(p => !p.isBot)?.colour || players[0]?.colour || 'blue');
+  const myRank = useMemo(() => {
+    if (standings.length === 0) return -1;
+    return standings.findIndex(s => s.colour === myColour) + 1;
+  }, [standings, myColour]);
+
   let splashText = '';
   if (players.length === 4) {
-    const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
-    if (rankIndex === 0) {
+    if (myRank === 1) {
       splashText = 'You Win!';
-    } else if (rankIndex === 1) {
+    } else if (myRank === 2) {
       splashText = 'Congratulations! You secured 2nd Position.';
-    } else if (rankIndex === 2) {
+    } else if (myRank === 3) {
       splashText = 'Congratulations! You secured 3rd Position.';
     } else {
       splashText = 'You Lose!';
     }
   } else {
     if (isGameOver) {
-      const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
+      const amITiedForFirst = isTie && (standings[0]?.colour === myColour || standings[1]?.colour === myColour);
       if (amITiedForFirst) {
         splashText = "It's a Tie!";
       } else {
@@ -119,14 +123,14 @@ function GameFinishedScreen({ players }: Props) {
       const someoneQuit = standings.some(p => p.hasQuit);
       if (someoneQuit) {
         if (onlineContext) {
-          const isMyWin = standings[0].colour === onlineContext.myPlayerColour;
+          const isMyWin = standings[0]?.colour === onlineContext.myPlayerColour;
           splashText = isMyWin ? 'You Win!' : 'You Lose!';
         } else {
           splashText = 'You Lose!';
         }
       } else {
-        const isMyWin = standings[0].colour === myColour;
-        const amITiedForFirst = isTie && (standings[0].colour === myColour || standings[1].colour === myColour);
+        const isMyWin = standings[0]?.colour === myColour;
+        const amITiedForFirst = isTie && (standings[0]?.colour === myColour || standings[1]?.colour === myColour);
 
         if (amITiedForFirst) {
           splashText = "It's a Tie!";
@@ -141,13 +145,12 @@ function GameFinishedScreen({ players }: Props) {
   let isLocalWinner = false;
   if (!isGameOver && standings.length > 0) {
     if (players.length === 4) {
-      const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
-      isLocalWinner = rankIndex >= 0 && rankIndex <= 2;
+      isLocalWinner = myRank >= 1 && myRank <= 3;
     } else {
       if (isTie) {
         isLocalWinner = false;
       } else {
-        isLocalWinner = standings[0].colour === myColour;
+        isLocalWinner = standings[0]?.colour === myColour;
       }
     }
   }
@@ -162,16 +165,15 @@ function GameFinishedScreen({ players }: Props) {
   const resultType = useMemo<'win' | 'lose' | 'tie' | null>(() => {
     if (standings.length === 0) return null;
     if (players.length === 4) {
-      const rankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
-      if (rankIndex >= 0 && rankIndex <= 2) {
+      if (myRank >= 1 && myRank <= 3) {
         return 'win';
       } else {
         return 'lose';
       }
     }
     if (isTie) return 'tie';
-    return standings[0].colour === myColour ? 'win' : 'lose';
-  }, [isTie, players, standings, playerFinishOrder, myColour]);
+    return standings[0]?.colour === myColour ? 'win' : 'lose';
+  }, [isTie, players, standings, myRank, myColour]);
 
   // Play the appropriate result sound when resultType is calculated/changes.
   // We do NOT stop the sound in this effect's cleanup, which prevents
