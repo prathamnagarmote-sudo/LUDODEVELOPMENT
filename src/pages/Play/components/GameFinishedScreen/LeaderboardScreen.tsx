@@ -20,7 +20,6 @@ type Props = {
   isTie?: boolean;
   onRequestRematch?: () => void;
   isOngoing?: boolean;
-  is4PlayerLiveMatch?: boolean;
 };
 
 const woodStainColours: Record<string, string> = {
@@ -30,7 +29,7 @@ const woodStainColours: Record<string, string> = {
   yellow: '#c28b17',
 };
 
-function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4PlayerLiveMatch }: Props) {
+function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const onlineContext = useContext(OnlineGameContext);
@@ -108,23 +107,34 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4P
                   {standing.colour === myPlayerColour ? 'You' : standing.name}
                 </span>
               </div>
-              <span className={styles.scoreCol}>{standing.score}</span>
+              <motion.span 
+                className={styles.scoreCol} 
+                style={standing.isInProgress ? { color: '#4ade80', fontWeight: 'bold' } : {}}
+                animate={standing.isInProgress ? {
+                  textShadow: [
+                    '0 0 5px rgba(74, 222, 128, 0.4), 0 0 10px rgba(74, 222, 128, 0.2)',
+                    '0 0 15px rgba(74, 222, 128, 0.9), 0 0 25px rgba(74, 222, 128, 0.6), 0 0 35px rgba(74, 222, 128, 0.4)',
+                    '0 0 5px rgba(74, 222, 128, 0.4), 0 0 10px rgba(74, 222, 128, 0.2)'
+                  ],
+                } : {}}
+                transition={standing.isInProgress ? {
+                  duration: 1.2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                } : {}}
+              >
+                {standing.score}
+              </motion.span>
             </div>
           ))}
         </div>
-
-        {isOngoing && (
-          <div className={styles.ongoingMessage} style={{ alignSelf: 'center' }}>
-            Other players' match is still in progress.
-          </div>
-        )}
 
         <div className={styles.buttonGroup}>
           <Link to="/setup" className={styles.actionButton}>
             <img src={homeBtnImg} alt="Home" />
             <span className={styles.btnText}>Home</span>
           </Link>
-          {!is4PlayerLiveMatch && (
+          {standings.length !== 4 && (
             <button type="button" onClick={handleRematch} className={styles.actionButton}>
               <img src={rematchBtnImg} alt="Rematch" />
               <span className={styles.btnText}>Rematch</span>
