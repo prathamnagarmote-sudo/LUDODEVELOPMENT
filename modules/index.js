@@ -468,14 +468,27 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
         logger.info("matchLeave: presence left userId=%v sessionId=%v", presence.userId, presence.sessionId);
         var _loop_1 = function (i) {
             if (s.players[i].userId === presence.userId) {
-                s.players[i].hasQuit = true;
-                s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
+                // Check if this was an explicit quit (OpCode 7 already set hasQuit=true)
+                if (s.players[i].hasQuit) {
+                    // Player already explicitly quit via the quit button — process immediately
+                    logger.info("matchLeave: player %v already explicitly quit. Removing immediately.", presence.userId);
+                    s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
+                }
+                else {
+                    // Socket disconnected without explicit quit (page transition, HMR, network hiccup).
+                    // Give the player a 10-second grace period to reconnect before treating as a quit.
+                    // If they reconnect (matchJoin), the grace timer is cleared.
+                    logger.info("matchLeave: player %v socket disconnected. Starting 10s reconnect grace period.", presence.userId);
+                    s.botTakeoverTicks[presence.userId] = tick + 600; // 10 seconds at 60Hz
+                }
             }
         };
         for (var i = 0; i < s.players.length; i++) {
             _loop_1(i);
         }
     }
+    // Only check for match end if an explicit quit removed someone from the sequence
+    // Grace-period disconnects are handled in matchLoop when the timer expires
     if (s.playerSequence.length > 0) {
         s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
     }
@@ -487,7 +500,13 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
             winnerColour = s.players[i].colour;
         }
     }
-    if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+    // Only end the match if a player EXPLICITLY quit (hasQuit=true set by OpCode 7).
+    // Don't end on socket disconnects — grace period handles those.
+    var hasExplicitQuit = presences.some(function (pres) {
+        var pl = s.players.find(function (p) { return p.userId === pres.userId; });
+        return pl && pl.hasQuit;
+    });
+    if (hasExplicitQuit && (activeHumanCount <= 1 || s.playerSequence.length <= 1)) {
         s.status = 'ended';
         s.winnerColour = winnerColour;
         s.terminateAfterTicks = tick + 3600; // 60 seconds rematch window
@@ -504,7 +523,7 @@ function matchLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
             quitterColour: quitterColour
         }));
     }
-    else {
+    else if (hasExplicitQuit) {
         // If turn changed because active player left, change turn
         var turnColour = s.playerSequence[s.currentTurnIndex];
         var leftColours = presences.map(function (pres) {
@@ -1129,6 +1148,7 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
+    var _a;
     var s = state;
     s.tickCount = tick;
     // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
@@ -1228,6 +1248,68 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: state };
     }
+    // 2a. Reconnect grace period expiry — process players who disconnected without
+    // explicitly quitting (via OpCode 7) and failed to reconnect within the grace period.
+    // matchLeave sets botTakeoverTicks[userId] = tick + 600 (10s). matchJoin clears it.
+    // If the timer expires here, the player is truly gone → mark as quit and end match if needed.
+    var expiredUserIds = [];
+    for (var userId in s.botTakeoverTicks) {
+        if (s.botTakeoverTicks[userId] <= tick) {
+            expiredUserIds.push(userId);
+        }
+    }
+    for (var ei = 0; ei < expiredUserIds.length; ei++) {
+        var expUserId = expiredUserIds[ei];
+        delete s.botTakeoverTicks[expUserId];
+        logger.info("matchLoop: reconnect grace expired for userId=%v. Marking as quit.", expUserId);
+        var _loop_2 = function (i) {
+            if (s.players[i].userId === expUserId && !s.players[i].hasQuit) {
+                s.players[i].hasQuit = true;
+                s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
+            }
+        };
+        for (var i = 0; i < s.players.length; i++) {
+            _loop_2(i);
+        }
+    }
+    if (expiredUserIds.length > 0) {
+        // Recheck match status after grace period expiry
+        if (s.playerSequence.length > 0) {
+            s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+        }
+        var activeHumanCount = 0;
+        var winnerColour = s.playerSequence[0];
+        for (var i = 0; i < s.players.length; i++) {
+            if (!s.players[i].isBot && !s.players[i].hasQuit) {
+                activeHumanCount++;
+                winnerColour = s.players[i].colour;
+            }
+        }
+        if (activeHumanCount <= 1 || s.playerSequence.length <= 1) {
+            s.status = 'ended';
+            s.winnerColour = winnerColour;
+            s.terminateAfterTicks = tick + 3600;
+            s.rematchAccepted = [];
+            var quitterColour = (_a = s.players.find(function (p) { return p.hasQuit; })) === null || _a === void 0 ? void 0 : _a.colour;
+            dispatcher.broadcastMessage(204, JSON.stringify({
+                winnerColour: winnerColour,
+                quitterColour: quitterColour
+            }));
+            return { state: s };
+        }
+        else {
+            // If the disconnected player's turn, advance
+            var turnColour = s.playerSequence[s.currentTurnIndex];
+            var quitColours = expiredUserIds.map(function (uid) {
+                var pl = s.players.find(function (p) { return p.userId === uid; });
+                return pl ? pl.colour : null;
+            }).filter(Boolean);
+            if (quitColours.indexOf(turnColour) !== -1) {
+                nextTurn(s, dispatcher);
+            }
+            broadcastStateSync(dispatcher, s);
+        }
+    }
     // 2b. Legacy pendingTurnChange — no longer used, turn changes are now immediate.
     // Kept as a safety net: if any code path accidentally sets pendingTurnChange,
     // broadcast it immediately rather than holding it.
@@ -1248,7 +1330,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             s.turnDeadlineMs = Date.now() + 15000;
         }
         else {
-            var _loop_2 = function (i) {
+            var _loop_3 = function (i) {
                 var p = s.players[i];
                 if (!p.isBot && p.id === "" && !p.hasQuit) {
                     p.hasQuit = true;
@@ -1257,7 +1339,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             };
             // Eliminate human players who failed to join initially
             for (var i = 0; i < s.players.length; i++) {
-                _loop_2(i);
+                _loop_3(i);
             }
             if (s.playerSequence.length > 0) {
                 s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;

@@ -4,11 +4,11 @@ import type { TToken } from '../types';
 
 export function setTokenTransitionTime(transitionTime: number, { colour, id }: TToken) {
   const token = document.getElementById(getTokenDOMId(colour, id));
-  const game = document.querySelector<HTMLDivElement>('.game');
   const timingFn = transitionTime === FORWARD_TOKEN_TRANSITION_TIME ? 'ease-in-out' : 'linear';
-  [token, game].forEach((e) => {
-    if (!e) return;
-    e.style.setProperty('--token-transition-time', `${transitionTime}ms`);
-    e.style.setProperty('--token-transition-timing-fn', timingFn);
-  });
+  // Set ONLY on the specific token element — not on .game.
+  // Setting on .game forces a CSS style recalculation on every child in the
+  // entire game tree (100+ elements) on every single step, causing layout jank.
+  if (!token) return;
+  token.style.setProperty('--token-transition-time', `${transitionTime}ms`);
+  token.style.setProperty('--token-transition-timing-fn', timingFn);
 }
