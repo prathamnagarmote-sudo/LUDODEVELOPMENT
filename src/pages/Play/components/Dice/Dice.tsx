@@ -266,7 +266,6 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
           })}
           tabIndex={isDiceDisabled ? -1 : undefined}
           title={!isDiceDisabled ? 'Roll Dice (Press D or Space)' : undefined}
-          disabled={isDiceDisabled}
           style={{ '--player-colour': playerColours[visualColour] } as React.CSSProperties}
           type="button"
           onClick={handleDiceClick}
