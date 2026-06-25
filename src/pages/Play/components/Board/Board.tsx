@@ -15,7 +15,7 @@ import styles from './Board.module.css';
 import { useResizeObserver } from '../../../../hooks/useResizeObserver';
 import { OnlineGameContext } from '../Game/Game';
 
-import { getVisualColour } from '../../../../utils/colourMapping';
+import { getVisualColour, getLogicalCoordinates } from '../../../../utils/colourMapping';
 
 type Props = {
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
@@ -54,8 +54,9 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
     const coordY = Math.max(0, Math.min(14, Math.floor(boardY / boardTileSize)));
 
     const coords: TCoordinate = { x: coordX, y: coordY };
+    const logicalCoords = getLogicalCoordinates(coords, isOnline, onlineContext?.myPlayerColour);
 
-    const tokenToMove = tokensWithCoord(coords, players).filter(
+    const tokenToMove = tokensWithCoord(logicalCoords, players).filter(
       (t) => t.colour === currentPlayerColour
     )[0];
 
@@ -102,7 +103,7 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
             key={color}
             className={clsx(
               styles.paddockGlow,
-              styles[`pos_${color}`],
+              styles[`pos_${visualColour}`],
               styles[`glow_${visualColour}`],
               currentPlayerColour === color && styles.active
             )}
@@ -127,9 +128,10 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
           if (rankIndex === -1) return null;
           const rank = rankIndex + 1;
           if (rank >= 4) return null;
+          const visualColour = getVisualColour(p.colour, isOnline, onlineContext?.myPlayerColour);
 
           return (
-            <div key={`rank-${p.colour}`} className={clsx(styles.rankIndicator, styles[p.colour])}>
+            <div key={`rank-${p.colour}`} className={clsx(styles.rankIndicator, styles[visualColour])}>
               <span className={styles.rankNumber}>{rank}</span>
               {rank === 1 && <img src={winCrownImg} className={styles.crownImage} alt="Winner Crown" />}
             </div>
