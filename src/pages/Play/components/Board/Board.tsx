@@ -14,6 +14,8 @@ import styles from './Board.module.css';
 import { useResizeObserver } from '../../../../hooks/useResizeObserver';
 import { OnlineGameContext } from '../Game/Game';
 
+import { getVisualColour } from '../../../../utils/colourMapping';
+
 type Props = {
   onDiceClick: (colour: TPlayerColour, diceNumber: number) => void;
 };
@@ -92,16 +94,20 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
       </svg>
       <img src={boardSvg} className={styles.boardImage} aria-hidden="true" />
 
-      {['red', 'green', 'yellow', 'blue'].map((color) => (
-        <div
-          key={color}
-          className={clsx(
-            styles.paddockGlow,
-            styles[color],
-            currentPlayerColour === color && styles.active
-          )}
-        />
-      ))}
+      {['red', 'green', 'yellow', 'blue'].map((color) => {
+        const visualColour = getVisualColour(color as TPlayerColour, isOnline, onlineContext?.myPlayerColour);
+        return (
+          <div
+            key={color}
+            className={clsx(
+              styles.paddockGlow,
+              styles[`pos_${color}`],
+              styles[`glow_${visualColour}`],
+              currentPlayerColour === color && styles.active
+            )}
+          />
+        );
+      })}
 
       {players.map((p) =>
         p.tokens.map((t) => (

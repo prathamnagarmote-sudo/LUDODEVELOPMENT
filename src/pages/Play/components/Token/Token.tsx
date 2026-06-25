@@ -15,6 +15,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { changeTurnThunk } from '../../../../state/thunks/changeTurnThunk';
 import { setDiceNumberDirect } from '../../../../state/slices/diceSlice';
 import { TokenCelebration } from './TokenCelebration';
+import { getVisualColour } from '../../../../utils/colourMapping';
 
 import styles from './Token.module.css';
 import clsx from 'clsx';
@@ -107,6 +108,7 @@ function Token({ colour, id, tokenClickData }: Props) {
   const moveAndCapture = useMoveAndCaptureToken();
 
   const onlineContext = useContext(OnlineGameContext);
+  const visualColour = getVisualColour(colour, !!onlineContext?.isOnline, onlineContext?.myPlayerColour);
 
   const unlock = () => {
     dispatch(setIsAnyTokenMoving(true));
@@ -247,7 +249,7 @@ function Token({ colour, id, tokenClickData }: Props) {
         {
           '--token-height': `${tokenHeight}px`,
           '--token-width': `${tokenWidth}px`,
-          '--fill-colour': woodStainColours[colour],
+          '--fill-colour': woodStainColours[visualColour],
           transform: `translate3d(${x}, ${y}, 12px) scale(${scaleFactor})`,
         } as React.CSSProperties
       }

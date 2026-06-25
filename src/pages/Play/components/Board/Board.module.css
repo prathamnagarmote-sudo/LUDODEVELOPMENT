@@ -43,36 +43,48 @@
   animation: pulseGlow 0.4s infinite alternate ease-in-out;
 }
 
-.paddockGlow.red {
+.pos_red {
   top: 0;
   left: 0;
-  box-shadow: inset 0 0 50px rgba(239, 68, 68, 1), inset 0 0 20px rgba(239, 68, 68, 0.8);
-  border: 4px solid rgba(239, 68, 68, 1);
   border-top-left-radius: 0px;
 }
 
-.paddockGlow.green {
+.pos_green {
   top: 0;
   right: 0;
-  box-shadow: inset 0 0 50px rgba(34, 197, 94, 1), inset 0 0 20px rgba(34, 197, 94, 0.8);
-  border: 4px solid rgba(34, 197, 94, 1);
   border-top-right-radius: 0px;
 }
 
-.paddockGlow.yellow {
+.pos_yellow {
   bottom: 0;
   right: 0;
-  box-shadow: inset 0 0 50px rgba(234, 179, 8, 1), inset 0 0 20px rgba(234, 179, 8, 0.8);
-  border: 4px solid rgba(234, 179, 8, 1);
   border-bottom-right-radius: 0px;
 }
 
-.paddockGlow.blue {
+.pos_blue {
   bottom: 0;
   left: 0;
+  border-bottom-left-radius: 0px;
+}
+
+.glow_red {
+  box-shadow: inset 0 0 50px rgba(239, 68, 68, 1), inset 0 0 20px rgba(239, 68, 68, 0.8);
+  border: 4px solid rgba(239, 68, 68, 1);
+}
+
+.glow_green {
+  box-shadow: inset 0 0 50px rgba(34, 197, 94, 1), inset 0 0 20px rgba(34, 197, 94, 0.8);
+  border: 4px solid rgba(34, 197, 94, 1);
+}
+
+.glow_yellow {
+  box-shadow: inset 0 0 50px rgba(234, 179, 8, 1), inset 0 0 20px rgba(234, 179, 8, 0.8);
+  border: 4px solid rgba(234, 179, 8, 1);
+}
+
+.glow_blue {
   box-shadow: inset 0 0 50px rgba(59, 130, 246, 1), inset 0 0 20px rgba(59, 130, 246, 0.8);
   border: 4px solid rgba(59, 130, 246, 1);
-  border-bottom-left-radius: 0px;
 }
 
 @keyframes pulseGlow {

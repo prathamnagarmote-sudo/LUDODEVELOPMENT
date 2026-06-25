@@ -97,7 +97,6 @@ export function useCaptureTokenInSameCoord() {
               }
               index--;
               if (index < 0) {
-                dispatch(setIsAnyTokenMoving(false));
                 setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, t);
                 dispatch(lockToken({ colour, id }));
                 tokenEl.removeEventListener('transitionend', handleTransitionEnd);
@@ -110,7 +109,10 @@ export function useCaptureTokenInSameCoord() {
                 }
 
                 tokensSuccessfullyCaptured++;
-                if (tokensSuccessfullyCaptured === capturableTokens.length) resolve(true);
+                if (tokensSuccessfullyCaptured === capturableTokens.length) {
+                  dispatch(setIsAnyTokenMoving(false));
+                  resolve(true);
+                }
                 return;
               }
 
