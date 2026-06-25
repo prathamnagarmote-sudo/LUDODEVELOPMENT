@@ -13,19 +13,24 @@ const isLocalNetwork = typeof window !== 'undefined' &&
    window.location.hostname.startsWith('192.168.') ||
    window.location.hostname.startsWith('10.'));
 
-// Respect VITE_NAKAMA_FORCE_REMOTE to bypass localhost/LAN auto-connection and use remote server
-const forceRemote = import.meta.env.VITE_NAKAMA_FORCE_REMOTE === 'true';
+const isForcedRemote = import.meta.env.VITE_NAKAMA_FORCE_REMOTE === 'true';
 
-const resolvedHost = (isLocalNetwork && !forceRemote)
-  ? (window.location.hostname)  // always local on localhost/LAN unless forced remote
+// On localhost/LAN: ALWAYS connect to local Nakama (localhost:7350) UNLESS forced remote.
+// The .env VITE_NAKAMA_HOST points to Railway (production) — using it on localhost
+// routes all WebSocket traffic through the remote server, adding 50-200ms of real
+// network latency per message (dice rolls, token moves, turn changes). This latency
+// is the primary cause of visible lag when testing with two browsers locally.
+// On production (Vercel/HTTPS): use env var → Railway Nakama.
+const resolvedHost = (isLocalNetwork && !isForcedRemote)
+  ? (window.location.hostname)  // always local on localhost/LAN
   : (import.meta.env.VITE_NAKAMA_HOST || PRODUCTION_NAKAMA_HOST);
 
-const resolvedPort = (isLocalNetwork && !forceRemote)
-  ? '7350'  // always local Nakama port on localhost/LAN unless forced remote
+const resolvedPort = (isLocalNetwork && !isForcedRemote)
+  ? '7350'  // always local Nakama port on localhost/LAN
   : (import.meta.env.VITE_NAKAMA_PORT || PRODUCTION_NAKAMA_PORT);
 
-const useSSL = (isLocalNetwork && !forceRemote)
-  ? false   // local Nakama never uses SSL unless forced remote
+const useSSL = (isLocalNetwork && !isForcedRemote)
+  ? false   // local Nakama never uses SSL
   : (import.meta.env.VITE_NAKAMA_SSL === 'true' ||
      import.meta.env.VITE_NAKAMA_USE_SSL === 'true' ||
      isHttps);
