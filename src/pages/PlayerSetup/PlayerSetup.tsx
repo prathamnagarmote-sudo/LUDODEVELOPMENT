@@ -87,19 +87,19 @@ function PlayerSetup() {
     }
   }, [currentUser, navigate]);
 
+  const hasAttemptedAuthRef = useRef(false);
+
   // Automatically authenticate if we have currentUser stored but socket/session is not initialized
   useEffect(() => {
-    if (currentUser && !getSession()) {
+    if (currentUser && !getSession() && !hasAttemptedAuthRef.current) {
+      hasAttemptedAuthRef.current = true;
       const reauth = async () => {
         setIsConnectingSocket(true);
         try {
           await authenticate(currentUser.userId, currentUser.userName);
         } catch (e: any) {
           console.error("Auto-reauthentication failed:", e);
-          toast.error("Failed to connect to game server. Please log in again.");
-          localStorage.removeItem('ludo_user');
-          setCurrentUser(null);
-          navigate('/');
+          toast.warn("Online server unreachable. You are in offline mode.");
         } finally {
           setIsConnectingSocket(false);
         }

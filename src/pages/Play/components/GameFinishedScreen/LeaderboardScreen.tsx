@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { TLeaderboardStanding } from '../../../../game/score/logic';
 import styles from './LeaderboardScreen.module.css';
 import { useDispatch } from 'react-redux';
+import { OnlineGameContext } from '../Game/Game';
 import { clearPlayersState } from '../../../../state/slices/playersSlice';
 import { clearDiceState } from '../../../../state/slices/diceSlice';
-import { OnlineGameContext } from '../Game/Game';
 import { getVisualColour } from '../../../../utils/colourMapping';
 
 // Atlas Assets
@@ -35,9 +35,8 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4P
   const dispatch = useDispatch();
   const onlineContext = useContext(OnlineGameContext);
   const isOnline = !!onlineContext?.isOnline;
-  const myPlayerColour = onlineContext?.myPlayerColour;
-  
   const winner = standings[0];
+  const myPlayerColour = onlineContext?.myPlayerColour || 'blue';
 
   const handleRematch = () => {
     if (onRequestRematch) {
@@ -71,7 +70,7 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4P
               />
             )}
           </div>
-          <h2 className={styles.winnerName}>{winner.name}</h2>
+          <h2 className={styles.winnerName}>{winner.colour === myPlayerColour ? 'You' : winner.name}</h2>
           <p className={styles.winnerScore}>{winner.score}</p>
         </div>
       )}
@@ -106,7 +105,7 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch, isOngoing, is4P
                   )}
                 </div>
                 <span className={styles.rowName}>
-                  {standing.name}
+                  {standing.colour === myPlayerColour ? 'You' : standing.name}
                 </span>
               </div>
               <span className={styles.scoreCol}>{standing.score}</span>

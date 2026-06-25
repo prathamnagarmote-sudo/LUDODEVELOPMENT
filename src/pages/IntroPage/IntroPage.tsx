@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
 import { authenticate } from '../../services/nakama';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import styles from './IntroPage.module.css';
 
 // Import assets from the project
@@ -164,7 +166,9 @@ export default function IntroPage() {
       navigate('/setup');
     } catch (error) {
       console.error("Login failed:", error);
-      setIsLoggingIn(false);
+      toast.warn("Could not connect to online server. Playing offline.", { autoClose: 3000 });
+      localStorage.setItem('ludo_user', JSON.stringify(profile));
+      navigate('/setup');
     }
   };
 
@@ -236,6 +240,7 @@ export default function IntroPage() {
           )}
         </div>
       )}
+      <ToastContainer position="bottom-center" theme="dark" />
     </div>
   );
 }

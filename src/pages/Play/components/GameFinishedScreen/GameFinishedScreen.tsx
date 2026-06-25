@@ -113,7 +113,7 @@ function GameFinishedScreen({ players }: Props) {
       if (amITiedForFirst) {
         splashText = "It's a Tie!";
       } else {
-        splashText = 'GAME OVER!';
+        splashText = 'You Lose!';
       }
     } else {
       const someoneQuit = standings.some(p => p.hasQuit);
@@ -376,7 +376,7 @@ function GameFinishedScreen({ players }: Props) {
                 />
                 {isGameOver && inactivePlayer && (
                   <div className={styles.gameOverSubtext}>
-                    <p className={styles.inactiveReason}>{inactivePlayer.name} missed 3 chances to roll!</p>
+                    <p className={styles.inactiveReason}>{inactivePlayer.colour === myColour ? 'You' : inactivePlayer.name} missed 3 chances to roll!</p>
                   </div>
                 )}
               </div>
