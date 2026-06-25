@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import type { TLeaderboardStanding } from '../../../../game/score/logic';
@@ -6,6 +6,8 @@ import styles from './LeaderboardScreen.module.css';
 import { useDispatch } from 'react-redux';
 import { clearPlayersState } from '../../../../state/slices/playersSlice';
 import { clearDiceState } from '../../../../state/slices/diceSlice';
+import { OnlineGameContext } from '../Game/Game';
+import { getVisualColour } from '../../../../utils/colourMapping';
 
 // Atlas Assets
 import crownImage from '../../../../Atlas_Lobby/images/win crown.png';
@@ -29,6 +31,9 @@ const woodStainColours: Record<string, string> = {
 function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const onlineContext = useContext(OnlineGameContext);
+  const isOnline = !!onlineContext?.isOnline;
+  const myPlayerColour = onlineContext?.myPlayerColour;
   
   const winner = standings[0];
 
@@ -60,7 +65,7 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
               <img src={winner.avatarUrl} alt={winner.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
               <TokenImage
-                style={{ width: '55px', height: '55px', '--fill-colour': woodStainColours[winner.colour] } as React.CSSProperties}
+                style={{ width: '55px', height: '55px', '--fill-colour': woodStainColours[getVisualColour(winner.colour, isOnline, myPlayerColour)] } as React.CSSProperties}
               />
             )}
           </div>
@@ -94,7 +99,7 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
                     <img src={standing.avatarUrl} alt={standing.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
                     <TokenImage
-                      style={{ width: '28px', height: '28px', '--fill-colour': woodStainColours[standing.colour] } as React.CSSProperties}
+                      style={{ width: '28px', height: '28px', '--fill-colour': woodStainColours[getVisualColour(standing.colour, isOnline, myPlayerColour)] } as React.CSSProperties}
                     />
                   )}
                 </div>
