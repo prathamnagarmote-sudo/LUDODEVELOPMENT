@@ -235,6 +235,13 @@ function Game({
   const myPlayerColourRef = useRef<TPlayerColour>(canonicalColour || 'blue');
   useEffect(() => { myPlayerColourRef.current = myPlayerColour; }, [myPlayerColour]);
 
+  // Auto-close quit confirmation if the game finishes while it is open
+  useEffect(() => {
+    if (showFinishedScreen || isGameEnded) {
+      setShowQuitConfirm(false);
+    }
+  }, [showFinishedScreen, isGameEnded]);
+
   // Match start timeout handler to prevent hanging on "Joining Match Session..."
   useEffect(() => {
     if (!isOnline || isMatchJoined) return;
@@ -1097,8 +1104,8 @@ function Game({
                 <h3 className={styles.quitTitleSmall}>Are you sure want to</h3>
                 <h2 className={styles.quitTitleBig}>Quit</h2>
                 <div className={styles.quitBtnGroup}>
-                  <button className={styles.quitNoBtn} onClick={() => setShowQuitConfirm(false)}>No</button>
                   <button className={styles.quitYesBtn} onClick={handleExitBtnClick}>Yes</button>
+                  <button className={styles.quitNoBtn} onClick={() => setShowQuitConfirm(false)}>No</button>
                 </div>
               </motion.div>
             </div>
