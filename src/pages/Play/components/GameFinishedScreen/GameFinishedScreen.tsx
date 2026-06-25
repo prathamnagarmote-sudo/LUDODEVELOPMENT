@@ -2,7 +2,7 @@ import type { TPlayer } from '../../../../types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../../state/store';
-import { getLeaderboardStandings, getPlayerScore } from '../../../../game/score/logic';
+import { getLeaderboardStandings, getPlayerScore, type TLeaderboardStanding } from '../../../../game/score/logic';
 import styles from './GameFinishedScreen.module.css';
 
 import ResultSplashScreen from './ResultSplashScreen';
@@ -42,37 +42,33 @@ function GameFinishedScreen({ players }: Props) {
         };
       });
 
-      const myColour = onlineContext ? onlineContext.myPlayerColour : (players.find(p => !p.isBot)?.colour || players[0]?.colour || 'blue');
-      const myRankIndex = playerFinishOrder.findIndex(f => f.colour === myColour);
+      const remainingPlayers = players.filter(p => !playerFinishOrder.some(f => f.colour === p.colour));
+      const sortedRemaining = remainingPlayers.map(player => ({
+        name: player.name,
+        colour: player.colour,
+        score: 'In Progress',
+        isBot: player.isBot,
+        hasQuit: player.hasQuit,
+        avatarUrl: player.avatarUrl,
+        isInProgress: true,
+      })).sort((a, b) => {
+        const aPlayer = players.find(p => p.colour === a.colour);
+        const bPlayer = players.find(p => p.colour === b.colour);
+        const aScore = aPlayer ? getPlayerScore(aPlayer) : 0;
+        const bScore = bPlayer ? getPlayerScore(bPlayer) : 0;
+        return bScore - aScore;
+      });
 
-      if (myRankIndex === 0) {
-        return finishedStandings.slice(0, 1);
-      } else if (myRankIndex === 1) {
-        return finishedStandings.slice(0, 2);
-      } else if (myRankIndex === 2) {
-        return finishedStandings.slice(0, 3);
-      } else {
-        const remainingPlayers = players.filter(p => !playerFinishOrder.some(f => f.colour === p.colour));
-        const sortedRemaining = remainingPlayers.map(player => ({
-          name: player.name,
-          colour: player.colour,
-          score: getPlayerScore(player),
-          isBot: player.isBot,
-          hasQuit: player.hasQuit,
-          avatarUrl: player.avatarUrl,
-        })).sort((a, b) => b.score - a.score);
-
-        const finalStandings = [...finishedStandings];
-        sortedRemaining.forEach((standing, index) => {
-          if (!finalStandings.some(fs => fs.colour === standing.colour)) {
-            finalStandings.push({
-              ...standing,
-              rank: finishedStandings.length + index + 1,
-            });
-          }
-        });
-        return finalStandings;
-      }
+      const finalStandings: TLeaderboardStanding[] = [...finishedStandings];
+      sortedRemaining.forEach((standing) => {
+        if (!finalStandings.some(fs => fs.colour === standing.colour)) {
+          finalStandings.push({
+            ...standing,
+            rank: 'NA',
+          });
+        }
+      });
+      return finalStandings;
     }
     return getLeaderboardStandings(players);
   }, [players, playerFinishOrder, isGameEnded, onlineContext]);
@@ -371,8 +367,6 @@ function GameFinishedScreen({ players }: Props) {
                   standings={standings} 
                   isTie={isTie} 
                   onRequestRematch={handleRequestRematch} 
-                  isOngoing={players.length === 4 && !isGameEnded}
-                  is4PlayerLiveMatch={is4PlayerLiveMatch}
                 />
                 {isGameOver && inactivePlayer && (
                   <div className={styles.gameOverSubtext}>

@@ -36,13 +36,14 @@ export function getPlayerScore(player: TPlayer): number {
 }
 
 export type TLeaderboardStanding = {
-  rank: number;
+  rank: number | string;
   name: string;
   colour: TPlayerColour;
-  score: number;
+  score: number | string;
   isBot: boolean;
   hasQuit: boolean;
   avatarUrl?: string;
+  isInProgress?: boolean;
 };
 
 /**
