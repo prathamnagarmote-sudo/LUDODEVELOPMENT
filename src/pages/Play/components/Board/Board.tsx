@@ -33,6 +33,19 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
   const isOnline = !!onlineContext?.isOnline;
   const myPlayerColour = onlineContext?.myPlayerColour || 'blue';
 
+  const posClasses: Record<TPlayerColour, string> = {
+    red: styles.posRed,
+    green: styles.posGreen,
+    yellow: styles.posYellow,
+    blue: styles.posBlue,
+  };
+  const glowClasses: Record<TPlayerColour, string> = {
+    red: styles.glowRed,
+    green: styles.glowGreen,
+    yellow: styles.glowYellow,
+    blue: styles.glowBlue,
+  };
+
   const onBoardResize = useCallback(() => {
     if (!boardNode) throw new Error(ERRORS.boardDoesNotExist());
     const boardSideLength = boardNode.getBoundingClientRect().width;
@@ -103,8 +116,8 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
             key={color}
             className={clsx(
               styles.paddockGlow,
-              styles[`pos_${visualColour}`],
-              styles[`glow_${visualColour}`],
+              posClasses[visualColour],
+              glowClasses[visualColour],
               currentPlayerColour === color && styles.active
             )}
           />
