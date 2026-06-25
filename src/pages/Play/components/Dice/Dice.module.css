@@ -393,6 +393,7 @@
 }
 
 .dice {
+  position: relative;
   background: transparent;
   border: none;
   height: calc(var(--board-tile-size) * var(--dice-scale-factor));
@@ -406,6 +407,16 @@
   box-shadow: none !important;
   transform-style: preserve-3d;
   touch-action: manipulation;
+}
+
+.dice::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  bottom: -20px;
+  left: -20px;
+  right: -20px;
+  z-index: 100;
 }
 
 .dice:focus,

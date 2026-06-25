@@ -737,7 +737,6 @@ function executeRoll(
     roll = bag[index];
     state.rollBags[colour] = bag.filter(function(_: number, i: number) { return i !== index; });
   }
-
   state.diceNumber = roll;
   state.hasRolled = true;
 
@@ -1760,7 +1759,6 @@ function matchLoop(
           dispatcher.broadcastMessage(205, JSON.stringify({ reason: "Already rolled" }), [message.sender]);
           return;
         }
-
         // Broadcast DICE_ROLL_START immediately to sync start times on all devices
         dispatcher.broadcastMessage(206, JSON.stringify({
           colour: currentColour,
