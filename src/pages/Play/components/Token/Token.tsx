@@ -204,13 +204,13 @@ function Token({ colour, id, tokenClickData }: Props) {
                 });
                 if (onlineContext.activeTokenAnimationPromiseRef) {
                   // eslint-disable-next-line
-                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                  onlineContext.activeTokenAnimationPromiseRef.current[colour] = animPromise;
                 }
               } else {
                 const animPromise = moveAndCapture(token, diceNumber);
                 if (onlineContext.activeTokenAnimationPromiseRef) {
                   // eslint-disable-next-line
-                  onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                  onlineContext.activeTokenAnimationPromiseRef.current[colour] = animPromise;
                 }
               }
             } catch (err) {
@@ -248,13 +248,13 @@ function Token({ colour, id, tokenClickData }: Props) {
               });
               if (onlineContext.activeTokenAnimationPromiseRef) {
                 // eslint-disable-next-line
-                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                onlineContext.activeTokenAnimationPromiseRef.current[colour] = animPromise;
               }
             } else {
               const animPromise = moveAndCapture(token, diceNumber);
               if (onlineContext.activeTokenAnimationPromiseRef) {
                 // eslint-disable-next-line
-                onlineContext.activeTokenAnimationPromiseRef.current = animPromise;
+                onlineContext.activeTokenAnimationPromiseRef.current[colour] = animPromise;
               }
             }
           } catch (err) {
@@ -269,7 +269,7 @@ function Token({ colour, id, tokenClickData }: Props) {
     }
   };
 
-  if (!player) return null;
+  if (!player || player.hasQuit) return null;
 
   return (
     <button

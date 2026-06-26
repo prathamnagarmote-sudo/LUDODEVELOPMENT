@@ -336,6 +336,15 @@
   text-align: center;
 }
 
+.rematchText {
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 15px 0 20px 0;
+  text-align: center;
+}
+
 .congratsText {
   color: #ffca28;
   font-size: 2.2rem;

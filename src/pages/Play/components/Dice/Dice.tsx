@@ -89,7 +89,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
       dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
       dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
       if (onlineContext.diceRollStartTimestampRef) {
-        onlineContext.diceRollStartTimestampRef.current = Date.now();
+        onlineContext.diceRollStartTimestampRef.current[colour] = Date.now();
       }
 
       try {
@@ -239,9 +239,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
     <div className={styles.nameAndScoreWrapper}>
       <div className={styles.playerNameRow}>
         <span className={styles.playerName}>{playerName.replace(' (Bot)', '')}</span>
-        {onlineContext?.isOnline && colour === onlineContext.myPlayerColour && (
-          <span className={styles.badgeYou}>YOU</span>
-        )}
+        {/* Removed extra YOU badge since it is now indicated by the player name itself */}
         {isBot && (
           <span className={styles.badgeBot}>BOT</span>
         )}

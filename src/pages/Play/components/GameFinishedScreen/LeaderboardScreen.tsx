@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { TLeaderboardStanding } from '../../../../game/score/logic';
 import styles from './LeaderboardScreen.module.css';
 import { useDispatch } from 'react-redux';
@@ -40,6 +40,27 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
   const handleRematch = () => {
     if (onRequestRematch) {
       onRequestRematch();
+    } else {
+      dispatch(clearPlayersState());
+      dispatch(clearDiceState());
+      navigate('/setup');
+    }
+  };
+
+  const handleHome = () => {
+    if (isOnline && onlineContext?.roomId) {
+      navigate('/setup', {
+        state: {
+          lastMatchId: onlineContext.roomId,
+          myPlayerColour: myPlayerColour,
+          players: standings.map(s => ({
+            name: s.name,
+            colour: s.colour,
+            isBot: s.isBot,
+            avatarUrl: s.avatarUrl
+          }))
+        }
+      });
     } else {
       dispatch(clearPlayersState());
       dispatch(clearDiceState());
@@ -130,10 +151,10 @@ function LeaderboardScreen({ standings, isTie, onRequestRematch }: Props) {
         </div>
 
         <div className={styles.buttonGroup}>
-          <Link to="/setup" className={styles.actionButton}>
+          <button type="button" onClick={handleHome} className={styles.actionButton}>
             <img src={homeBtnImg} alt="Home" />
             <span className={styles.btnText}>Home</span>
-          </Link>
+          </button>
           {standings.length !== 4 && (
             <button type="button" onClick={handleRematch} className={styles.actionButton}>
               <img src={rematchBtnImg} alt="Rematch" />

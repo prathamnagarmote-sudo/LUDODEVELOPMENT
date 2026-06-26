@@ -20,15 +20,15 @@ import { getVisualColour, getLogicalCoordinates } from '../../../../utils/colour
 const getSafetyColor = (color: TPlayerColour, opacity = 1.0): string => {
   switch (color) {
     case 'red':
-      return `rgba(220, 38, 38, ${opacity})`; // Vibrant safety red
+      return `rgba(214, 55, 48, ${opacity})`; // Match red quadrant (#d63730)
     case 'green':
-      return `rgba(35, 127, 82, ${opacity})`; // Official safety green (ISO 7010)
+      return `rgba(30, 155, 68, ${opacity})`; // Match green quadrant (#1e9b44)
     case 'yellow':
-      return `rgba(217, 119, 6, ${opacity})`; // Rich safety amber/yellow
+      return `rgba(254, 209, 84, ${opacity})`; // Match yellow quadrant (#fed154)
     case 'blue':
-      return `rgba(29, 78, 216, ${opacity})`; // Vibrant safety blue
+      return `rgba(25, 145, 200, ${opacity})`; // Match blue quadrant (#1991c8)
     default:
-      return `rgba(35, 127, 82, ${opacity})`;
+      return `rgba(30, 155, 68, ${opacity})`;
   }
 };
 
@@ -140,8 +140,8 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
             >
               <div className={styles.runAwayIconWrapper}>
                 <svg viewBox="0 0 105.833 105.833" className={styles.runAwaySvg}>
-                  {/* Background: player-colored inner area with 77% opacity to let paddock and tokens show through */}
-                  <rect x="0" y="0" width="105.833" height="105.833" fill={getSafetyColor(visualColour, 0.77)} />
+                  {/* Background: player-colored inner area with 95% opacity to stand out clearly and cover paddock graphics */}
+                  <rect x="0" y="0" width="105.833" height="105.833" fill={getSafetyColor(visualColour, 0.95)} />
                   
                   {/* Border: solid white inner outline, inset to leave a safety color margin exactly like the official sign */}
                   <rect x="9.5" y="9.5" width="86.833" height="86.833" fill="none" stroke="#ffffff" strokeWidth="3.0" />

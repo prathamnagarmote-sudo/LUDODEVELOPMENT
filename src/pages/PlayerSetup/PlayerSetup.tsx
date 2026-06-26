@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useCleanup } from '../../hooks/useCleanup';
 import { authenticate, getNakamaSocket, getSession, disconnectSocket, ensureSocketConnected } from '../../services/nakama';
 import { playMatchmakingScrollSound, playMatchFoundSound } from '../../utils/audio';
@@ -78,7 +78,107 @@ function PlayerSetup() {
 
   const ticketRef = useRef<string>('');
   const navigate = useNavigate();
+  const location = useLocation();
   const cleanup = useCleanup();
+
+  const lastMatchId = location.state?.lastMatchId;
+  const myPlayerColour = location.state?.myPlayerColour;
+  const lastPlayers = location.state?.players;
+
+  const [lobbyRematchState, setLobbyRematchState] = useState<'idle' | 'popup_visible' | 'waiting'>('idle');
+  const [lobbyRematchTimer, setLobbyRematchTimer] = useState(15);
+  const [challengerColour, setChallengerColour] = useState<'red' | 'green' | 'blue' | 'yellow' | null>(null);
+
+  // Rematch listener in lobby
+  useEffect(() => {
+    if (!lastMatchId) return;
+
+    let activeSocket: any;
+    try {
+      activeSocket = getNakamaSocket();
+    } catch (e) {
+      return;
+    }
+
+    const originalOnMatchData = activeSocket.onmatchdata;
+
+    activeSocket.onmatchdata = (result: any) => {
+      const opCode = result.op_code;
+      const parsed = JSON.parse(new TextDecoder().decode(result.data));
+      console.log("[LOBBY SOCKET] Received OpCode:", opCode, parsed);
+
+      if (opCode === 101) { // Rematch Request
+        // If it's from someone else
+        if (myPlayerColour && parsed.colour !== myPlayerColour) {
+          setChallengerColour(parsed.colour);
+          setLobbyRematchState('popup_visible');
+          setLobbyRematchTimer(15);
+        }
+      } else if (opCode === 102) { // Rematch Accept
+        if (lobbyRematchState === 'waiting' || lobbyRematchState === 'popup_visible') {
+          // Restart game! Navigate to /play
+          navigate('/play', {
+            state: {
+              isOnline: true,
+              matchId: lastMatchId,
+              canonicalColour: myPlayerColour
+            }
+          });
+        }
+      } else if (opCode === 103) { // Rematch Reject/Decline
+        setLobbyRematchState('idle');
+        toast.info("Rematch request declined.");
+      }
+    };
+
+    return () => {
+      activeSocket.onmatchdata = originalOnMatchData;
+    };
+  }, [lastMatchId, myPlayerColour, lobbyRematchState, navigate]);
+
+  // 15-second timer for lobby rematch popup
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (lobbyRematchState === 'popup_visible') {
+      interval = setInterval(() => {
+        setLobbyRematchTimer((prev) => {
+          if (prev <= 1) {
+            setLobbyRematchState('idle');
+            return 15;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [lobbyRematchState]);
+
+  const handleLobbyAcceptRematch = () => {
+    try {
+      const socket = getNakamaSocket();
+      socket.sendMatchState(lastMatchId, 102, JSON.stringify({ colour: myPlayerColour }));
+      // Navigate to /play to rejoin
+      navigate('/play', {
+        state: {
+          isOnline: true,
+          matchId: lastMatchId,
+          canonicalColour: myPlayerColour
+        }
+      });
+    } catch (e) {
+      console.error("Failed to accept rematch in lobby:", e);
+    }
+  };
+
+  const handleLobbyRejectRematch = () => {
+    try {
+      const socket = getNakamaSocket();
+      socket.sendMatchState(lastMatchId, 103, JSON.stringify({ colour: myPlayerColour }));
+    } catch (e) {
+      console.error("Failed to reject rematch in lobby:", e);
+    }
+    setLobbyRematchState('idle');
+  };
 
   // Redirect to landing if no logged in user
   useEffect(() => {
@@ -307,6 +407,12 @@ function PlayerSetup() {
 
           if (playerCount === 4) {
             setVisibleOpponentsCount(0);
+            // Start countdown immediately in sync across all screens
+            setMatchFound(true);
+            setCountdown(3);
+            runCountdown();
+
+            // Run visual slots stagger in parallel
             let count = 0;
             const staggerInterval = setInterval(() => {
               count++;
@@ -315,11 +421,8 @@ function PlayerSetup() {
 
               if (count === 3) {
                 clearInterval(staggerInterval);
-                setMatchFound(true);
-                setCountdown(3);
-                runCountdown();
               }
-            }, 1200);
+            }, 600); // Faster 600ms stagger fits perfectly within the 3s countdown
           } else {
             if (opponentsList.length > 0) {
               setOpponentName(opponentsList[0].name);
@@ -719,6 +822,22 @@ function PlayerSetup() {
             className={countdown === "Let's Play!" ? styles.letsPlayOverlay : styles.countdownOverlay}
           >
             {countdown}
+          </div>
+        )}
+        {/* Lobby Rematch Request Popup Overlay */}
+        {lobbyRematchState === 'popup_visible' && (
+          <div className={styles.rematchOverlay}>
+            <div className={styles.rematchPopup}>
+              <h2 className={styles.rematchTitle}>Rematch Request</h2>
+              <p className={styles.rematchText}>
+                {(lastPlayers?.find((p: any) => p.colour === challengerColour)?.name || challengerColour || 'Opponent').replace(' (Bot)', '')} wants a rematch!
+              </p>
+              <div className={styles.rematchTimer}>{lobbyRematchTimer} Seconds Remaining</div>
+              <div className={styles.rematchBtnGroup}>
+                <button className={styles.rejectBtn} onClick={handleLobbyRejectRematch}>Reject</button>
+                <button className={styles.acceptBtn} onClick={handleLobbyAcceptRematch}>Accept</button>
+              </div>
+            </div>
           </div>
         )}
       </main>

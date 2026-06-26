@@ -664,7 +664,7 @@
   top: calc(100% - calc(var(--board-tile-size) * 0.35));
   bottom: auto;
   filter: brightness(1.2) drop-shadow(0 3px 6px rgba(0,0,0,0.45));
-  animation: woodArrowBounceUp 0.42s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
+  animation: woodArrowBounceUp 0.34s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .red .woodenArrowWrapper,
@@ -672,7 +672,7 @@
   bottom: calc(100% - calc(var(--board-tile-size) * 0.45));
   top: auto;
   filter: brightness(1.2) drop-shadow(0 -3px 6px rgba(0,0,0,0.45));
-  animation: woodArrowBounceDown 0.42s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
+  animation: woodArrowBounceDown 0.34s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .leftOriented .woodenArrowWrapper {
