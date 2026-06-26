@@ -394,14 +394,6 @@ function Game({
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
 
-      // Clear dice rolling/placeholder states for ALL players on turn change.
-      // Keep last diceNumber visible (don't reset to -1) so the face stays on
-      // the last rolled value and doesn't snap to face-1 between turns.
-      const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
-      colours.forEach((col) => {
-        dispatch(setIsPlaceholderShowing({ colour: col, isPlaceholderShowing: false }));
-        dispatch(setIsVisualRolling({ colour: col, isVisualRolling: false }));
-      });
       // Reset ONLY the next colour's dice to -1 (awaiting roll)
       dispatch(setDiceNumberDirect({ colour: nextColour, diceNumber: -1 }));
     };
@@ -417,13 +409,13 @@ function Game({
 
       if (wasStartedEarly) {
         const elapsed = Date.now() - startTimestamp;
-        remainingDelay = Math.max(0, 150 - elapsed);
+        remainingDelay = Math.max(120, 200 - elapsed);
         delete diceRollStartTimestampRef.current[colour];
       } else {
-        // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
+        // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 200ms
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = 150;
+        remainingDelay = 200;
       }
 
 
