@@ -20,15 +20,15 @@ import { getVisualColour, getLogicalCoordinates } from '../../../../utils/colour
 const getSafetyColor = (color: TPlayerColour, opacity = 1.0): string => {
   switch (color) {
     case 'red':
-      return `rgba(220, 38, 38, ${opacity})`; // Vibrant safety red
+      return `rgba(179, 0, 6, ${opacity})`; // Match red quadrant
     case 'green':
-      return `rgba(35, 127, 82, ${opacity})`; // Official safety green (ISO 7010)
+      return `rgba(8, 133, 47, ${opacity})`; // Match green quadrant
     case 'yellow':
-      return `rgba(217, 119, 6, ${opacity})`; // Rich safety amber/yellow
+      return `rgba(255, 160, 18, ${opacity})`; // Match yellow quadrant
     case 'blue':
-      return `rgba(29, 78, 216, ${opacity})`; // Vibrant safety blue
+      return `rgba(0, 95, 167, ${opacity})`; // Match blue quadrant
     default:
-      return `rgba(35, 127, 82, ${opacity})`;
+      return `rgba(8, 133, 47, ${opacity})`;
   }
 };
 

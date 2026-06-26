@@ -95,7 +95,15 @@ export const useMoveTokenForward = () => {
 
         const moveStep = () => {
           // If another animation started or this one was cancelled, abort immediately.
-          if (isCancelled || myAnimationId !== activeAnimationId) return;
+          if (isCancelled || myAnimationId !== activeAnimationId) {
+            resolve({
+              lastTokenCoord: tokenPath[i],
+              hasTokenReachedHome: false,
+              moved: false,
+              hasPlayerWon: false,
+            });
+            return;
+          }
 
           i++;
           count++;
@@ -119,10 +127,26 @@ export const useMoveTokenForward = () => {
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
               // Final cancelled check before resolving
-              if (isCancelled || myAnimationId !== activeAnimationId) return;
+              if (isCancelled || myAnimationId !== activeAnimationId) {
+                resolve({
+                  lastTokenCoord: tokenPath[i],
+                  hasTokenReachedHome: false,
+                  moved: false,
+                  hasPlayerWon: false,
+                });
+                return;
+              }
               
               const player = players.find((p) => p.colour === colour);
-              if (!player) return;
+              if (!player) {
+                resolve({
+                  lastTokenCoord: tokenPath[i],
+                  hasTokenReachedHome,
+                  moved: true,
+                  hasPlayerWon: false,
+                });
+                return;
+              }
               const hasPlayerWon =
                 hasTokenReachedHome &&
                 player.tokens.filter((t) => t.hasTokenReachedHome).length === 3;
@@ -140,7 +164,15 @@ export const useMoveTokenForward = () => {
             // More steps remain — schedule the next step after the current transition
             pendingTimeout = setTimeout(() => {
               pendingTimeout = null;
-              if (isCancelled || myAnimationId !== activeAnimationId) return;
+              if (isCancelled || myAnimationId !== activeAnimationId) {
+                resolve({
+                  lastTokenCoord: tokenPath[i],
+                  hasTokenReachedHome: false,
+                  moved: false,
+                  hasPlayerWon: false,
+                });
+                return;
+              }
               moveStep();
             }, FORWARD_TOKEN_TRANSITION_TIME);
           }

@@ -71,52 +71,81 @@ export function useCaptureTokenInSameCoord() {
           resolve(false);
         });
         (async () => {
-          for (const t of capturableTokens) {
-            if (captureCancelled) break;
-            const { colour, id, coordinates } = t;
-            setTokenTransitionTime(BACKWARD_TOKEN_TRANSITION_TIME, t);
-            const tokenPath = tokenPaths[colour];
-            const tokenEl = document.getElementById(getTokenDOMId(colour, id));
-            if (!tokenEl) throw new Error(ERRORS.tokenDoesNotExist(colour, id));
-            const initialCoordinateIndex = tokenPath.findIndex((v) =>
-              areCoordsEqual(v, coordinates)
-            );
-            let index = initialCoordinateIndex;
-            let startTime = 0;
+          try {
+            for (const t of capturableTokens) {
+              if (captureCancelled) break;
+              const { colour, id, coordinates } = t;
+              setTokenTransitionTime(BACKWARD_TOKEN_TRANSITION_TIME, t);
+              const tokenPath = tokenPaths[colour];
+              const tokenEl = document.getElementById(getTokenDOMId(colour, id));
+              if (!tokenEl) throw new Error(ERRORS.tokenDoesNotExist(colour, id));
+              const initialCoordinateIndex = tokenPath.findIndex((v) =>
+                areCoordsEqual(v, coordinates)
+              );
+              let index = initialCoordinateIndex;
+              let startTime = 0;
 
-            const handleTransitionEnd = () => {
-              if (captureCancelled) {
-                tokenEl.removeEventListener('transitionend', handleTransitionEnd);
-                dispatch(setIsAnyTokenMoving(false));
-                stopReverseSound();
-                const bouncerEl = tokenEl.querySelector('span');
-                if (bouncerEl) {
-                  bouncerEl.classList.remove(styles.hopper);
-                }
-                return;
-              }
-              index--;
-              if (index < 0) {
-                setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, t);
-                dispatch(lockToken({ colour, id }));
-                tokenEl.removeEventListener('transitionend', handleTransitionEnd);
-                // Use the new fade out logic, ensuring a min 500ms playtime
-                stopReverseSoundWithFade(startTime);
-                
-                const bouncerEl = tokenEl.querySelector('span');
-                if (bouncerEl) {
-                  bouncerEl.classList.remove(styles.hopper);
-                }
+              const handleTransitionEnd = () => {
+                try {
+                  if (captureCancelled) {
+                    tokenEl.removeEventListener('transitionend', handleTransitionEnd);
+                    dispatch(setIsAnyTokenMoving(false));
+                    stopReverseSound();
+                    const bouncerEl = tokenEl.querySelector('span');
+                    if (bouncerEl) {
+                      bouncerEl.classList.remove(styles.hopper);
+                    }
+                    return;
+                  }
+                  index--;
+                  if (index < 0) {
+                    setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, t);
+                    dispatch(lockToken({ colour, id }));
+                    tokenEl.removeEventListener('transitionend', handleTransitionEnd);
+                    // Use the new fade out logic, ensuring a min 500ms playtime
+                    stopReverseSoundWithFade(startTime);
+                    
+                    const bouncerEl = tokenEl.querySelector('span');
+                    if (bouncerEl) {
+                      bouncerEl.classList.remove(styles.hopper);
+                    }
 
-                tokensSuccessfullyCaptured++;
-                if (tokensSuccessfullyCaptured === capturableTokens.length) {
+                    tokensSuccessfullyCaptured++;
+                    if (tokensSuccessfullyCaptured === capturableTokens.length) {
+                      dispatch(setIsAnyTokenMoving(false));
+                      resolve(true);
+                    }
+                    return;
+                  }
+
+                  // Trigger hop animation on the bouncer element for this backward step
+                  const bouncerEl = tokenEl.querySelector('span');
+                  if (bouncerEl) {
+                    bouncerEl.classList.remove(styles.hopper);
+                    void bouncerEl.offsetWidth; // Force layout reflow to restart animation keyframes
+                    bouncerEl.classList.add(styles.hopper);
+                  }
+
+                  const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
+                  tokenEl.style.transform = `translate(${x}, ${y})`;
+                } catch (transitionErr) {
+                  console.error('[CAPTURE] Error during transitionend handler:', transitionErr);
+                  tokenEl.removeEventListener('transitionend', handleTransitionEnd);
                   dispatch(setIsAnyTokenMoving(false));
-                  resolve(true);
+                  resolve(false);
                 }
-                return;
-              }
+              };
+              // Trigger the first transition
+              if (isFirstCapture) isFirstCapture = false;
+              else await sleep(250);
+              
+              // Play reverse sound, passing the distance so it can slow down for long kills
+              startTime = Date.now();
+              playReverseSound(initialCoordinateIndex);
+              
+              index--;
 
-              // Trigger hop animation on the bouncer element for this backward step
+              // Trigger hop animation on the bouncer element for the first backward step
               const bouncerEl = tokenEl.querySelector('span');
               if (bouncerEl) {
                 bouncerEl.classList.remove(styles.hopper);
@@ -126,28 +155,12 @@ export function useCaptureTokenInSameCoord() {
 
               const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
               tokenEl.style.transform = `translate(${x}, ${y})`;
-            };
-            // Trigger the first transition
-            if (isFirstCapture) isFirstCapture = false;
-            else await sleep(250);
-            
-            // Play reverse sound, passing the distance so it can slow down for long kills
-            startTime = Date.now();
-            playReverseSound(initialCoordinateIndex);
-            
-            index--;
-
-            // Trigger hop animation on the bouncer element for the first backward step
-            const bouncerEl = tokenEl.querySelector('span');
-            if (bouncerEl) {
-              bouncerEl.classList.remove(styles.hopper);
-              void bouncerEl.offsetWidth; // Force layout reflow to restart animation keyframes
-              bouncerEl.classList.add(styles.hopper);
+              tokenEl.addEventListener('transitionend', handleTransitionEnd);
             }
-
-            const { x, y } = getPosition(tokenPath[index], defaultTokenAlignmentData);
-            tokenEl.style.transform = `translate(${x}, ${y})`;
-            tokenEl.addEventListener('transitionend', handleTransitionEnd);
+          } catch (animErr) {
+            console.error('[CAPTURE] Exception during capture animation loop:', animErr);
+            dispatch(setIsAnyTokenMoving(false));
+            resolve(false);
           }
         })();
       });
