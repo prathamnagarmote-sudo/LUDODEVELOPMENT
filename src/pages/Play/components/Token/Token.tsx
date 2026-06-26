@@ -269,7 +269,7 @@ function Token({ colour, id, tokenClickData }: Props) {
     }
   };
 
-  if (!player) return null;
+  if (!player || player.hasQuit) return null;
 
   return (
     <button
