@@ -394,9 +394,6 @@ function Game({
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
 
-      // Clear all pending roll start timestamps on turn change
-      diceRollStartTimestampRef.current = {};
-
       // Clear dice rolling/placeholder states for ALL players on turn change.
       // Keep last diceNumber visible (don't reset to -1) so the face stays on
       // the last rolled value and doesn't snap to face-1 between turns.
