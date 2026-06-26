@@ -48,7 +48,7 @@ import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
-import { updateClockOffset, serverToLocal, getClockOffset } from '../../../../utils/clockSync';
+import { updateClockOffset, getClockOffset } from '../../../../utils/clockSync';
 
 
 export const EXIT_MESSAGE = 'Are you sure you want to exit? Any progress made will be lost.';
@@ -106,6 +106,7 @@ function Game({
   const [roomId, setRoomId] = useState<string>('');
   const [myPlayerColour, setMyPlayerColour] = useState<TPlayerColour>(canonicalColour || 'blue');
   const [isMatchJoined, setIsMatchJoined] = useState(!isOnline);
+  const [matchStarted, setMatchStarted] = useState(false);
   const [bypassLeaveBlocker, setBypassLeaveBlocker] = useState(false);
   usePageLeaveBlocker(isMatchJoined && !isGameEnded && !bypassLeaveBlocker);
   const [localSessionId, setLocalSessionId] = useState<string>('');
@@ -421,16 +422,8 @@ function Game({
         const elapsed = Date.now() - startTimestamp;
         remainingDelay = Math.max(0, 300 - elapsed);
         diceRollStartTimestampRef.current = 0;
-      } else if (data.rollStartedAtMs) {
-        // Roller received 201 without a prior 206 fast-path (e.g. bot roll seen
-        // by the roller, or reconnect). Use the server timestamp to compute how
-        // much of the 300ms animation has already elapsed on other devices.
-        const localRollStart = serverToLocal(data.rollStartedAtMs);
-        const elapsed = Date.now() - localRollStart;
-        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
-        dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
-        remainingDelay = Math.max(0, 300 - elapsed);
       } else {
+        // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
         dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
         remainingDelay = 150;
@@ -641,6 +634,9 @@ function Game({
       if (opCode === 200) {
         // STATE_SYNC
         optimisticTokenMovesRef.current.clear();
+        if (typeof parsed.matchStarted === 'boolean') {
+          setMatchStarted(parsed.matchStarted);
+        }
         if (playersRegisteredInitiallyRef.current) {
           initializeGame(parsed.players);
         } else {
@@ -690,14 +686,19 @@ function Game({
           }
         }
 
-        if (typeof parsed.turnDeadlineMs === 'number') {
-          setTurnDeadlineMs(parsed.turnDeadlineMs);
-        } else if (typeof parsed.deadlineMs === 'number') {
-          setTurnDeadlineMs(parsed.deadlineMs);
-        } else if (typeof parsed.turnRemainingMs === 'number') {
-          const clockOffset = clockOffsetRef.current || 0;
-          setTurnDeadlineMs(Date.now() + clockOffset + parsed.turnRemainingMs);
-        }
+        const computeLocalDeadline = () => {
+          const serverDeadline = typeof parsed.turnDeadlineMs === 'number' ? parsed.turnDeadlineMs : (typeof parsed.deadlineMs === 'number' ? parsed.deadlineMs : null);
+          const serverNow = typeof parsed.serverNowMs === 'number' ? parsed.serverNowMs : null;
+          
+          if (serverDeadline !== null && serverNow !== null) {
+            return Date.now() + (serverDeadline - serverNow);
+          }
+          if (typeof parsed.turnRemainingMs === 'number') {
+            return Date.now() + parsed.turnRemainingMs;
+          }
+          return Date.now() + 15000;
+        };
+        setTurnDeadlineMs(computeLocalDeadline());
 
         // Authoritatively sync dice numbers from STATE_SYNC.
         // RULE: Only apply when parsed.diceNumber is a real rolled value (>= 1).
@@ -739,14 +740,19 @@ function Game({
         // TURN_CHANGE — processed sequentially so the turn arrow and timer only
         // update AFTER the token animation completes.
         optimisticTokenMovesRef.current.clear();
-        if (typeof parsed.deadlineMs === 'number') {
-          setTurnDeadlineMs(parsed.deadlineMs);
-        } else if (typeof parsed.turnDeadlineMs === 'number') {
-          setTurnDeadlineMs(parsed.turnDeadlineMs);
-        } else if (typeof parsed.turnRemainingMs === 'number') {
-          const clockOffset = clockOffsetRef.current || 0;
-          setTurnDeadlineMs(Date.now() + clockOffset + parsed.turnRemainingMs);
-        }
+        const computeLocalDeadline = () => {
+          const serverDeadline = typeof parsed.turnDeadlineMs === 'number' ? parsed.turnDeadlineMs : (typeof parsed.deadlineMs === 'number' ? parsed.deadlineMs : null);
+          const serverNow = typeof parsed.serverNowMs === 'number' ? parsed.serverNowMs : null;
+          
+          if (serverDeadline !== null && serverNow !== null) {
+            return Date.now() + (serverDeadline - serverNow);
+          }
+          if (typeof parsed.turnRemainingMs === 'number') {
+            return Date.now() + parsed.turnRemainingMs;
+          }
+          return Date.now() + 15000;
+        };
+        setTurnDeadlineMs(computeLocalDeadline());
         applyTurnTransition(parsed.nextTurnColour);
 
       } else if (opCode === 204) {
@@ -822,13 +828,9 @@ function Game({
         if (rollingColour && rollingColour !== myPlayerColourRef.current) {
           dispatch(setIsPlaceholderShowing({ colour: rollingColour, isPlaceholderShowing: true }));
           dispatch(setIsVisualRolling({ colour: rollingColour, isVisualRolling: true }));
-          // Anchor roll start to server wall-clock so observer's 300ms timer
-          // is synchronised with the roller's 300ms timer via shared serverNowMs.
-          const localStart = parsed.rollStartedAtMs
-            ? serverToLocal(parsed.rollStartedAtMs)
-            : Date.now();
-          diceRollStartTimestampRef.current = localStart;
-          console.log(`[DICE ROLL START] Started rolling animation for ${rollingColour}, serverAnchor=${parsed.rollStartedAtMs}, localStart=${localStart}`);
+          // Start timing locally using local Date.now() to avoid server clock skew issues.
+          diceRollStartTimestampRef.current = Date.now();
+          console.log(`[DICE ROLL START] Started rolling animation for ${rollingColour}, localStart=${diceRollStartTimestampRef.current}`);
         }
         return;
       }
@@ -1056,10 +1058,10 @@ function Game({
     };
   }, [isOnline, roomId, myPlayerColour, amHostValue, onTokenMove, turnDeadlineMs]);
 
-  if (isOnline && !isMatchJoined) {
+  if (isOnline && (!isMatchJoined || !matchStarted)) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0b0222', color: '#ffca28', fontFamily: 'Jua, sans-serif' }}>
-        <h2>Joining Match Session...</h2>
+        <h2>{!isMatchJoined ? "Joining Match Session..." : "Waiting for Players..."}</h2>
         <div style={{ width: '40px', height: '40px', border: '3px solid rgba(255,202,40,0.2)', borderTop: '3px solid #ffca28', borderRadius: '50%', animation: 'spin 1s linear infinite', marginTop: '20px' }} />
         <style>{`
           @keyframes spin {

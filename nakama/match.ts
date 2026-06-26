@@ -445,6 +445,7 @@ function matchInit(
       consecutiveSixes: 0,
       turnDeadlineMs: Date.now() + 15000,
       status: 'playing',
+      matchStarted: false,
       rollBags: {
         blue: generateRollBag(),
         red: generateRollBag(),
@@ -525,7 +526,8 @@ function sendStateSync(dispatcher: nkruntime.MatchDispatcher, state: any, presen
     turnRemainingMs: turnRemainingMs,
     status: state.status,
     serverNowMs: Date.now(),
-    playerFinishOrder: state.playerFinishOrder
+    playerFinishOrder: state.playerFinishOrder,
+    matchStarted: state.matchStarted
   }), [presence]);
 }
 
@@ -543,7 +545,8 @@ function broadcastStateSync(dispatcher: nkruntime.MatchDispatcher, state: any) {
     turnRemainingMs: turnRemainingMs,
     status: state.status,
     serverNowMs: Date.now(),
-    playerFinishOrder: state.playerFinishOrder
+    playerFinishOrder: state.playerFinishOrder,
+    matchStarted: state.matchStarted
   }));
 }
 
@@ -1519,6 +1522,67 @@ function matchLoop(
     return { state: s };
   }
 
+  // ─── Match Start Synchronization ───────────────────────────────────────────
+  // Ensure that 2-player or 4-player live matches start at the exact same moment on all screens.
+  // The match officially starts only when all human players have successfully connected,
+  // or when the 45-second initial join grace period expires.
+  if (!s.matchStarted) {
+    const anyHumanNotJoined = s.players.some(function(p: any) { return !p.isBot && p.id === "" && !p.hasQuit; });
+    if (anyHumanNotJoined && (Date.now() - s.matchInitTime < 45000)) {
+      // Still waiting for some human players to join. Keep pushing the turn timer deadline forward
+      // so it doesn't expire before they join, and return early.
+      s.turnDeadlineMs = Date.now() + 15000;
+      return { state: s };
+    } else {
+      // Either all human players successfully connected, or the 45s grace period expired.
+      if (anyHumanNotJoined) {
+        // Grace period expired: eliminate failed human players who never connected
+        for (let i = 0; i < s.players.length; i++) {
+          const p = s.players[i];
+          if (!p.isBot && p.id === "" && !p.hasQuit) {
+            p.hasQuit = true;
+            s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== p.colour; });
+          }
+        }
+        if (s.playerSequence.length > 0) {
+          s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+        }
+
+        // If all remaining players quit or there is no player left, end the match
+        if (shouldEndMatch(s)) {
+          s.status = 'ended';
+          const computedWinner = getWinnerColour(s);
+          s.winnerColour = computedWinner;
+          s.terminateAfterTicks = tick + 3600;
+          s.rematchAccepted = [];
+          const quitterColour = s.players.find(function(p: any) { return !p.isBot && p.id === "" && p.hasQuit; })?.colour;
+
+          if (s.players.length === 4) {
+            const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
+            remainingPlayers.forEach((standing: any) => {
+              if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
+                s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+              }
+            });
+          }
+
+          dispatcher.broadcastMessage(204, JSON.stringify({
+            winnerColour: computedWinner,
+            quitterColour: quitterColour,
+            playerFinishOrder: s.playerFinishOrder
+          }));
+          return { state: s };
+        }
+      }
+
+      // Start the match!
+      s.matchStarted = true;
+      s.turnDeadlineMs = Date.now() + 15000;
+      logger.info("matchLoop: All players joined or grace period expired. Starting match! MatchId=%v", ctx.matchId);
+      broadcastStateSync(dispatcher, s);
+    }
+  }
+
   // 2. Turn Change Delay Handler (e.g. rolled a number with no moves)
   if (s.noMovableTokensTimer !== null) {
     if (Date.now() >= s.noMovableTokensTimer) {
@@ -1606,53 +1670,7 @@ function matchLoop(
   }
 
   // 3. Process turn deadlines (timeout)
-  const anyHumanNotJoined = s.players.some((p: any) => !p.isBot && p.id === "" && !p.hasQuit);
-  if (anyHumanNotJoined) {
-    if (Date.now() - s.matchInitTime < 45000) {
-      s.turnDeadlineMs = Date.now() + 15000;
-    } else {
-      // Eliminate human players who failed to join initially
-      for (let i = 0; i < s.players.length; i++) {
-        const p = s.players[i];
-        if (!p.isBot && p.id === "" && !p.hasQuit) {
-          p.hasQuit = true;
-          s.playerSequence = s.playerSequence.filter(function(col: string) { return col !== p.colour; });
-        }
-      }
-      if (s.playerSequence.length > 0) {
-        s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
-      }
-      
-      if (shouldEndMatch(s)) {
-        s.status = 'ended';
-        const computedWinner = getWinnerColour(s);
-        s.winnerColour = computedWinner;
-        s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
-        s.rematchAccepted = [];
-        let quitterColour: TPlayerColour | undefined;
-        const failedPlayer = s.players.find(function(p: any) { return !p.isBot && p.id === "" && p.hasQuit; });
-        if (failedPlayer) {
-          quitterColour = failedPlayer.colour;
-        }
-
-        if (s.players.length === 4) {
-          const remainingPlayers = s.players.filter((p: any) => !s.playerFinishOrder.some((f: any) => f.colour === p.colour));
-          remainingPlayers.forEach((standing: any) => {
-            if (!s.playerFinishOrder.some((f: any) => f.colour === standing.colour)) {
-              s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
-            }
-          });
-        }
-
-        dispatcher.broadcastMessage(204, JSON.stringify({
-          winnerColour: computedWinner,
-          quitterColour: quitterColour,
-          playerFinishOrder: s.playerFinishOrder
-        }));
-        return { state: s };
-      }
-    }
-  } else if (Date.now() >= s.turnDeadlineMs) {
+  if (Date.now() >= s.turnDeadlineMs) {
     const currentColour = s.playerSequence[s.currentTurnIndex];
     let player: TPlayer | null = null;
     for (let i = 0; i < s.players.length; i++) {

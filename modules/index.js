@@ -379,6 +379,7 @@ function matchInit(ctx, logger, nk, params) {
             consecutiveSixes: 0,
             turnDeadlineMs: Date.now() + 15000,
             status: 'playing',
+            matchStarted: false,
             rollBags: {
                 blue: generateRollBag(),
                 red: generateRollBag(),
@@ -443,7 +444,8 @@ function sendStateSync(dispatcher, state, presence) {
         turnRemainingMs: turnRemainingMs,
         status: state.status,
         serverNowMs: Date.now(),
-        playerFinishOrder: state.playerFinishOrder
+        playerFinishOrder: state.playerFinishOrder,
+        matchStarted: state.matchStarted
     }), [presence]);
 }
 function broadcastStateSync(dispatcher, state) {
@@ -460,7 +462,8 @@ function broadcastStateSync(dispatcher, state) {
         turnRemainingMs: turnRemainingMs,
         status: state.status,
         serverNowMs: Date.now(),
-        playerFinishOrder: state.playerFinishOrder
+        playerFinishOrder: state.playerFinishOrder,
+        matchStarted: state.matchStarted
     }));
 }
 function matchJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
@@ -1223,7 +1226,7 @@ function executeMove(state, dispatcher, colour, tokenId, skipBroadcast207) {
     resolvePostMoveTurnHandoff(state, dispatcher, colour, roll, hasTokenReachedHome, isCaptured);
 }
 function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
-    var _a;
+    var _a, _b;
     var s = state;
     s.tickCount = tick;
     // ─── Periodic STATE_SYNC: broadcast full state every ~5 seconds (300 ticks @ 60Hz)
@@ -1315,6 +1318,66 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         return { state: s };
     }
+    // ─── Match Start Synchronization ───────────────────────────────────────────
+    // Ensure that 2-player or 4-player live matches start at the exact same moment on all screens.
+    // The match officially starts only when all human players have successfully connected,
+    // or when the 45-second initial join grace period expires.
+    if (!s.matchStarted) {
+        var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
+        if (anyHumanNotJoined && (Date.now() - s.matchInitTime < 45000)) {
+            // Still waiting for some human players to join. Keep pushing the turn timer deadline forward
+            // so it doesn't expire before they join, and return early.
+            s.turnDeadlineMs = Date.now() + 15000;
+            return { state: s };
+        }
+        else {
+            // Either all human players successfully connected, or the 45s grace period expired.
+            if (anyHumanNotJoined) {
+                var _loop_2 = function (i) {
+                    var p = s.players[i];
+                    if (!p.isBot && p.id === "" && !p.hasQuit) {
+                        p.hasQuit = true;
+                        s.playerSequence = s.playerSequence.filter(function (col) { return col !== p.colour; });
+                    }
+                };
+                // Grace period expired: eliminate failed human players who never connected
+                for (var i = 0; i < s.players.length; i++) {
+                    _loop_2(i);
+                }
+                if (s.playerSequence.length > 0) {
+                    s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
+                }
+                // If all remaining players quit or there is no player left, end the match
+                if (shouldEndMatch(s)) {
+                    s.status = 'ended';
+                    var computedWinner = getWinnerColour(s);
+                    s.winnerColour = computedWinner;
+                    s.terminateAfterTicks = tick + 3600;
+                    s.rematchAccepted = [];
+                    var quitterColour = (_a = s.players.find(function (p) { return !p.isBot && p.id === "" && p.hasQuit; })) === null || _a === void 0 ? void 0 : _a.colour;
+                    if (s.players.length === 4) {
+                        var remainingPlayers = s.players.filter(function (p) { return !s.playerFinishOrder.some(function (f) { return f.colour === p.colour; }); });
+                        remainingPlayers.forEach(function (standing) {
+                            if (!s.playerFinishOrder.some(function (f) { return f.colour === standing.colour; })) {
+                                s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
+                            }
+                        });
+                    }
+                    dispatcher.broadcastMessage(204, JSON.stringify({
+                        winnerColour: computedWinner,
+                        quitterColour: quitterColour,
+                        playerFinishOrder: s.playerFinishOrder
+                    }));
+                    return { state: s };
+                }
+            }
+            // Start the match!
+            s.matchStarted = true;
+            s.turnDeadlineMs = Date.now() + 15000;
+            logger.info("matchLoop: All players joined or grace period expired. Starting match! MatchId=%v", ctx.matchId);
+            broadcastStateSync(dispatcher, s);
+        }
+    }
     // 2. Turn Change Delay Handler (e.g. rolled a number with no moves)
     if (s.noMovableTokensTimer !== null) {
         if (Date.now() >= s.noMovableTokensTimer) {
@@ -1337,14 +1400,14 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         var expUserId = expiredUserIds[ei];
         delete s.botTakeoverTicks[expUserId];
         logger.info("matchLoop: reconnect grace expired for userId=%v. Marking as quit.", expUserId);
-        var _loop_2 = function (i) {
+        var _loop_3 = function (i) {
             if (s.players[i].userId === expUserId && !s.players[i].hasQuit) {
                 s.players[i].hasQuit = true;
                 s.playerSequence = s.playerSequence.filter(function (col) { return col !== s.players[i].colour; });
             }
         };
         for (var i = 0; i < s.players.length; i++) {
-            _loop_2(i);
+            _loop_3(i);
         }
     }
     if (expiredUserIds.length > 0) {
@@ -1358,7 +1421,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
             s.winnerColour = computedWinner;
             s.terminateAfterTicks = tick + 3600;
             s.rematchAccepted = [];
-            var quitterColour = (_a = s.players.find(function (p) { return p.hasQuit; })) === null || _a === void 0 ? void 0 : _a.colour;
+            var quitterColour = (_b = s.players.find(function (p) { return p.hasQuit; })) === null || _b === void 0 ? void 0 : _b.colour;
             if (s.players.length === 4) {
                 var remainingPlayers = s.players.filter(function (p) { return !s.playerFinishOrder.some(function (f) { return f.colour === p.colour; }); });
                 remainingPlayers.forEach(function (standing) {
@@ -1401,55 +1464,7 @@ function matchLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         }));
     }
     // 3. Process turn deadlines (timeout)
-    var anyHumanNotJoined = s.players.some(function (p) { return !p.isBot && p.id === "" && !p.hasQuit; });
-    if (anyHumanNotJoined) {
-        if (Date.now() - s.matchInitTime < 45000) {
-            s.turnDeadlineMs = Date.now() + 15000;
-        }
-        else {
-            var _loop_3 = function (i) {
-                var p = s.players[i];
-                if (!p.isBot && p.id === "" && !p.hasQuit) {
-                    p.hasQuit = true;
-                    s.playerSequence = s.playerSequence.filter(function (col) { return col !== p.colour; });
-                }
-            };
-            // Eliminate human players who failed to join initially
-            for (var i = 0; i < s.players.length; i++) {
-                _loop_3(i);
-            }
-            if (s.playerSequence.length > 0) {
-                s.currentTurnIndex = s.currentTurnIndex % s.playerSequence.length;
-            }
-            if (shouldEndMatch(s)) {
-                s.status = 'ended';
-                var computedWinner = getWinnerColour(s);
-                s.winnerColour = computedWinner;
-                s.terminateAfterTicks = tick + 3600; // 60 seconds for rematch window
-                s.rematchAccepted = [];
-                var quitterColour = void 0;
-                var failedPlayer = s.players.find(function (p) { return !p.isBot && p.id === "" && p.hasQuit; });
-                if (failedPlayer) {
-                    quitterColour = failedPlayer.colour;
-                }
-                if (s.players.length === 4) {
-                    var remainingPlayers = s.players.filter(function (p) { return !s.playerFinishOrder.some(function (f) { return f.colour === p.colour; }); });
-                    remainingPlayers.forEach(function (standing) {
-                        if (!s.playerFinishOrder.some(function (f) { return f.colour === standing.colour; })) {
-                            s.playerFinishOrder.push({ name: standing.name, colour: standing.colour });
-                        }
-                    });
-                }
-                dispatcher.broadcastMessage(204, JSON.stringify({
-                    winnerColour: computedWinner,
-                    quitterColour: quitterColour,
-                    playerFinishOrder: s.playerFinishOrder
-                }));
-                return { state: s };
-            }
-        }
-    }
-    else if (Date.now() >= s.turnDeadlineMs) {
+    if (Date.now() >= s.turnDeadlineMs) {
         var currentColour_1 = s.playerSequence[s.currentTurnIndex];
         var player = null;
         for (var i = 0; i < s.players.length; i++) {

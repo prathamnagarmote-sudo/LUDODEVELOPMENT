@@ -20,23 +20,43 @@ export const VersionBadge = () => {
   const handleReload = async () => {
     if (isReloading) return;
     setIsReloading(true);
+
+    const performReload = () => {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('cb', Date.now().toString());
+        window.location.href = url.toString();
+        // Fallback reload if href assignment doesn't trigger immediately
+        setTimeout(() => {
+          window.location.reload();
+        }, 150);
+      } catch (e) {
+        window.location.reload();
+      }
+    };
+
     try {
-      // 1. Clear Cache Storage
+      // 1. Clear Cache Storage with a 1-second timeout
       if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(key => caches.delete(key)));
+        await Promise.race([
+          caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Cache delete timeout')), 1000))
+        ]).catch(err => console.warn(err));
       }
       
-      // 2. Unregister Service Workers
+      // 2. Unregister Service Workers with a 1-second timeout
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(r => r.unregister()));
+        await Promise.race([
+          navigator.serviceWorker.getRegistrations().then(registrations => 
+            Promise.all(registrations.map(r => r.unregister()))
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Service worker unregister timeout')), 1000))
+        ]).catch(err => console.warn(err));
       }
-      
-      // 3. Force reload to home page with cache-busting parameter
-      window.location.href = window.location.origin + '/?cb=' + Date.now();
     } catch (err) {
-      window.location.reload();
+      console.error('Error during update preparation:', err);
+    } finally {
+      performReload();
     }
   };
 
