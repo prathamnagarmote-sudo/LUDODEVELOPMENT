@@ -272,36 +272,6 @@ function isTokenMovable(token: TToken, diceNumber?: number, allTokens?: TToken[]
     return false;
   }
 
-  if (allTokens) {
-    const path = tokenPaths[token.colour];
-    const currentCoordIndex = findCoordIndex(path, token.coordinates);
-    if (currentCoordIndex !== -1) {
-      for (let i = 1; i <= diceNumber; i++) {
-        const stepIndex = currentCoordIndex + i;
-        if (stepIndex >= path.length) break;
-        const stepCoord = path[stepIndex];
-
-        const opponentColours: TPlayerColour[] = [];
-        const colours: TPlayerColour[] = ['blue', 'red', 'green', 'yellow'];
-        for (let c = 0; c < colours.length; c++) {
-          if (colours[c] !== token.colour) {
-            opponentColours.push(colours[c]);
-          }
-        }
-
-        for (let o = 0; o < opponentColours.length; o++) {
-          const oppColour = opponentColours[o];
-          if (!isCoordASafeSpot(stepCoord, oppColour)) {
-            const blockCount = countTokensAtCoord(allTokens, stepCoord, oppColour);
-            if (blockCount >= 2) {
-              return false;
-            }
-          }
-        }
-      }
-    }
-  }
-
   return true;
 }
 

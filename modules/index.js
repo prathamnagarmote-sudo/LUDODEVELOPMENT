@@ -231,34 +231,6 @@ function isTokenMovable(token, diceNumber, allTokens) {
     if (getAvailableSteps(token) < diceNumber) {
         return false;
     }
-    if (allTokens) {
-        var path = tokenPaths[token.colour];
-        var currentCoordIndex = findCoordIndex(path, token.coordinates);
-        if (currentCoordIndex !== -1) {
-            for (var i = 1; i <= diceNumber; i++) {
-                var stepIndex = currentCoordIndex + i;
-                if (stepIndex >= path.length)
-                    break;
-                var stepCoord = path[stepIndex];
-                var opponentColours = [];
-                var colours = ['blue', 'red', 'green', 'yellow'];
-                for (var c = 0; c < colours.length; c++) {
-                    if (colours[c] !== token.colour) {
-                        opponentColours.push(colours[c]);
-                    }
-                }
-                for (var o = 0; o < opponentColours.length; o++) {
-                    var oppColour = opponentColours[o];
-                    if (!isCoordASafeSpot(stepCoord, oppColour)) {
-                        var blockCount = countTokensAtCoord(allTokens, stepCoord, oppColour);
-                        if (blockCount >= 2) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-    }
     return true;
 }
 function computeMoveResult(token, diceNumber, players) {

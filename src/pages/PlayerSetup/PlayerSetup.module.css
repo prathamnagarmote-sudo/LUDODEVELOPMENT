@@ -1074,6 +1074,15 @@
   }
 }
 
+@keyframes avatarScrollUpSmallMobile {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-760px); /* 20 avatars * 38px = 760px */
+  }
+}
+
 .ringRed {
   filter: hue-rotate(310deg) saturate(2.2) brightness(0.95);
 }
@@ -1254,6 +1263,21 @@
   .avatarWrapperSmall {
     height: 52px;
     width: 52px;
+  }
+
+  .scrollingAvatarsWrapperSmall {
+    top: 7px;
+    left: 7px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .scrollingAvatarsContainerSmall {
+    animation-name: avatarScrollUpSmallMobile;
+  }
+
+  .scrollingAvatarItemSmall {
+    height: 38px;
   }
 
   .playerNameYellow4 {
