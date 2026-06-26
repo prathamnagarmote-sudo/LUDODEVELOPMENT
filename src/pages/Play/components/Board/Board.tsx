@@ -140,8 +140,8 @@ function Board({ onDiceClick: onDiceRoll }: Props) {
             >
               <div className={styles.runAwayIconWrapper}>
                 <svg viewBox="0 0 105.833 105.833" className={styles.runAwaySvg}>
-                  {/* Background: player-colored inner area with 77% opacity to let paddock and tokens show through */}
-                  <rect x="0" y="0" width="105.833" height="105.833" fill={getSafetyColor(visualColour, 0.77)} />
+                  {/* Background: player-colored inner area with 95% opacity to stand out clearly and cover paddock graphics */}
+                  <rect x="0" y="0" width="105.833" height="105.833" fill={getSafetyColor(visualColour, 0.95)} />
                   
                   {/* Border: solid white inner outline, inset to leave a safety color margin exactly like the official sign */}
                   <rect x="9.5" y="9.5" width="86.833" height="86.833" fill="none" stroke="#ffffff" strokeWidth="3.0" />
