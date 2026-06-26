@@ -93,6 +93,7 @@ function ResultSplashScreen({ text, playerColour }: Props) {
       >
         <div className={`${styles.losePopupCard} ${styles.tiePopupCard}`}>
           <h1 className={styles.losePopupText}>IT'S A TIE!</h1>
+          <h2 className={styles.rematchText}>Rematch to settle the score?</h2>
         </div>
       </motion.div>
     );
