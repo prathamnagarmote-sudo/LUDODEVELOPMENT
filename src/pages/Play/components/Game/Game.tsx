@@ -116,6 +116,7 @@ function Game({
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showFinishedScreen, setShowFinishedScreen] = useState(false);
   const [hasUserManuallyQuit, setHasUserManuallyQuit] = useState(false);
+  const [receivedRematchEvents, setReceivedRematchEvents] = useState<any[]>([]);
 
   useEffect(() => {
     if (isGameEnded || hasUserManuallyQuit) {
@@ -124,6 +125,7 @@ function Game({
     } else {
       setShowFinishedScreen(false);
       setHasUserManuallyQuit(false);
+      setReceivedRematchEvents([]); // Reset rematch events when match starts/resets
     }
   }, [isGameEnded, hasUserManuallyQuit]);
 
@@ -649,6 +651,7 @@ function Game({
       // Handle rematch events after game has ended, ignore all other match events
       if (currentIsGameEnded) {
         if (opCode >= 101 && opCode <= 103) {
+          setReceivedRematchEvents(prev => [...prev, { opCode, parsed }]);
           document.dispatchEvent(new CustomEvent('nakama-rematch-event', { detail: { opCode, parsed } }));
         }
         return;
@@ -1177,7 +1180,7 @@ function Game({
             </div>
           )}
         </AnimatePresence>
-        {showFinishedScreen && <GameFinishedScreen players={players} />}
+        {showFinishedScreen && <GameFinishedScreen players={players} initialRematchEvents={receivedRematchEvents} />}
       </div>
     </OnlineGameContext.Provider>
   );

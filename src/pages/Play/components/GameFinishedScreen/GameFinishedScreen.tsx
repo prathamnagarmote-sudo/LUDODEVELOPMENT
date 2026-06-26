@@ -7,7 +7,7 @@ import styles from './GameFinishedScreen.module.css';
 
 import ResultSplashScreen from './ResultSplashScreen';
 import LeaderboardScreen from './LeaderboardScreen';
-import { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import Confetti from 'react-confetti';
 import { useMeasure } from 'react-use';
 import { OnlineGameContext } from '../Game/Game';
@@ -19,9 +19,10 @@ import { getNakamaSocket } from '../../../../services/nakama';
 
 type Props = {
   players: TPlayer[];
+  initialRematchEvents?: any[];
 };
 
-function GameFinishedScreen({ players }: Props) {
+function GameFinishedScreen({ players, initialRematchEvents }: Props) {
   const [ref, { width, height }] = useMeasure<HTMLDivElement>();
   const { isGameOver, playerFinishOrder, isGameEnded } = useSelector((state: RootState) => state.players);
   const onlineContext = useContext(OnlineGameContext);
@@ -192,41 +193,54 @@ function GameFinishedScreen({ players }: Props) {
     onlineContextRef.current = onlineContext;
   }, [onlineContext]);
 
+  const processRematchEvent = useCallback((opCode: number, parsed: any) => {
+    const currentContext = onlineContextRef.current;
+    
+    if (opCode === 101) {
+      if (currentContext && parsed.colour === currentContext.myPlayerColour) {
+        return;
+      }
+      setRematchState('popup_visible');
+      setRematchTimer(15);
+      setAcceptedPlayers([parsed.colour]);
+    } else if (opCode === 102) {
+      setAcceptedPlayers(prev => {
+        const next = prev.includes(parsed.colour) ? prev : [...prev, parsed.colour];
+        if (next.length >= requiredAccepts) {
+          setRematchState('countdown');
+          setCountdownTimer(3);
+        }
+        return next;
+      });
+    } else if (opCode === 103) {
+      if (currentContext && parsed.colour === currentContext.myPlayerColour) {
+        return;
+      }
+      setRematchState('idle');
+      setRematchMessage('Rematch request declined.');
+    }
+  }, [requiredAccepts]);
+
   // Custom Event Listener for Nakama Rematch OpCodes
   useEffect(() => {
     if (is4PlayerLiveMatch) return;
+
+    // Process any initial/pending rematch events passed from Game.tsx on mount
+    if (initialRematchEvents && initialRematchEvents.length > 0) {
+      initialRematchEvents.forEach(evt => {
+        processRematchEvent(evt.opCode, evt.parsed);
+      });
+    }
+
     const handleNakamaRematch = (e: Event) => {
       const customEvent = e as CustomEvent;
       const { opCode, parsed } = customEvent.detail;
-      const currentContext = onlineContextRef.current;
-      
-      if (opCode === 101) {
-        if (currentContext && parsed.colour === currentContext.myPlayerColour) {
-          return;
-        }
-        setRematchState('popup_visible');
-        setRematchTimer(15);
-        setAcceptedPlayers([parsed.colour]);
-      } else if (opCode === 102) {
-        setAcceptedPlayers(prev => {
-          const next = prev.includes(parsed.colour) ? prev : [...prev, parsed.colour];
-          if (next.length >= requiredAccepts) {
-            setRematchState('countdown');
-            setCountdownTimer(3);
-          }
-          return next;
-        });
-      } else if (opCode === 103) {
-        if (currentContext && parsed.colour === currentContext.myPlayerColour) {
-          return;
-        }
-        setRematchState('idle');
-        setRematchMessage('Rematch request declined.');
-      }
+      processRematchEvent(opCode, parsed);
     };
+
     document.addEventListener('nakama-rematch-event', handleNakamaRematch);
     return () => document.removeEventListener('nakama-rematch-event', handleNakamaRematch);
-  }, [requiredAccepts, is4PlayerLiveMatch]);
+  }, [is4PlayerLiveMatch, initialRematchEvents, processRematchEvent]);
 
   // 15-second timer
   useEffect(() => {
