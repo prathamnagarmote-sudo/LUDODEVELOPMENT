@@ -307,6 +307,12 @@ function PlayerSetup() {
 
           if (playerCount === 4) {
             setVisibleOpponentsCount(0);
+            // Start countdown immediately in sync across all screens
+            setMatchFound(true);
+            setCountdown(3);
+            runCountdown();
+
+            // Run visual slots stagger in parallel
             let count = 0;
             const staggerInterval = setInterval(() => {
               count++;
@@ -315,11 +321,8 @@ function PlayerSetup() {
 
               if (count === 3) {
                 clearInterval(staggerInterval);
-                setMatchFound(true);
-                setCountdown(3);
-                runCountdown();
               }
-            }, 1200);
+            }, 600); // Faster 600ms stagger fits perfectly within the 3s countdown
           } else {
             if (opponentsList.length > 0) {
               setOpponentName(opponentsList[0].name);

@@ -420,7 +420,7 @@ function Game({
 
       if (wasStartedEarly) {
         const elapsed = Date.now() - startTimestamp;
-        remainingDelay = Math.max(0, 300 - elapsed);
+        remainingDelay = Math.max(0, 150 - elapsed);
         diceRollStartTimestampRef.current = 0;
       } else {
         // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
@@ -468,56 +468,63 @@ function Game({
       }
 
       const applyResult = () => {
-        dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
-        dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
-        dispatch(setDiceNumberDirect({ colour, diceNumber: data.roll }));
+        try {
+          dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
+          dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
+          dispatch(setDiceNumberDirect({ colour, diceNumber: data.roll }));
 
-        if (roll === 6) {
-          dispatch(incrementNumberOfConsecutiveSix(colour));
-          // Reset consecutive sixes if it reaches 3 to match server logic
-          const freshState = store.getState();
-          const playerObj = freshState.players.players.find(p => p.colour === colour);
-          if (playerObj && playerObj.numberOfConsecutiveSix >= 3) {
+          if (roll === 6) {
+            dispatch(incrementNumberOfConsecutiveSix(colour));
+            // Reset consecutive sixes if it reaches 3 to match server logic
+            const freshState = store.getState();
+            const playerObj = freshState.players.players.find(p => p.colour === colour);
+            if (playerObj && playerObj.numberOfConsecutiveSix >= 3) {
+              dispatch(resetNumberOfConsecutiveSix(colour));
+            }
+          } else {
             dispatch(resetNumberOfConsecutiveSix(colour));
           }
-        } else {
-          dispatch(resetNumberOfConsecutiveSix(colour));
-        }
 
-        // Auto-move visual execution
-        if (autoMoveTokenId !== null) {
-          const freshState = store.getState();
-          const player = freshState.players.players.find((p) => p.colour === colour);
-          const targetToken = player?.tokens.find((t) => t.id === autoMoveTokenId);
-          if (targetToken) {
-            console.log('[AUTO-MOVE-EXECUTE] Playing visual animation for prefetched auto-move:', colour, targetToken.id);
-            dispatch(deactivateAllTokens(colour));
-            if (isAutoMoveLocked) {
-              dispatch(setIsAnyTokenMoving(true));
-              setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, targetToken);
-              dispatch(unlockAndAlignTokens({ colour, id: targetToken.id }));
-              const animPromise = new Promise<void>((resolve) => {
-                setTimeout(() => {
-                  dispatch(setIsAnyTokenMoving(false));
-                  resolve();
-                }, FORWARD_TOKEN_TRANSITION_TIME);
-              });
-              activeTokenAnimationPromiseRef.current = animPromise;
-            } else {
-              const animPromise = moveAndCapture(targetToken, roll);
-              activeTokenAnimationPromiseRef.current = animPromise;
+          // Auto-move visual execution
+          if (autoMoveTokenId !== null) {
+            const freshState = store.getState();
+            const player = freshState.players.players.find((p) => p.colour === colour);
+            const targetToken = player?.tokens.find((t) => t.id === autoMoveTokenId);
+            if (targetToken) {
+              console.log('[AUTO-MOVE-EXECUTE] Playing visual animation for prefetched auto-move:', colour, targetToken.id);
+              dispatch(deactivateAllTokens(colour));
+              if (isAutoMoveLocked) {
+                dispatch(setIsAnyTokenMoving(true));
+                setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, targetToken);
+                dispatch(unlockAndAlignTokens({ colour, id: targetToken.id }));
+                const animPromise = new Promise<void>((resolve) => {
+                  setTimeout(() => {
+                    dispatch(setIsAnyTokenMoving(false));
+                    resolve();
+                  }, FORWARD_TOKEN_TRANSITION_TIME);
+                });
+                activeTokenAnimationPromiseRef.current = animPromise;
+              } else {
+                const animPromise = moveAndCapture(targetToken, roll);
+                activeTokenAnimationPromiseRef.current = animPromise;
+              }
             }
+            onComplete?.();
+            return;
           }
+
+          // Activate tokens locally ONLY for the active local player so they can click.
+          if (data.hasMovableTokens && colour === myPlayerColourRef.current) {
+            dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
+          }
+        } catch (error) {
+          console.error('[CLIENT] Error in applyResult inside allClientsApplyDiceResult:', error);
+          // Safety cleanup
+          dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: false }));
+          dispatch(setIsVisualRolling({ colour, isVisualRolling: false }));
+        } finally {
           onComplete?.();
-          return;
         }
-
-        // Activate tokens locally ONLY for the active local player so they can click.
-        if (data.hasMovableTokens && colour === myPlayerColourRef.current) {
-          dispatch(activateTokens({ all: roll === 6, colour, diceNumber: roll }));
-        }
-
-        onComplete?.();
       };
 
       if (remainingDelay <= 0) {
@@ -961,7 +968,8 @@ function Game({
         if (requestInterval) clearInterval(requestInterval);
         if (stateSyncRetryInterval) clearInterval(stateSyncRetryInterval);
         console.error('[ONLINE] Error joining match:', e);
-        toast.error('Error joining match: ' + e.message);
+        const errorMessage = e?.message || e?.error || (typeof e === 'string' ? e : 'Unknown error');
+        toast.error('Error joining match: ' + errorMessage);
         navigate('/setup');
       }
     };
