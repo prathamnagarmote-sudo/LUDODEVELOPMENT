@@ -44,7 +44,7 @@ import { getNakamaSocket, ensureSocketConnected } from '../../../../services/nak
 import { toast } from 'react-toastify';
 import { unlockAndAlignTokens } from '../../../../state/thunks/unlockAndAlignTokens';
 import { setTokenTransitionTime } from '../../../../utils/setTokenTransitionTime';
-import { FORWARD_TOKEN_TRANSITION_TIME } from '../../../../game/tokens/constants';
+import { FORWARD_TOKEN_TRANSITION_TIME, TOKEN_START_COORDINATES } from '../../../../game/tokens/constants';
 import { isTokenMovable } from '../../../../game/tokens/logic';
 import { areCoordsEqual } from '../../../../game/coords/logic';
 import type { MatchData } from '@heroiclabs/nakama-js';
@@ -62,7 +62,7 @@ export const OnlineGameContext = createContext<{
   onTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
   diceRollStartTimestampRef?: React.MutableRefObject<Record<string, number>>;
   turnDeadlineMs?: number;
-  activeTokenAnimationPromiseRef?: React.MutableRefObject<Promise<any> | null>;
+  activeTokenAnimationPromiseRef?: React.MutableRefObject<Record<string, Promise<any> | null>>;
   clockOffsetRef?: React.MutableRefObject<number>;
 } | null>(null);
 
@@ -262,7 +262,7 @@ function Game({
   }, [isOnline, isMatchJoined, navigate]);
 
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
-  const activeTokenAnimationPromiseRef = useRef<Promise<any> | null>(null);
+  const activeTokenAnimationPromiseRef = useRef<Record<string, Promise<any> | null>>({});
   // Per-colour roll start timestamps — avoids clobbering when multiple players roll in quick succession (4-player games)
   const diceRollStartTimestampRef = useRef<Record<string, number>>({});
   const clockOffsetRef = useRef<number>(0);
@@ -420,13 +420,7 @@ function Game({
 
       if (wasStartedEarly) {
         const elapsed = Date.now() - startTimestamp;
-        // Guarantee at least 80ms of visible rolling after 201 lands.
-        // If the queue was backlogged (elapsed > 150ms), the dice has been visually
-        // rolling since OpCode 206 arrived — clamping to 0 would cause an instant snap
-        // with no settlement animation. 80ms ensures the player always sees the cube settle.
-        remainingDelay = elapsed > 400
-          ? 0                             // >400ms elapsed → already rolled long enough, snap it
-          : Math.max(80, 150 - elapsed);  // otherwise guarantee at least 80ms more
+        remainingDelay = Math.max(0, 150 - elapsed);
         delete diceRollStartTimestampRef.current[colour];
       } else {
         // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
@@ -509,10 +503,10 @@ function Game({
                     resolve();
                   }, FORWARD_TOKEN_TRANSITION_TIME);
                 });
-                activeTokenAnimationPromiseRef.current = animPromise;
+                activeTokenAnimationPromiseRef.current[colour] = animPromise;
               } else {
                 const animPromise = moveAndCapture(targetToken, roll);
-                activeTokenAnimationPromiseRef.current = animPromise;
+                activeTokenAnimationPromiseRef.current[colour] = animPromise;
               }
             }
             // NOTE: Do NOT call onComplete() here — the finally block below always calls it
@@ -599,14 +593,15 @@ function Game({
         // LOCAL player or 207-fast-path animation: already animating — await completion then reconcile
         optimisticTokenMovesRef.current.delete(moveKey);
         console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
-        if (activeTokenAnimationPromiseRef.current) {
+        const animPromise = activeTokenAnimationPromiseRef.current[colour];
+        if (animPromise) {
           console.log('[OPTIMISTIC] Awaiting active optimistic animation before resolving...');
           // Cap at 2000ms: a stale/hung promise must NEVER block the queue indefinitely
           await Promise.race([
-            activeTokenAnimationPromiseRef.current,
+            animPromise,
             new Promise<void>(resolve => setTimeout(resolve, 2000)),
           ]);
-          activeTokenAnimationPromiseRef.current = null;
+          activeTokenAnimationPromiseRef.current[colour] = null;
         }
         reconcileAfterAnimation();
       } else {
@@ -617,6 +612,12 @@ function Game({
         optimisticTokenMovesRef.current.add(moveKey);
         try {
           if (data.isUnlock) {
+            // Check if the token is already unlocked and positioned at start coordinates
+            if (!token.isLocked && areCoordsEqual(token.coordinates, TOKEN_START_COORDINATES[colour])) {
+              console.log('[ALL] Skipping unlock animation: Token is already unlocked.', colour, data.id);
+              reconcileAfterAnimation();
+              return;
+            }
             dispatch(setIsAnyTokenMoving(true));
             setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
             dispatch(unlockAndAlignTokens({ colour, id: data.id }));
@@ -629,6 +630,13 @@ function Game({
               }, FORWARD_TOKEN_TRANSITION_TIME);
             });
           } else {
+            // Check if the token is already at the final destination coordinate
+            const finalCoord = data.path && data.path.length > 0 ? data.path[data.path.length - 1] : null;
+            if (finalCoord && areCoordsEqual(token.coordinates, finalCoord)) {
+              console.log('[ALL] Skipping move animation: Token is already at the final destination.', colour, data.id);
+              reconcileAfterAnimation();
+              return;
+            }
             const stepCount = data.path.length;
             await moveAndCapture(token, stepCount);
             reconcileAfterAnimation();
@@ -659,7 +667,6 @@ function Game({
 
       if (opCode === 200) {
         // STATE_SYNC
-        optimisticTokenMovesRef.current.clear();
         if (typeof parsed.matchStarted === 'boolean') {
           setMatchStarted(parsed.matchStarted);
         }
@@ -908,11 +915,11 @@ function Game({
                   resolve();
                 }, FORWARD_TOKEN_TRANSITION_TIME);
               });
-              activeTokenAnimationPromiseRef.current = animPromise;
+              activeTokenAnimationPromiseRef.current[movingColour] = animPromise;
             } else {
               // Use authoritative stepCount for the animation (not raw diceNumber)
               const animPromise = moveAndCapture(movingToken, earlyStepCount);
-              activeTokenAnimationPromiseRef.current = animPromise;
+              activeTokenAnimationPromiseRef.current[movingColour] = animPromise;
             }
           }
         }
