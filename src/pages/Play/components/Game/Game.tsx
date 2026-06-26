@@ -60,7 +60,7 @@ export const OnlineGameContext = createContext<{
   amHost: boolean;
   optimisticTokenMovesRef?: React.MutableRefObject<Set<string>>;
   onTokenMove?: (colour: TPlayerColour, id: number, isUnlock: boolean) => void;
-  diceRollStartTimestampRef?: React.MutableRefObject<number>;
+  diceRollStartTimestampRef?: React.MutableRefObject<Record<string, number>>;
   turnDeadlineMs?: number;
   activeTokenAnimationPromiseRef?: React.MutableRefObject<Promise<any> | null>;
   clockOffsetRef?: React.MutableRefObject<number>;
@@ -263,7 +263,8 @@ function Game({
 
   const optimisticTokenMovesRef = useRef<Set<string>>(new Set());
   const activeTokenAnimationPromiseRef = useRef<Promise<any> | null>(null);
-  const diceRollStartTimestampRef = useRef<number>(0);
+  // Per-colour roll start timestamps — avoids clobbering when multiple players roll in quick succession (4-player games)
+  const diceRollStartTimestampRef = useRef<Record<string, number>>({});
   const clockOffsetRef = useRef<number>(0);
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef<boolean>(false);
@@ -393,9 +394,8 @@ function Game({
       dispatch(deactivateTokensOfAllPlayers());
       dispatch(setCurrentPlayerColour(nextColour));
 
-      if (diceRollStartTimestampRef.current) {
-        diceRollStartTimestampRef.current = 0;
-      }
+      // Clear all pending roll start timestamps on turn change
+      diceRollStartTimestampRef.current = {};
 
       // Clear dice rolling/placeholder states for ALL players on turn change.
       // Keep last diceNumber visible (don't reset to -1) so the face stays on
@@ -415,13 +415,13 @@ function Game({
       const roll = data.roll;
 
       let remainingDelay = 0;
-      const startTimestamp = diceRollStartTimestampRef.current;
+      const startTimestamp = diceRollStartTimestampRef.current[colour] ?? 0;
       const wasStartedEarly = startTimestamp > 0;
 
       if (wasStartedEarly) {
         const elapsed = Date.now() - startTimestamp;
         remainingDelay = Math.max(0, 150 - elapsed);
-        diceRollStartTimestampRef.current = 0;
+        delete diceRollStartTimestampRef.current[colour];
       } else {
         // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
         dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
@@ -509,7 +509,7 @@ function Game({
                 activeTokenAnimationPromiseRef.current = animPromise;
               }
             }
-            onComplete?.();
+            // NOTE: Do NOT call onComplete() here — the finally block below always calls it
             return;
           }
 
@@ -735,9 +735,11 @@ function Game({
       } else if (opCode === 201) {
         // DICE_ROLLED — await the dice rolling animation so that the queue
         // doesn't process subsequent TOKEN_MOVED messages until the dice settles.
-        await new Promise<void>((resolve) => {
-          allClientsApplyDiceResult(parsed, resolve);
-        });
+        // Safety net: cap at 2500ms so a bug can't block the queue indefinitely.
+        await Promise.race([
+          new Promise<void>((resolve) => { allClientsApplyDiceResult(parsed, resolve); }),
+          new Promise<void>((resolve) => { setTimeout(resolve, 2500); }),
+        ]);
 
       } else if (opCode === 202) {
         // TOKEN_MOVED
@@ -835,9 +837,9 @@ function Game({
         if (rollingColour && rollingColour !== myPlayerColourRef.current) {
           dispatch(setIsPlaceholderShowing({ colour: rollingColour, isPlaceholderShowing: true }));
           dispatch(setIsVisualRolling({ colour: rollingColour, isVisualRolling: true }));
-          // Start timing locally using local Date.now() to avoid server clock skew issues.
-          diceRollStartTimestampRef.current = Date.now();
-          console.log(`[DICE ROLL START] Started rolling animation for ${rollingColour}, localStart=${diceRollStartTimestampRef.current}`);
+          // Store per-colour to avoid clobbering timestamps in 4-player games
+          diceRollStartTimestampRef.current[rollingColour] = Date.now();
+          console.log(`[DICE ROLL START] Started rolling animation for ${rollingColour}, localStart=${diceRollStartTimestampRef.current[rollingColour]}`);
         }
         return;
       }

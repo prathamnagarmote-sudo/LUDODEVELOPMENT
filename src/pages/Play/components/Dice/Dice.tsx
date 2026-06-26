@@ -89,7 +89,7 @@ function Dice({ colour, onDiceClick, playerName }: Props) {
       dispatch(setIsPlaceholderShowing({ colour, isPlaceholderShowing: true }));
       dispatch(setIsVisualRolling({ colour, isVisualRolling: true }));
       if (onlineContext.diceRollStartTimestampRef) {
-        onlineContext.diceRollStartTimestampRef.current = Date.now();
+        onlineContext.diceRollStartTimestampRef.current[colour] = Date.now();
       }
 
       try {
