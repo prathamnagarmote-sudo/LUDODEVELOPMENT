@@ -420,7 +420,13 @@ function Game({
 
       if (wasStartedEarly) {
         const elapsed = Date.now() - startTimestamp;
-        remainingDelay = Math.max(0, 150 - elapsed);
+        // Guarantee at least 80ms of visible rolling after 201 lands.
+        // If the queue was backlogged (elapsed > 150ms), the dice has been visually
+        // rolling since OpCode 206 arrived — clamping to 0 would cause an instant snap
+        // with no settlement animation. 80ms ensures the player always sees the cube settle.
+        remainingDelay = elapsed > 400
+          ? 0                             // >400ms elapsed → already rolled long enough, snap it
+          : Math.max(80, 150 - elapsed);  // otherwise guarantee at least 80ms more
         delete diceRollStartTimestampRef.current[colour];
       } else {
         // Fallback: If not started early (e.g. reconnect/packet drop), just roll for 150ms
@@ -590,33 +596,46 @@ function Game({
       };
 
       if (isOptimistic) {
-        // LOCAL player auto-move: already animating — await completion then reconcile
+        // LOCAL player or 207-fast-path animation: already animating — await completion then reconcile
         optimisticTokenMovesRef.current.delete(moveKey);
         console.log('[OPTIMISTIC] Skipping visual animation of own token move — already animated.');
         if (activeTokenAnimationPromiseRef.current) {
           console.log('[OPTIMISTIC] Awaiting active optimistic animation before resolving...');
-          await activeTokenAnimationPromiseRef.current;
+          // Cap at 2000ms: a stale/hung promise must NEVER block the queue indefinitely
+          await Promise.race([
+            activeTokenAnimationPromiseRef.current,
+            new Promise<void>(resolve => setTimeout(resolve, 2000)),
+          ]);
           activeTokenAnimationPromiseRef.current = null;
         }
         reconcileAfterAnimation();
       } else {
-        // REMOTE player move: await visual animation to maintain sequence and prevent concurrency glitches
-        if (data.isUnlock) {
-          dispatch(setIsAnyTokenMoving(true));
-          setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
-          dispatch(unlockAndAlignTokens({ colour, id: data.id }));
-          dispatch(deactivateAllTokens(colour));
-          await new Promise<void>((resolve) => {
-            setTimeout(() => {
-              dispatch(setIsAnyTokenMoving(false));
-              reconcileAfterAnimation();
-              resolve();
-            }, FORWARD_TOKEN_TRANSITION_TIME);
-          });
-        } else {
-          const stepCount = data.path.length;
-          await moveAndCapture(token, stepCount);
-          reconcileAfterAnimation();
+        // REMOTE player move: await visual animation to maintain sequence.
+        // Guard moveKey in optimisticTokenMovesRef BEFORE the animation so a late OpCode 207
+        // fast-path cannot start a DUPLICATE animation for the same token (causing the
+        // "token snapping back to quadrant" glitch caused by network message reordering).
+        optimisticTokenMovesRef.current.add(moveKey);
+        try {
+          if (data.isUnlock) {
+            dispatch(setIsAnyTokenMoving(true));
+            setTokenTransitionTime(FORWARD_TOKEN_TRANSITION_TIME, token);
+            dispatch(unlockAndAlignTokens({ colour, id: data.id }));
+            dispatch(deactivateAllTokens(colour));
+            await new Promise<void>((resolve) => {
+              setTimeout(() => {
+                dispatch(setIsAnyTokenMoving(false));
+                reconcileAfterAnimation();
+                resolve();
+              }, FORWARD_TOKEN_TRANSITION_TIME);
+            });
+          } else {
+            const stepCount = data.path.length;
+            await moveAndCapture(token, stepCount);
+            reconcileAfterAnimation();
+          }
+        } finally {
+          // Always remove the guard — even on error/timeout — so the ref doesn't grow unbounded
+          optimisticTokenMovesRef.current.delete(moveKey);
         }
       }
     };
@@ -742,8 +761,13 @@ function Game({
         ]);
 
       } else if (opCode === 202) {
-        // TOKEN_MOVED
-        await allClientsApplyTokenMove(parsed);
+        // TOKEN_MOVED — 4000ms safety net so a hung token animation never permanently blocks the queue.
+        // Without this cap, any animation failure would cause subsequent OpCode 201 (dice roll)
+        // to sit in the queue indefinitely — making the dice spin for 4-5+ seconds.
+        await Promise.race([
+          allClientsApplyTokenMove(parsed),
+          new Promise<void>(resolve => setTimeout(resolve, 4000)),
+        ]);
 
       } else if (opCode === 203) {
         // TURN_CHANGE — processed sequentially so the turn arrow and timer only
