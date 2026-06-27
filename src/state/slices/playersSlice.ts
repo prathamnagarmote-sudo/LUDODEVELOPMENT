@@ -101,6 +101,13 @@ const reducers = {
       state.currentPlayerColour = 'blue';
       return;
     }
+
+    // Reset consecutive sixes for the player whose turn is ending
+    const endingPlayer = state.players.find((p) => p.colour === currentPlayerColour);
+    if (endingPlayer) {
+      endingPlayer.numberOfConsecutiveSix = 0;
+    }
+
     const currentPlayerIndex = playerSequence.indexOf(currentPlayerColour);
     const nextPlayerIndex =
       currentPlayerIndex === playerSequence.length - 1 ? 0 : currentPlayerIndex + 1;

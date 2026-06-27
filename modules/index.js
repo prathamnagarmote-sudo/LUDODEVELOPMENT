@@ -556,7 +556,6 @@ function broadcastTurnChange(state, dispatcher, nextColour) {
     state.turnDeadlineMs = newDeadlineMs;
     state.diceNumber = -1;
     state.hasRolled = false;
-    state.consecutiveSixes = 0;
     state.botRollTick = null;
     state.botMoveTick = null;
     state.noMovableTokensTimer = null;
@@ -572,6 +571,7 @@ function broadcastTurnChange(state, dispatcher, nextColour) {
 function nextTurn(state, dispatcher) {
     state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
     var nextColour = state.playerSequence[state.currentTurnIndex];
+    state.consecutiveSixes = 0;
     broadcastTurnChange(state, dispatcher, nextColour);
 }
 function resolvePostMoveTurnHandoff(state, dispatcher, colour, diceNumber, hasTokenReachedHome, isCaptured) {

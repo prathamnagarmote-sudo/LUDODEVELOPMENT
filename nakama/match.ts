@@ -668,7 +668,6 @@ function broadcastTurnChange(
   state.turnDeadlineMs = newDeadlineMs;
   state.diceNumber = -1;
   state.hasRolled = false;
-  state.consecutiveSixes = 0;
   state.botRollTick = null;
   state.botMoveTick = null;
   state.noMovableTokensTimer = null;
@@ -686,6 +685,7 @@ function broadcastTurnChange(
 function nextTurn(state: any, dispatcher: nkruntime.MatchDispatcher) {
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.playerSequence.length;
   const nextColour = state.playerSequence[state.currentTurnIndex];
+  state.consecutiveSixes = 0;
   broadcastTurnChange(state, dispatcher, nextColour);
 }
 
